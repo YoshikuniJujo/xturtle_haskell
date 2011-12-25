@@ -80,9 +80,9 @@ turtle = ttl ++ reverse (map (second $ \x -> - x) ttl)
 reverseY :: Position -> Point -> Point
 reverseY y0 (Point x y) = Point x $ 2 * y0 - y
 
-displayTurtle :: (Display, Window, GC) -> Position -> Position -> Int -> IO ()
-displayTurtle xstat x y d =
-	makeFilledPolygon xstat $ makeTurtle x y $ fromIntegral d * pi / 180
+displayTurtle :: (Display, Window, GC) -> Position -> Position -> Double -> IO ()
+displayTurtle xstat x y r =
+	makeFilledPolygon xstat $ makeTurtle x y r
 
 setForegroundColor :: (Display, Window, GC) -> Pixel -> IO ()
 setForegroundColor (dpy, _, gc) clr = setForeground dpy gc clr
@@ -100,16 +100,16 @@ main = do
 				ch <- getKeyChar xstat ev
 				ns <- case ch of
 					't' -> fmap (flip (,) x) $ kameTurn xstat b x
-					' ' -> fmap ((,) b) $ kameForward xstat b x
+					' ' -> fmap ((,) b) $ kameForward xstat b x 100
 					_ -> return (b, x)
 				return (ns, ch /= 'q')
 	closeWindow xstat
 
-forward :: IO ()
-forward = do
+forward :: Position -> IO ()
+forward dx = do
 	xstat <- readIORef xstatRef
 	(b, x) <- readIORef kameStat
-	x' <- kameForward xstat b x
+	x' <- kameForward xstat b x dx
 	writeIORef kameStat (b, x')
 
 turn :: IO ()
@@ -119,30 +119,31 @@ turn = do
 	b' <- kameTurn xstat b x
 	writeIORef kameStat (b', x)
 
-kameForward :: (Display, Window, GC) -> Bool -> Position -> IO Position
-kameForward xstat@(dpy, _, _) b x0 = do
+kameForward :: (Display, Window, GC) -> Bool -> Position -> Position -> IO Position
+kameForward xstat@(dpy, _, _) b x0 dx = do
 	doWhile x0 $ \x -> do
 		setForegroundColor xstat 0xffffff
 		displayTurtle xstat (x - if b then 10 else - 10) 150 $
-			if b then 0 else 180
+			if b then 0 else pi
 		setForegroundColor xstat 0x000000
-		displayTurtle xstat x 150 $ if b then 0 else 180
+		displayTurtle xstat x 150 $ if b then 0 else pi
 		flush dpy
 		threadDelay 30000
 		return (x + if b then 10 else - 10,
-			if b then x < x0 + 100 else x > x0 - 100)
-	return $ (x0 + if b then 100 else - 100)
+			if b then x < x0 + dx else x > x0 - dx)
+	return $ (x0 + if b then dx else - dx)
 
 kameTurn :: (Display, Window, GC) -> Bool -> Position -> IO Bool
 kameTurn xstat@(dpy, _, _) b x = do
-	doWhile (if b then 0 else 180) $ \d -> do
+	doWhile (if b then 0 else pi) $ \d -> do
 		setForegroundColor xstat 0xffffff
-		displayTurtle xstat x 150 $ d - 10
+		displayTurtle xstat x 150 $ d - (10 * pi / 180)
 		setForegroundColor xstat 0x000000
 		displayTurtle xstat x 150 d
 		flush dpy
 		threadDelay 30000
-		return (d + 10, d < if b then 180 else 360)
+		return (d + 10 * pi / 180,
+			d < if b then pi - 10 * pi / 180 else 2 * pi - 10 * pi / 180)
 	return $ not b
 
 getKeyChar :: (Display, Window, GC) -> Event -> IO Char
