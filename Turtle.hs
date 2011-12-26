@@ -129,8 +129,17 @@ forward dx = do
 backward :: Position -> IO ()
 backward = forward . negate
 
+home :: IO ()
+home = do
+	(_, _, s) <- readIORef kameStat
+	writeIORef kameStat (0, (150, 150), s)
+	forward 0
+
 left :: Int -> IO ()
 left = turn . negate
+
+right :: Int -> IO ()
+right = turn
 
 turn :: Int -> IO ()
 turn d = do
