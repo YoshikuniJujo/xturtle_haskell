@@ -4,11 +4,15 @@ import Graphics.X11
 import Data.Bits
 import Graphics.X11.Xlib.Extras
 import Control.Monad.Tools
+import Control.Monad
 import Data.Char
 import Control.Arrow (second)
 import Control.Concurrent
 import System.IO.Unsafe
 import Data.IORef
+
+winBuf :: IORef Pixmap
+winBuf = unsafePerformIO $ newIORef undefined
 
 kameStat :: IORef (Int, (Position, Position), Double)
 kameStat = unsafePerformIO $ newIORef (0, (150, 150), 1)
@@ -29,12 +33,17 @@ makeWindow = do
 		black = blackPixel dpy scr
 		white = whitePixel dpy scr
 	rootWin <- rootWindow dpy scr
-	win <- createSimpleWindow dpy rootWin 0 0 300 300 1 black white
+	win <- createSimpleWindow dpy rootWin 0 0 800 800 1 black white
+	pm <- createPixmap dpy win 800 800 $ defaultDepth dpy scr
 	gc <- createGC dpy win
+	setForegroundColor (dpy, win, gc) 0xffffff
+	fillRectangle dpy pm gc 0 0 800 800
+	setForegroundColor (dpy, win, gc) 0x000000
 	selectInput dpy win $ exposureMask .|. keyPressMask
 	mapWindow dpy win
 	flush dpy
 	writeIORef xstatRef (dpy, win, gc)
+	writeIORef winBuf pm
 	return (dpy, win, gc)
 
 makeFilledPolygon :: (Display, Window, GC) -> [Point] -> IO ()
@@ -115,8 +124,11 @@ main = do
 						$ kameTurn xstat b 30 (x, y) 0.4
 					' ' -> fmap ((,) b)
 						$ kameForward xstat b (x, y) 50 0.4
+					'r' -> fmap (flip (,) (x, y))
+						$ kameTurn xstat b 720 (x, y) 1
 					_ -> return (b, (x, y))
 				return (ns, ch /= 'q')
+			_ -> print ev >> return ((b, (x, y)), True)
 	closeWindow xstat
 
 forward :: Position -> IO ()
@@ -141,6 +153,9 @@ left = turn . negate
 right :: Int -> IO ()
 right = turn
 
+circle :: Position -> IO ()
+circle size = replicateM_ 36 $ forward (round $ fromIntegral size * pi / 18) >> left 10
+
 turn :: Int -> IO ()
 turn d = do
 	xstat <- readIORef xstatRef
@@ -150,20 +165,27 @@ turn d = do
 
 clear :: IO ()
 clear = do
-	(dpy, win, _) <- readIORef xstatRef
-	clearWindow dpy win
+	buf <- readIORef winBuf
+	(dpy, win, gc) <- readIORef xstatRef
+	setForegroundColor (dpy, win, gc) 0xffffff
+	fillRectangle dpy buf gc 0 0 800 800
+	setForegroundColor (dpy, win, gc) 0x000000
+--	clearWindow dpy buf
+	copyArea dpy buf win gc 0 0 800 800 0 0
 	flush dpy
 	writeIORef drawRef $ return ()
 	forward 0
 
 shapeSize :: Double -> IO ()
 shapeSize ns = do
-	xstat@(dpy, _, _) <- readIORef xstatRef
+	buf <- readIORef winBuf
+	xstat@(dpy, win, gc) <- readIORef xstatRef
 	(b, (x, y), s) <- readIORef kameStat
-	setForegroundColor xstat 0xffffff
-	displayTurtle xstat x 150 b $ s * 0.3
-	setForegroundColor xstat 0x000000
-	displayTurtle xstat x 150 b $ ns * 0.3
+	setForegroundColor (dpy, buf, gc) 0xffffff
+	displayTurtle (dpy, buf, gc) x 150 b $ s * 0.3
+	setForegroundColor (dpy, buf, gc) 0x000000
+	displayTurtle (dpy, buf, gc) x 150 b $ ns * 0.3
+	copyArea dpy buf win gc 0 0 800 800 0 0
 	flush dpy
 	writeIORef kameStat (b, (x, y), ns)
 
@@ -171,6 +193,7 @@ kameForward ::
 	(Display, Window, GC) -> Int -> (Position, Position) -> Position -> Double
 		-> IO (Position, Position)
 kameForward xstat@(dpy, win, gc) d0 (x0, y0) len s = do
+	buf <- readIORef winBuf
 	drawLines <- readIORef drawRef
 	let	cs = cos $ fromIntegral d0 * pi / 180 :: Double
 		sn = sin $ fromIntegral d0 * pi / 180 :: Double
@@ -178,51 +201,56 @@ kameForward xstat@(dpy, win, gc) d0 (x0, y0) len s = do
 		else doWhile (fromIntegral x0, fromIntegral y0) $ \(x, y) -> do
 			let	nx = x + 10 * cs
 				ny = y + 10 * sn
-			setForegroundColor xstat 0xffffff
-			displayTurtle xstat (round x) (round y) d0 s
-			setForegroundColor xstat 0x000000
+			setForegroundColor (dpy, buf, gc) 0xffffff
+			displayTurtle (dpy, buf, gc) (round x) (round y) d0 s
+			setForegroundColor (dpy, buf, gc) 0x000000
 			drawLines
-			displayTurtle xstat (round nx) (round ny) d0 s
-			drawLine dpy win gc x0 y0 (round nx) (round ny)
+			displayTurtle (dpy, buf, gc) (round nx) (round ny) d0 s
+			drawLine dpy buf gc x0 y0 (round nx) (round ny)
+			copyArea dpy buf win gc 0 0 800 800 0 0
 			flush dpy
 			threadDelay 30000
 			return ((nx, ny),
 				(nx + 10 * cs - fromIntegral x0) ^ 2 +
 					(ny + 10 * sn - fromIntegral y0) ^ 2 < (fromIntegral len) ^ 2)
-	setForegroundColor xstat 0xffffff
-	displayTurtle xstat (round x') (round y') d0 s
-	setForegroundColor xstat 0x000000
+	setForegroundColor (dpy, buf, gc) 0xffffff
+	displayTurtle (dpy, buf, gc) (round x') (round y') d0 s
+	setForegroundColor (dpy, buf, gc) 0x000000
 	drawLines
-	displayTurtle xstat (x0 + round (fromIntegral len * cs))
+	displayTurtle (dpy, buf, gc) (x0 + round (fromIntegral len * cs))
 		(y0 + round (fromIntegral len * sn)) d0 s
-	let draw = drawLine dpy win gc x0 y0
+	let draw = drawLine dpy buf gc x0 y0
 		(x0 + round (fromIntegral len * cs))
 		(y0 + round (fromIntegral len * sn))
 	draw
 	writeIORef drawRef $ drawLines >> draw
+	copyArea dpy buf win gc 0 0 800 800 0 0
 	flush dpy
 	return $ (x0 + round (fromIntegral len * cs),
 		y0 + round (fromIntegral len * sn))
 
 kameTurn ::
 	(Display, Window, GC) -> Int -> Int -> (Position, Position) -> Double -> IO Int
-kameTurn xstat@(dpy, _, _) d0 dd (x, y) s = do
+kameTurn xstat@(dpy, win, gc) d0 dd (x, y) s = do
 	drawLines <- readIORef drawRef
+	buf <- readIORef winBuf
 	let	nd = d0 + dd
 		ten = signum dd * 10
 	d' <- doWhile d0 $ \d -> do
-		setForegroundColor xstat 0xffffff
-		displayTurtle xstat x y d s
-		setForegroundColor xstat 0x000000
-		displayTurtle xstat x y (d + ten) s
+		setForegroundColor (dpy, buf, gc) 0xffffff
+		displayTurtle (dpy, buf, gc) x y d s
+		setForegroundColor (dpy, buf, gc) 0x000000
+		displayTurtle (dpy, buf, gc) x y (d + ten) s
+		copyArea dpy buf win gc 0 0 800 800 0 0
 		drawLines
 		flush dpy
 		threadDelay 30000
 		return (d + ten, if ten > 0 then d + 20 < nd else d - 20 > nd)
-	setForegroundColor xstat 0xffffff
-	displayTurtle xstat x y d' s
-	setForegroundColor xstat 0x000000
-	displayTurtle xstat x y nd s
+	setForegroundColor (dpy, buf, gc) 0xffffff
+	displayTurtle (dpy, buf, gc) x y d' s
+	setForegroundColor (dpy, buf, gc) 0x000000
+	displayTurtle (dpy, buf, gc) x y nd s
+	copyArea dpy buf win gc 0 0 800 800 0 0
 	flush dpy
 	return $ if nd >= 360 then nd `mod` 360 else nd
 
