@@ -1,4 +1,14 @@
-module Turtle where
+module Turtle (
+	Position,
+	initTurtle,
+	right,
+	left,
+	forward,
+	backward,
+	clear,
+	home,
+	shapeSize
+) where
 
 import Graphics.X11
 import Data.Bits
