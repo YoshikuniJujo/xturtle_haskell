@@ -93,21 +93,21 @@ setForegroundColor (dpy, _, gc) clr = setForeground dpy gc clr
 
 main = do
 	xstat@(dpy, _, _) <- makeWindow
-	doWhile (0, 150) $ \(b, x) -> allocaXEvent $ \e -> do
+	doWhile (0, (150, 150)) $ \(b, (x, y)) -> allocaXEvent $ \e -> do
 		nextEvent dpy e
 		ev <- getEvent e
 		case ev of
 			ExposeEvent {} -> do
 				displayTurtle xstat 150 150 0 0.4
-				return ((b, x), True)
+				return ((b, (x, y)), True)
 			KeyEvent {} -> do
 				ch <- getKeyChar xstat ev
 				ns <- case ch of
-					't' -> fmap (flip (,) x)
-						$ kameTurn xstat b x 0.4
+					't' -> fmap (flip (,) (x, y))
+						$ kameTurn xstat b 30 (x, y) 0.4
 					' ' -> fmap ((,) b)
-						$ kameForward xstat b (x, 150) 100 0.4
-					_ -> return (b, x)
+						$ kameForward xstat b (x, y) 100 0.4
+					_ -> return (b, (x, y))
 				return (ns, ch /= 'q')
 	closeWindow xstat
 
@@ -115,14 +115,14 @@ forward :: Position -> IO ()
 forward dx = do
 	xstat <- readIORef xstatRef
 	(b, (x, y), s) <- readIORef kameStat
-	x' <- kameForward xstat b (x, 150) dx $ s * 0.3
-	writeIORef kameStat (b, (x', y), s)
+	(x', y') <- kameForward xstat b (x, y) dx $ s * 0.3
+	writeIORef kameStat (b, (x', y'), s)
 
-turn :: IO ()
-turn = do
+turn :: Int -> IO ()
+turn d = do
 	xstat <- readIORef xstatRef
 	(b, (x, y), s) <- readIORef kameStat
-	b' <- kameTurn xstat b x $ s * 0.3
+	b' <- kameTurn xstat b d (x, y) $ s * 0.3
 	writeIORef kameStat (b', (x, y), s)
 
 shapeSize :: Double -> IO ()
@@ -137,32 +137,54 @@ shapeSize ns = do
 	writeIORef kameStat (b, (x, y), ns)
 
 kameForward ::
-	(Display, Window, GC) -> Int -> (Position, Position) -> Position -> Double -> IO Position
-kameForward xstat@(dpy, _, _) d0 (x0, y0) dx s = do
-	doWhile x0 $ \x -> do
-		let nx = x + if d0 == 0 then 10 else - 10
+	(Display, Window, GC) -> Int -> (Position, Position) -> Position -> Double
+		-> IO (Position, Position)
+kameForward xstat@(dpy, win, gc) d0 (x0, y0) len s = do
+	let	cs = cos $ fromIntegral d0 * pi / 180 :: Double
+		sn = sin $ fromIntegral d0 * pi / 180 :: Double
+	(x', y') <- doWhile (fromIntegral x0, fromIntegral y0) $ \(x, y) -> do
+		let	nx = x + 10 * cs
+			ny = y + 10 * sn
 		setForegroundColor xstat 0xffffff
-		displayTurtle xstat (x - if d0 == 0 then 10 else - 10) 150
-			(if d0 == 0 then 0 else 180) s
+		displayTurtle xstat (round x) (round y) d0 s
 		setForegroundColor xstat 0x000000
-		displayTurtle xstat x 150 (if d0 == 0 then 0 else 180) s
+		displayTurtle xstat (round nx) (round ny) d0 s
+		drawLine dpy win gc x0 y0 (round nx) (round ny)
 		flush dpy
 		threadDelay 30000
-		return (x + if d0 == 0 then 10 else - 10,
-			if d0 == 0 then x < x0 + dx else x > x0 - dx)
-	return $ (x0 + if d0 == 0 then dx else - dx)
+		return ((nx, ny),
+			(nx + 10 * cs - fromIntegral x0) ^ 2 +
+				(ny + 10 * sn - fromIntegral y0) ^ 2 < (fromIntegral len) ^ 2)
+	setForegroundColor xstat 0xffffff
+	displayTurtle xstat (round x') (round y') d0 s
+	setForegroundColor xstat 0x000000
+	displayTurtle xstat (x0 + round (fromIntegral len * cs))
+		(y0 + round (fromIntegral len * sn)) d0 s
+	drawLine dpy win gc x0 y0
+		(x0 + round (fromIntegral len * cs))
+		(y0 + round (fromIntegral len * sn))
+	flush dpy
+	return $ (x0 + round (fromIntegral len * cs),
+		y0 + round (fromIntegral len * sn))
 
-kameTurn :: (Display, Window, GC) -> Int -> Position -> Double -> IO Int
-kameTurn xstat@(dpy, _, _) d0 x s = do
-	doWhile d0 $ \d -> do
+kameTurn ::
+	(Display, Window, GC) -> Int -> Int -> (Position, Position) -> Double -> IO Int
+kameTurn xstat@(dpy, _, _) d0 dd (x, y) s = do
+	let nd = d0 + dd
+	d' <- doWhile d0 $ \d -> do
 		setForegroundColor xstat 0xffffff
-		displayTurtle xstat x 150 (d - 10) s
+		displayTurtle xstat x y d s
 		setForegroundColor xstat 0x000000
-		displayTurtle xstat x 150 d s
+		displayTurtle xstat x y (d + 10) s
 		flush dpy
 		threadDelay 30000
-		return (d + 10, d < d0 + 180)
-	return $ if d0 == 0 then 180 else 0
+		return (d + 10, d + 20 < nd)
+	setForegroundColor xstat 0xffffff
+	displayTurtle xstat x y d' s
+	setForegroundColor xstat 0x000000
+	displayTurtle xstat x y nd s
+	flush dpy
+	return $ if nd >= 360 then nd `mod` 360 else nd
 
 getKeyChar :: (Display, Window, GC) -> Event -> IO Char
 getKeyChar (dpy, _, _) ev = do
