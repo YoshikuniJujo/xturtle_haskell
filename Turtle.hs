@@ -3,7 +3,7 @@ module Turtle where
 import World
 import Data.IORef
 import System.IO.Unsafe
-import Control.Arrow
+import Control.Arrow (second)
 import Control.Monad.Tools
 import Control.Monad
 import Control.Concurrent
@@ -43,7 +43,7 @@ main = do
 initTurtle :: IO ()
 initTurtle = do
 	w <- openWorld
-	setCursorPos w 100 100
+	setCursorPos w 100 200
 	setCursorDir w 0
 	setCursorSize w 2
 	setCursorShape w displayTurtle
@@ -89,6 +89,9 @@ forward len = do
 	flushWorld w
 	return ()
 
+backward :: Position -> IO ()
+backward = forward . negate
+
 penUp :: IO ()
 penUp = writeIORef penState PenUp
 
@@ -116,6 +119,28 @@ rotate d = do
 	replicateM_ (fromIntegral $ abs d `div` step) $
 		rotateBy (signum d * step) >> threadDelay 10000
 	rotateBy $ signum d * (abs d `mod` step)
+
+right :: Int -> IO ()
+right = rotate
+
+left :: Int -> IO ()
+left = rotate . negate
+
+circle :: Position -> IO ()
+circle r = replicateM_ 36 $ do
+	forward $ round $ (2 * fromIntegral r * pi / 36 :: Double)
+	left 10
+
+home :: IO ()
+home = do
+	w <- readIORef world
+	setCursorPos w 100 200
+	setCursorDir w 0
+	drawWorld w
+	flushWorld w
+
+clean :: IO ()
+clean = readIORef world >>= \w -> cleanBG w >> drawWorld w >> flushWorld w
 
 closeTurtle :: IO ()
 closeTurtle = readIORef world >>= closeWorld

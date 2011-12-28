@@ -15,6 +15,7 @@ module World (
 	isDeleteEvent,
 	makeFilledPolygonCursor,
 	lineToBG,
+	cleanBG,
 
 	Event(..),
 	Position,
@@ -136,6 +137,13 @@ makeFilledPolygonCursor w ps =
 
 lineToBG :: World -> Position -> Position -> Position -> Position -> IO ()
 lineToBG w x1 y1 x2 y2 = drawLine (wDisplay w) (wBG w) (wGC w) x1 y1 x2 y2
+
+cleanBG :: World -> IO ()
+cleanBG w = do
+	(_, _, _, width, height, _, _) <- getGeometry (wDisplay w) (wWindow w)
+	gc <- createGC (wDisplay w) (wWindow w)
+	setForeground (wDisplay w) gc 0xffffff
+	fillRectangle (wDisplay w) (wBG w) gc 0 0 width height
 
 flushWorld :: World -> IO ()
 flushWorld = flush . wDisplay
