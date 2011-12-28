@@ -1,270 +1,162 @@
-module Turtle (
-	Position,
-	initTurtle,
-	right,
-	left,
-	forward,
-	backward,
-	clear,
-	home,
-	shapeSize
-) where
+module Turtle where
 
-import Graphics.X11
-import Data.Bits
-import Graphics.X11.Xlib.Extras
+import World
+import Data.IORef
+import System.IO.Unsafe
+import Control.Arrow
 import Control.Monad.Tools
 import Control.Monad
-import Data.Char
-import Control.Arrow (second)
 import Control.Concurrent
-import System.IO.Unsafe
-import Data.IORef
 
-winBuf :: IORef Pixmap
-winBuf = unsafePerformIO $ newIORef undefined
+world :: IORef World
+world = unsafePerformIO $ newIORef undefined
 
-kameStat :: IORef (Int, (Position, Position), Double)
-kameStat = unsafePerformIO $ newIORef (0, (150, 150), 1)
+data PenState = PenUp | PenDown
 
-drawRef :: IORef (IO ())
-drawRef = unsafePerformIO $ newIORef $ return ()
+doesPenDown :: PenState -> Bool
+doesPenDown PenUp = False
+doesPenDown PenDown = True
 
-xstatRef :: IORef (Display, Window, GC)
-xstatRef = unsafePerformIO $ newIORef (undefined, undefined, undefined)
+penState :: IORef PenState
+penState = unsafePerformIO $ newIORef PenDown
+
+main :: IO ()
+main = do
+	putStrLn "module Turtle"
+	initTurtle
+	w <- readIORef world
+	withEvent w () $ \() ev ->
+		case ev of
+			ExposeEvent{} -> do
+				drawWorld w
+				return ((), True)
+			KeyEvent{} -> do
+				ch <- eventToChar w ev
+				return ((), (ch /= 'q'))
+			ClientMessageEvent{} ->
+				return ((), not $ isDeleteEvent w ev)
+			AnyEvent{ev_event_type = 14} ->
+				return ((), True)
+			_ -> error $ "not implemented for event " ++ show ev
+	closeTurtle
 
 initTurtle :: IO ()
-initTurtle = makeWindow >> forward 0
+initTurtle = do
+	w <- openWorld
+	setCursorPos w 100 100
+	setCursorDir w 0
+	setCursorSize w 2
+	setCursorShape w displayTurtle
+	drawWorld w
+	flushWorld w
+	writeIORef world w
 
-makeWindow :: IO (Display, Window, GC)
-makeWindow = do
-	dpy <- openDisplay ""
-	let	scr = defaultScreen dpy
-		black = blackPixel dpy scr
-		white = whitePixel dpy scr
-	rootWin <- rootWindow dpy scr
-	win <- createSimpleWindow dpy rootWin 0 0 800 800 1 black white
-	pm <- createPixmap dpy win 800 800 $ defaultDepth dpy scr
-	gc <- createGC dpy win
-	setForegroundColor (dpy, win, gc) 0xffffff
-	fillRectangle dpy pm gc 0 0 800 800
-	setForegroundColor (dpy, win, gc) 0x000000
-	selectInput dpy win $ exposureMask .|. keyPressMask
-	mapWindow dpy win
-	flush dpy
-	writeIORef xstatRef (dpy, win, gc)
-	writeIORef winBuf pm
-	return (dpy, win, gc)
+shapeSize :: Double -> IO ()
+shapeSize s = do
+	w <- readIORef world
+	setCursorSize w s
+	drawWorld w
+	flushWorld w
 
-makeFilledPolygon :: (Display, Window, GC) -> [Point] -> IO ()
-makeFilledPolygon (dpy, win, gc) ps = do
-	fillPolygon dpy win gc ps nonconvex coordModeOrigin
---	flush dpy
+forward :: Position -> IO ()
+forward len = do
+	w <- readIORef world
+	(x_, y_) <- getCursorPos w
+	d <- getCursorDir w
+	let	step = signum (fromIntegral len) * 10 :: Double
+		x0 = fromIntegral x_ :: Double
+		y0 = fromIntegral y_ :: Double
+		rad = fromIntegral d * pi / 180
+		dx = step * cos rad
+		dy = step * sin rad
+	(x', y') <- doWhile (x0, y0) $ \(x, y) -> do
+		let	nx = x + dx
+			ny = y + dy
+		setCursorPos w (round x) (round y)
+--		lineToBG w (round x) (round y) (round nx) (round ny)
+		drawLine w x y nx ny
+		drawWorld w
+		flushWorld w
+		threadDelay 20000
+		return ((nx, ny),
+			(nx - x0) ** 2 + (ny - y0) ** 2 < (fromIntegral len - step) ** 2)
+	let	nx' = x0 + fromIntegral len * cos rad
+		ny' = y0 + fromIntegral len * sin rad
+	setCursorPos w (round nx') (round ny')
+--	lineToBG w (round x') (round y') (round nx') (round ny')
+	drawLine w x' y' nx' ny'
+	drawWorld w
+	flushWorld w
+	return ()
 
-closeWindow :: (Display, Window, GC) -> IO ()
-closeWindow (dpy, _, _) = closeDisplay dpy
+penUp :: IO ()
+penUp = writeIORef penState PenUp
+
+penDown :: IO ()
+penDown = writeIORef penState PenDown
+
+drawLine :: World -> Double -> Double -> Double -> Double -> IO ()
+drawLine w x1 y1 x2 y2 = do
+	ps <- readIORef penState
+	when (doesPenDown ps) $
+		lineToBG w (round x1) (round y1) (round x2) (round y2)
+
+rotateBy :: Int -> IO ()
+rotateBy dd = do
+	w <- readIORef world
+	d0 <- getCursorDir w
+	let	nd = (d0 + dd) `mod` 360
+	setCursorDir w nd
+	drawWorld w
+	flushWorld w
+
+rotate :: Int -> IO ()
+rotate d = do
+	let step = 5
+	replicateM_ (fromIntegral $ abs d `div` step) $
+		rotateBy (signum d * step) >> threadDelay 10000
+	rotateBy $ signum d * (abs d `mod` step)
+
+closeTurtle :: IO ()
+closeTurtle = readIORef world >>= closeWorld
+
+displayTurtle :: World -> Double -> Int -> Position -> Position -> IO ()
+displayTurtle w s d x y =
+	makeFilledPolygonCursor w $ map (uncurry $ addPoint $ Point x y)
+		$ map (rotatePointD d)
+		$ map (mulPoint s) turtle
 
 addPoint :: Point -> Position -> Position -> Point
 addPoint (Point x y) dx dy = Point (x + dx) (y + dy)
 
-makeTurtle :: Position -> Position -> Double -> Double -> [Point]
-makeTurtle x y rad size =
-	map (uncurry $ addPoint $ Point x y)
-		$ map (rotatePoint rad . mulPoint size) turtle
+rotatePointD :: Int -> (Position, Position) -> (Position, Position)
+rotatePointD = rotatePointR . (* pi) . (/ 180) . fromIntegral
 
-mulPoint :: Double -> (Position, Position) -> (Position, Position)
-mulPoint size (x, y) = (x `mul` size, y `mul` size)
-
-rotatePoint :: Double -> (Position, Position) -> (Position, Position)
-rotatePoint rad (x, y) =
+rotatePointR :: Double -> (Position, Position) -> (Position, Position)
+rotatePointR rad (x, y) =
 	(x `mul` cos rad - y `mul` sin rad, x `mul` sin rad + y `mul` cos rad)
 
+mulPoint :: Double -> (Position, Position) -> (Position, Position)
+mulPoint s (x, y) = (x `mul` s, y `mul` s)
+
 mul :: (Integral a, RealFrac b) => a -> b -> a
-mul x y = round $ fromIntegral x * y
+x `mul` y = round $ fromIntegral x * y
 
 turtle :: [(Position, Position)]
-turtle = ttl ++ reverse (map (second $ \x -> - x) ttl)
+turtle = ttl ++ reverse (map (second negate) ttl)
 	where
-	ttl =[
-		(- 50, 0),
-		(- 40, - 15),
-		(- 50, - 25),
-		(- 35, - 45),
-		(- 25, - 30),
-
-		(0, - 40),
-
-		(20, - 35),
-		(30, - 50),
-		(40, - 35),
-		(35, - 25),
-
-		(50, - 10),
-		(65, - 15),
-
-		(80, 0)
+	ttl = [
+		(- 10, 0),
+		(- 8, - 3),
+		(- 10, - 5),
+		(- 7, - 9),
+		(- 5, - 6),
+		(0, - 8),
+		(4, - 7),
+		(6, - 10),
+		(8, - 7),
+		(7, - 5),
+		(10, - 2),
+		(13, - 3),
+		(16, 0)
 	 ]
-
-reverseY :: Position -> Point -> Point
-reverseY y0 (Point x y) = Point x $ 2 * y0 - y
-
-displayTurtle ::
-	(Display, Window, GC) -> Position -> Position -> Int -> Double -> IO ()
-displayTurtle xstat x y d s =
-	makeFilledPolygon xstat $ makeTurtle x y (fromIntegral d * pi / 180) s
-
-setForegroundColor :: (Display, Window, GC) -> Pixel -> IO ()
-setForegroundColor (dpy, _, gc) clr = setForeground dpy gc clr
-
-main = do
-	xstat@(dpy, _, _) <- makeWindow
-	doWhile (0, (150, 150)) $ \(b, (x, y)) -> allocaXEvent $ \e -> do
-		drawLines <- readIORef drawRef
-		nextEvent dpy e
-		ev <- getEvent e
-		case ev of
-			ExposeEvent {} -> do
-				drawLines
-				displayTurtle xstat x y b 0.4
-				return ((b, (x, y)), True)
-			KeyEvent {} -> do
-				ch <- getKeyChar xstat ev
-				ns <- case ch of
-					't' -> fmap (flip (,) (x, y))
-						$ kameTurn xstat b 30 (x, y) 0.4
-					' ' -> fmap ((,) b)
-						$ kameForward xstat b (x, y) 50 0.4
-					'r' -> fmap (flip (,) (x, y))
-						$ kameTurn xstat b 720 (x, y) 1
-					_ -> return (b, (x, y))
-				return (ns, ch /= 'q')
-			_ -> print ev >> return ((b, (x, y)), True)
-	closeWindow xstat
-
-forward :: Position -> IO ()
-forward dx = do
-	xstat <- readIORef xstatRef
-	(b, (x, y), s) <- readIORef kameStat
-	(x', y') <- kameForward xstat b (x, y) dx $ s * 0.3
-	writeIORef kameStat (b, (x', y'), s)
-
-backward :: Position -> IO ()
-backward = forward . negate
-
-home :: IO ()
-home = do
-	(_, _, s) <- readIORef kameStat
-	writeIORef kameStat (0, (150, 150), s)
-	forward 0
-
-left :: Int -> IO ()
-left = turn . negate
-
-right :: Int -> IO ()
-right = turn
-
-circle :: Position -> IO ()
-circle size = replicateM_ 36 $ forward (round $ fromIntegral size * pi / 18) >> left 10
-
-turn :: Int -> IO ()
-turn d = do
-	xstat <- readIORef xstatRef
-	(b, (x, y), s) <- readIORef kameStat
-	b' <- kameTurn xstat b d (x, y) $ s * 0.3
-	writeIORef kameStat (b', (x, y), s)
-
-clear :: IO ()
-clear = do
-	buf <- readIORef winBuf
-	(dpy, win, gc) <- readIORef xstatRef
-	setForegroundColor (dpy, win, gc) 0xffffff
-	fillRectangle dpy buf gc 0 0 800 800
-	setForegroundColor (dpy, win, gc) 0x000000
---	clearWindow dpy buf
-	copyArea dpy buf win gc 0 0 800 800 0 0
-	flush dpy
-	writeIORef drawRef $ return ()
-	forward 0
-
-shapeSize :: Double -> IO ()
-shapeSize ns = do
-	buf <- readIORef winBuf
-	xstat@(dpy, win, gc) <- readIORef xstatRef
-	(b, (x, y), s) <- readIORef kameStat
-	setForegroundColor (dpy, buf, gc) 0xffffff
-	displayTurtle (dpy, buf, gc) x 150 b $ s * 0.3
-	setForegroundColor (dpy, buf, gc) 0x000000
-	displayTurtle (dpy, buf, gc) x 150 b $ ns * 0.3
-	copyArea dpy buf win gc 0 0 800 800 0 0
-	flush dpy
-	writeIORef kameStat (b, (x, y), ns)
-
-kameForward ::
-	(Display, Window, GC) -> Int -> (Position, Position) -> Position -> Double
-		-> IO (Position, Position)
-kameForward xstat@(dpy, win, gc) d0 (x0, y0) len s = do
-	buf <- readIORef winBuf
-	drawLines <- readIORef drawRef
-	let	cs = cos $ fromIntegral d0 * pi / 180 :: Double
-		sn = sin $ fromIntegral d0 * pi / 180 :: Double
-	(x', y') <- if len < 10 then return (fromIntegral x0, fromIntegral y0)
-		else doWhile (fromIntegral x0, fromIntegral y0) $ \(x, y) -> do
-			let	nx = x + 10 * cs
-				ny = y + 10 * sn
-			setForegroundColor (dpy, buf, gc) 0xffffff
-			displayTurtle (dpy, buf, gc) (round x) (round y) d0 s
-			setForegroundColor (dpy, buf, gc) 0x000000
-			drawLines
-			displayTurtle (dpy, buf, gc) (round nx) (round ny) d0 s
-			drawLine dpy buf gc x0 y0 (round nx) (round ny)
-			copyArea dpy buf win gc 0 0 800 800 0 0
-			flush dpy
-			threadDelay 30000
-			return ((nx, ny),
-				(nx + 10 * cs - fromIntegral x0) ^ 2 +
-					(ny + 10 * sn - fromIntegral y0) ^ 2 < (fromIntegral len) ^ 2)
-	setForegroundColor (dpy, buf, gc) 0xffffff
-	displayTurtle (dpy, buf, gc) (round x') (round y') d0 s
-	setForegroundColor (dpy, buf, gc) 0x000000
-	drawLines
-	displayTurtle (dpy, buf, gc) (x0 + round (fromIntegral len * cs))
-		(y0 + round (fromIntegral len * sn)) d0 s
-	let draw = drawLine dpy buf gc x0 y0
-		(x0 + round (fromIntegral len * cs))
-		(y0 + round (fromIntegral len * sn))
-	draw
-	writeIORef drawRef $ drawLines >> draw
-	copyArea dpy buf win gc 0 0 800 800 0 0
-	flush dpy
-	return $ (x0 + round (fromIntegral len * cs),
-		y0 + round (fromIntegral len * sn))
-
-kameTurn ::
-	(Display, Window, GC) -> Int -> Int -> (Position, Position) -> Double -> IO Int
-kameTurn xstat@(dpy, win, gc) d0 dd (x, y) s = do
-	drawLines <- readIORef drawRef
-	buf <- readIORef winBuf
-	let	nd = d0 + dd
-		ten = signum dd * 10
-	d' <- doWhile d0 $ \d -> do
-		setForegroundColor (dpy, buf, gc) 0xffffff
-		displayTurtle (dpy, buf, gc) x y d s
-		setForegroundColor (dpy, buf, gc) 0x000000
-		displayTurtle (dpy, buf, gc) x y (d + ten) s
-		copyArea dpy buf win gc 0 0 800 800 0 0
-		drawLines
-		flush dpy
-		threadDelay 30000
-		return (d + ten, if ten > 0 then d + 20 < nd else d - 20 > nd)
-	setForegroundColor (dpy, buf, gc) 0xffffff
-	displayTurtle (dpy, buf, gc) x y d' s
-	setForegroundColor (dpy, buf, gc) 0x000000
-	displayTurtle (dpy, buf, gc) x y nd s
-	copyArea dpy buf win gc 0 0 800 800 0 0
-	flush dpy
-	return $ if nd >= 360 then nd `mod` 360 else nd
-
-getKeyChar :: (Display, Window, GC) -> Event -> IO Char
-getKeyChar (dpy, _, _) ev = do
-	ks <- keycodeToKeysym dpy (ev_keycode ev) 0
-	return $ chr $ fromEnum ks
