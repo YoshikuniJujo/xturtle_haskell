@@ -1,7 +1,20 @@
-module Turtle where
+module Turtle (
+	initTurtle,
+	forward,
+	backward,
+	left,
+	right,
+	penUp,
+	penDown,
+	clean,
+	undoAll,
+
+	Position
+) where
 
 import World
 import Data.IORef
+import Data.List
 import System.IO.Unsafe
 import Control.Arrow (second)
 import Control.Monad.Tools
@@ -10,6 +23,9 @@ import Control.Concurrent
 
 world :: IORef World
 world = unsafePerformIO $ newIORef undefined
+
+pastDrawLines :: IORef [IO ()]
+pastDrawLines = unsafePerformIO $ newIORef []
 
 data PenState = PenUp | PenDown
 
@@ -100,9 +116,34 @@ penDown = writeIORef penState PenDown
 
 drawLine :: World -> Double -> Double -> Double -> Double -> IO ()
 drawLine w x1 y1 x2 y2 = do
-	ps <- readIORef penState
-	when (doesPenDown ps) $
-		lineToBG w (round x1) (round y1) (round x2) (round y2)
+	let act = do
+		ps <- readIORef penState
+		when (doesPenDown ps) $
+			lineToBG w (round x1) (round y1) (round x2) (round y2)
+	act
+	modifyIORef pastDrawLines (++ [act])
+
+redrawLines :: IO ()
+redrawLines = do
+	dls <- readIORef pastDrawLines
+	w <- readIORef world
+	clean
+	flip mapM_ dls $ \dl -> do
+		dl
+		drawWorld w
+		flushWorld w
+		threadDelay 20000
+
+undoAll :: IO ()
+undoAll = do
+	w <- readIORef world
+	dls <- readIORef pastDrawLines
+	flip mapM_ (map sequence_ $ reverse $ inits dls) $ \dl -> do
+		cleanBG w
+		dl
+		drawWorld w
+		flushWorld w
+		threadDelay 20000
 
 rotateBy :: Int -> IO ()
 rotateBy dd = do

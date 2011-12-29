@@ -19,7 +19,7 @@ flower :: IO ()
 flower = do
 	left 90
 	forward 50
-	clear
+	clean
 	replicateM_ 9 $ leaf >> right 10
 	right 180
 	forward 200
