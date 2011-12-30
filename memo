@@ -1,0 +1,13 @@
+2011.12.30 Fri.
+
+次にすることは、cabal file の作成。
+module は Graphics.X11.Turtle で良いかと思う。
+src/Graphics/X11/Turtle.hs に source code を置こう。
+
+この段階で一度 hackage に登録してしまおう。
+
+その次に、turtle instance を複数作れるようにしよう。
+これによって readIORef に依存する変数を減らすことができるだろう。
+作りとしては、newTurtle :: IO Turtle とでもして、
+もしも IORef によって作成した window が undefined だったら window を open する
+ことにしよう。
