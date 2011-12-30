@@ -24,7 +24,7 @@ import Control.Concurrent
 world :: IORef World
 world = unsafePerformIO $ newIORef undefined
 
-pastDrawLines :: IORef [IO ()]
+pastDrawLines :: IORef [(((Position, Position), Int), IO ())]
 pastDrawLines = unsafePerformIO $ newIORef []
 
 data PenState = PenUp | PenDown
@@ -121,7 +121,8 @@ drawLine w x1 y1 x2 y2 = do
 		when (doesPenDown ps) $
 			lineToBG w (round x1) (round y1) (round x2) (round y2)
 	act
-	modifyIORef pastDrawLines (++ [act])
+	dir <- readIORef world >>= getCursorDir 
+	modifyIORef pastDrawLines (++ [(((round x2, round y2), dir), act)])
 
 redrawLines :: IO ()
 redrawLines = do
@@ -129,7 +130,7 @@ redrawLines = do
 	w <- readIORef world
 	clean
 	flip mapM_ dls $ \dl -> do
-		dl
+		snd dl
 		drawWorld w
 		flushWorld w
 		threadDelay 20000
@@ -138,9 +139,12 @@ undoAll :: IO ()
 undoAll = do
 	w <- readIORef world
 	dls <- readIORef pastDrawLines
-	flip mapM_ (map sequence_ $ reverse $ inits dls) $ \dl -> do
+	flip mapM_ (zip (reverse $ map fst dls) $ map sequence_ $ reverse $ inits $ map snd dls)
+		$ \((pos, dir), dl) -> do
 		cleanBG w
 		dl
+		uncurry (setCursorPos w) pos
+		setCursorDir w dir
 		drawWorld w
 		flushWorld w
 		threadDelay 20000
