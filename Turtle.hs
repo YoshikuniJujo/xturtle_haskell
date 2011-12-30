@@ -1,14 +1,19 @@
 module Turtle (
 	initTurtle,
+	goto,
 	forward,
 	backward,
 	left,
 	right,
-	penUp,
-	penDown,
+	penup,
+	pendown,
+	isdown,
+	home,
+	circle,
 	clear,
 	undoAll,
 	undo,
+	distance,
 
 	Position
 ) where
@@ -39,6 +44,11 @@ position = do
 	width <- windowWidth
 	height <- windowHeight
 	return (x - width / 2, height / 2 - y)
+
+distance :: Double -> Double -> IO Double
+distance x0 y0 = do
+	(x, y) <- position
+	return $ ((x - x0) ** 2 + (y - y0) ** 2) ** (1 / 2)
 
 pastDrawLines :: IORef [Maybe (((Double, Double), Double), IO ())]
 pastDrawLines = unsafePerformIO $ newIORef []
@@ -96,7 +106,11 @@ shapeSize s = do
 	flushWorld w
 
 goto, rawGoto :: Double -> Double -> IO ()
-goto x y = rawGoto x y >> modifyIORef pastDrawLines (++ [Nothing])
+goto x y = do
+	width <- windowWidth
+	height <- windowHeight
+	rawGoto (x + width / 2) (- y + height / 2)
+		>> modifyIORef pastDrawLines (++ [Nothing])
 rawGoto xTo yTo = do
 	w <- readIORef world
 	(x0, y0) <- getCursorPos w
@@ -106,7 +120,7 @@ rawGoto xTo yTo = do
 		dist = (distX ** 2 + distY ** 2) ** (1 / 2)
 		dx = step * distX / dist
 		dy = step * distY / dist
-	(x', y') <- doWhile (x0, y0) $ \(x, y) -> do
+	(x', y') <- if (dist <= step) then return (x0, y0) else doWhile (x0, y0) $ \(x, y) -> do
 		let	nx = x + dx
 			ny = y + dy
 		setCursorPos w nx ny
@@ -135,11 +149,18 @@ rawForward len = do
 backward :: Double -> IO ()
 backward = forward . negate
 
-penUp :: IO ()
-penUp = writeIORef penState PenUp
+penup :: IO ()
+penup = writeIORef penState PenUp
 
-penDown :: IO ()
-penDown = writeIORef penState PenDown
+pendown :: IO ()
+pendown = writeIORef penState PenDown
+
+isdown :: IO Bool
+isdown = do
+	ps <- readIORef penState
+	return $ case ps of
+		PenUp -> False
+		PenDown -> True
 
 drawLine :: World -> Double -> Double -> Double -> Double -> IO ()
 drawLine w x1 y1 x2 y2 = do
@@ -185,7 +206,7 @@ undo = do
 		draw1 = map fromJust $ filter isJust $ head
 			$ dropWhile (isJust . last) $ reverse $ inits dls
 		draw' = draw ++ [draw1]
-	flip mapM_ (zip ({-tail $-} reverse $ map (fst . fromJust) $ filter isJust dls ) $ map sequence_
+	flip mapM_ (zip (reverse $ map (fst . fromJust) $ filter isJust dls ) $ map sequence_
 		$ map (map snd) draw') $ \((pos, dir), dl) -> do
 		cleanBG w
 		dl
@@ -207,13 +228,24 @@ rotateBy dd = do
 	pos <- getCursorPos w
 	modifyIORef pastDrawLines (++ [Just ((pos, nd), return ())])
 
+rotateTo :: Double -> IO ()
+rotateTo d = do
+	w <- readIORef world
+	d0 <- getCursorDir w
+	let	step = 5
+		dd = d - d0
+	replicateM_ (abs dd `gDiv` step) $
+		rotateBy (signum dd * step) >> threadDelay 10000
+	setCursorDir w d
+	drawWorld w
+	flushWorld w
+
 rotate, rawRotate :: Double -> IO ()
 rotate d = rawRotate d >> modifyIORef pastDrawLines (++ [Nothing])
 rawRotate d = do
-	let step = 5
-	replicateM_ (abs d `gDiv` step) $
-		rotateBy (signum d * step) >> threadDelay 10000
-	rotateBy $ signum d * (abs d `gMod` step)
+	w <- readIORef world
+	d0 <- getCursorDir w
+	rotateTo $ d0 + d
 
 gDiv :: (Num a, Ord a, Integral b) => a -> a -> b
 x `gDiv` y
@@ -237,20 +269,7 @@ circle r = replicateM_ 36 $ do
 	rawRotate (- 10)
 
 home :: IO ()
-home = do
-	w <- readIORef world
-	width <- windowWidth
-	height <- windowHeight
-	setCursorPos w (width / 2) (height / 2)
-	setCursorDir w 0
-	drawWorld w
-	flushWorld w
-{-
-	setCursorPos w 100 200
-	setCursorDir w 0
-	drawWorld w
-	flushWorld w
--}
+home = goto 0 0 >> rotateTo 0
 
 clear :: IO ()
 clear = do
