@@ -11,3 +11,8 @@ src/Graphics/X11/Turtle.hs に source code を置こう。
 作りとしては、newTurtle :: IO Turtle とでもして、
 もしも IORef によって作成した window が undefined だったら window を open する
 ことにしよう。
+
+それと、undo 機能を、たとえば 100 くらいまでにすることによって、
+speed up を図ろう。
+また、python において、関数にまとめられた動作の undo がどういうふうになっているか
+調べよう。
