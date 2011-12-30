@@ -16,9 +16,11 @@ module World (
 	makeFilledPolygonCursor,
 	lineToBG,
 	cleanBG,
+	getWindowSize,
 
 	Event(..),
 	Position,
+	Dimension,
 	Point(..)
 ) where
 
@@ -42,6 +44,11 @@ data World = World{
 	wSize :: IORef Double,
 	wShape :: IORef (World -> Double -> Int -> Position -> Position -> IO ())
  }
+
+getWindowSize :: World -> IO (Dimension, Dimension)
+getWindowSize w = do
+	(_, _, _, width, height, _, _) <- getGeometry (wDisplay w) (wWindow w)
+	return (width, height)
 
 setCursorPos :: World -> Position -> Position -> IO ()
 setCursorPos w x y = writeIORef (wPos w) (x, y)

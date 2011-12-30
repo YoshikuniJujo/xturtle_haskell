@@ -26,6 +26,20 @@ import Data.Maybe
 world :: IORef World
 world = unsafePerformIO $ newIORef undefined
 
+windowWidth :: IO Dimension
+windowWidth = readIORef world >>= fmap fst . getWindowSize
+
+windowHeight :: IO Dimension
+windowHeight = readIORef world >>= fmap snd . getWindowSize
+
+position :: IO (Position, Position)
+position = do
+	w <- readIORef world
+	(x, y) <- getCursorPos w
+	width <- windowWidth
+	height <- windowHeight
+	return (x - fromIntegral width `div` 2, fromIntegral height `div` 2 - y)
+
 pastDrawLines :: IORef [Maybe (((Position, Position), Int), IO ())]
 pastDrawLines = unsafePerformIO $ newIORef []
 
@@ -68,6 +82,11 @@ initTurtle = do
 	drawWorld w
 	flushWorld w
 	writeIORef world w
+	width <- windowWidth
+	height <- windowHeight
+	setCursorPos w (fromIntegral width `div` 2) (fromIntegral height `div` 2)
+	drawWorld w
+	flushWorld w
 
 shapeSize :: Double -> IO ()
 shapeSize s = do
@@ -205,10 +224,18 @@ circle r = replicateM_ 36 $ do
 home :: IO ()
 home = do
 	w <- readIORef world
+	width <- windowWidth
+	height <- windowHeight
+	setCursorPos w (fromIntegral width `div` 2) (fromIntegral height `div` 2)
+	setCursorDir w 0
+	drawWorld w
+	flushWorld w
+{-
 	setCursorPos w 100 200
 	setCursorDir w 0
 	drawWorld w
 	flushWorld w
+-}
 
 clear :: IO ()
 clear = do
