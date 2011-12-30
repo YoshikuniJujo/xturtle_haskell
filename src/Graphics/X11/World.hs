@@ -1,4 +1,4 @@
-module World (
+module Graphics.X11.World (
 	World,
 	openWorld,
 	setCursorPos,
@@ -21,7 +21,8 @@ module World (
 	Event(..),
 	Position,
 	Dimension,
-	Point(..)
+	Point(..),
+	testModuleWorld
 ) where
 
 import Graphics.X11
@@ -68,6 +69,9 @@ setCursorSize w s = writeIORef (wSize w) s
 setCursorShape ::
 	World -> (World -> Double -> Double -> Double -> Double -> IO ()) -> IO ()
 setCursorShape w s = writeIORef (wShape w) s
+
+testModuleWorld :: IO ()
+testModuleWorld = main
 
 main :: IO ()
 main = do

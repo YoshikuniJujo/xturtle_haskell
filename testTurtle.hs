@@ -1,4 +1,4 @@
-import Turtle
+import Graphics.X11.Turtle
 import Control.Monad
 
 spiral :: Double -> Double -> IO ()

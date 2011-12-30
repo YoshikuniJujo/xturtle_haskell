@@ -1,5 +1,7 @@
-module Turtle (
+module Graphics.X11.Turtle (
 	initTurtle,
+	closeTurtle,
+	shapesize,
 	goto,
 	forward,
 	backward,
@@ -15,10 +17,11 @@ module Turtle (
 	undo,
 	distance,
 
-	Position
+	Position,
+	testModuleTurtle
 ) where
 
-import World
+import Graphics.X11.World
 import Data.IORef
 import Data.List
 import System.IO.Unsafe
@@ -62,11 +65,15 @@ doesPenDown PenDown = True
 penState :: IORef PenState
 penState = unsafePerformIO $ newIORef PenDown
 
+testModuleTurtle :: IO ()
+testModuleTurtle = main
+
 main :: IO ()
 main = do
 	putStrLn "module Turtle"
 	initTurtle
 	w <- readIORef world
+	redrawLines
 	withEvent w () $ \() ev ->
 		case ev of
 			ExposeEvent{} -> do
@@ -98,8 +105,8 @@ initTurtle = do
 	drawWorld w
 	flushWorld w
 
-shapeSize :: Double -> IO ()
-shapeSize s = do
+shapesize :: Double -> IO ()
+shapesize s = do
 	w <- readIORef world
 	setCursorSize w s
 	drawWorld w
