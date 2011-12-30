@@ -39,34 +39,34 @@ data World = World{
 	wDel :: Atom,
 	wBG :: Pixmap,
 	wBuf :: Pixmap,
-	wPos :: IORef (Position, Position),
-	wDir :: IORef Int,
+	wPos :: IORef (Double, Double),
+	wDir :: IORef Double,
 	wSize :: IORef Double,
-	wShape :: IORef (World -> Double -> Int -> Position -> Position -> IO ())
+	wShape :: IORef (World -> Double -> Double -> Double -> Double -> IO ())
  }
 
-getWindowSize :: World -> IO (Dimension, Dimension)
+getWindowSize :: World -> IO (Double, Double)
 getWindowSize w = do
 	(_, _, _, width, height, _, _) <- getGeometry (wDisplay w) (wWindow w)
-	return (width, height)
+	return (fromIntegral width, fromIntegral height)
 
-setCursorPos :: World -> Position -> Position -> IO ()
+setCursorPos :: World -> Double -> Double -> IO ()
 setCursorPos w x y = writeIORef (wPos w) (x, y)
 
-getCursorPos :: World -> IO (Position, Position)
+getCursorPos :: World -> IO (Double, Double)
 getCursorPos w = readIORef (wPos w)
 
 setCursorDir :: World -> Double -> IO ()
-setCursorDir w d = writeIORef (wDir w) $ round d
+setCursorDir w d = writeIORef (wDir w) d
 
 getCursorDir :: World -> IO Double
-getCursorDir w = fmap (fromIntegral) $ readIORef (wDir w)
+getCursorDir w = readIORef (wDir w)
 
 setCursorSize :: World -> Double -> IO ()
 setCursorSize w s = writeIORef (wSize w) s
 
 setCursorShape ::
-	World -> (World -> Double -> Int -> Position -> Position -> IO ()) -> IO ()
+	World -> (World -> Double -> Double -> Double -> Double -> IO ()) -> IO ()
 setCursorShape w s = writeIORef (wShape w) s
 
 main :: IO ()

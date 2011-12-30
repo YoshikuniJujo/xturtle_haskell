@@ -26,21 +26,21 @@ import Data.Maybe
 world :: IORef World
 world = unsafePerformIO $ newIORef undefined
 
-windowWidth :: IO Dimension
+windowWidth :: IO Double
 windowWidth = readIORef world >>= fmap fst . getWindowSize
 
-windowHeight :: IO Dimension
+windowHeight :: IO Double
 windowHeight = readIORef world >>= fmap snd . getWindowSize
 
-position :: IO (Position, Position)
+position :: IO (Double, Double)
 position = do
 	w <- readIORef world
 	(x, y) <- getCursorPos w
 	width <- windowWidth
 	height <- windowHeight
-	return (x - fromIntegral width `div` 2, fromIntegral height `div` 2 - y)
+	return (x - width / 2, height / 2 - y)
 
-pastDrawLines :: IORef [Maybe (((Position, Position), Double), IO ())]
+pastDrawLines :: IORef [Maybe (((Double, Double), Double), IO ())]
 pastDrawLines = unsafePerformIO $ newIORef []
 
 data PenState = PenUp | PenDown
@@ -84,7 +84,7 @@ initTurtle = do
 	writeIORef world w
 	width <- windowWidth
 	height <- windowHeight
-	setCursorPos w (fromIntegral width `div` 2) (fromIntegral height `div` 2)
+	setCursorPos w (width / 2) (height / 2)
 	drawWorld w
 	flushWorld w
 
@@ -99,19 +99,16 @@ forward, rawForward :: Double -> IO ()
 forward len = rawForward len >> modifyIORef pastDrawLines (++ [Nothing])
 rawForward len = do
 	w <- readIORef world
-	(x_, y_) <- getCursorPos w
+	(x0, y0) <- getCursorPos w
 	d <- getCursorDir w
 	let	step = signum len * 10 :: Double
-		x0 = fromIntegral x_ :: Double
-		y0 = fromIntegral y_ :: Double
 		rad = d * pi / 180
 		dx = step * cos rad
 		dy = step * sin rad
 	(x', y') <- doWhile (x0, y0) $ \(x, y) -> do
 		let	nx = x + dx
 			ny = y + dy
-		setCursorPos w (round x) (round y)
---		lineToBG w (round x) (round y) (round nx) (round ny)
+		setCursorPos w x y
 		drawLine w x y nx ny
 		drawWorld w
 		flushWorld w
@@ -120,8 +117,7 @@ rawForward len = do
 			(nx - x0) ** 2 + (ny - y0) ** 2 < (len - step) ** 2)
 	let	nx' = x0 + len * cos rad
 		ny' = y0 + len * sin rad
-	setCursorPos w (round nx') (round ny')
---	lineToBG w (round x') (round y') (round nx') (round ny')
+	setCursorPos w nx' ny'
 	drawLine w x' y' nx' ny'
 	drawWorld w
 	flushWorld w
@@ -144,7 +140,7 @@ drawLine w x1 y1 x2 y2 = do
 			lineToBG w (round x1) (round y1) (round x2) (round y2)
 	act
 	dir <- readIORef world >>= getCursorDir 
-	modifyIORef pastDrawLines (++ [Just (((round x2, round y2), dir), act)])
+	modifyIORef pastDrawLines (++ [Just (((x2, y2), dir), act)])
 
 redrawLines :: IO ()
 redrawLines = do
@@ -236,7 +232,7 @@ home = do
 	w <- readIORef world
 	width <- windowWidth
 	height <- windowHeight
-	setCursorPos w (fromIntegral width `div` 2) (fromIntegral height `div` 2)
+	setCursorPos w (width / 2) (height / 2)
 	setCursorDir w 0
 	drawWorld w
 	flushWorld w
@@ -259,17 +255,17 @@ clear = do
 closeTurtle :: IO ()
 closeTurtle = readIORef world >>= closeWorld
 
-displayTurtle :: World -> Double -> Int -> Position -> Position -> IO ()
+displayTurtle :: World -> Double -> Double -> Double -> Double -> IO ()
 displayTurtle w s d x y =
-	makeFilledPolygonCursor w $ map (uncurry $ addPoint $ Point x y)
+	makeFilledPolygonCursor w $ map (uncurry $ addPoint $ Point (round x) (round y))
 		$ map (rotatePointD d)
 		$ map (mulPoint s) turtle
 
 addPoint :: Point -> Position -> Position -> Point
 addPoint (Point x y) dx dy = Point (x + dx) (y + dy)
 
-rotatePointD :: Int -> (Position, Position) -> (Position, Position)
-rotatePointD = rotatePointR . (* pi) . (/ 180) . fromIntegral
+rotatePointD :: Double -> (Position, Position) -> (Position, Position)
+rotatePointD = rotatePointR . (* pi) . (/ 180)
 
 rotatePointR :: Double -> (Position, Position) -> (Position, Position)
 rotatePointR rad (x, y) =
