@@ -1,7 +1,7 @@
 import Turtle
 import Control.Monad
 
-spiral :: Position -> Int -> IO ()
+spiral :: Double -> Double -> IO ()
 spiral size angle
 	| size > 100	= return ()
 	| otherwise	= do
@@ -28,15 +28,15 @@ flower = do
 	right 20
 	leaf
 
-triangles :: Position -> IO ()
+triangles :: Double -> IO ()
 triangles size
 	| size < 10	= return ()
 	| otherwise	= do
 		right 60
 		replicateM_ 3 $ forward size >> right 120
-		forward $ size `div` 2
-		triangles $ size `div` 2
+		forward $ size / 2
+		triangles $ size / 2
 
-polygon :: Position -> Int -> IO ()
+polygon :: Double -> Int -> IO ()
 polygon size repeats =
-	replicateM_ repeats $ forward size >> right (360 `div` repeats)
+	replicateM_ repeats $ forward size >> right (fromIntegral $ 360 `div` repeats)

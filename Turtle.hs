@@ -40,7 +40,7 @@ position = do
 	height <- windowHeight
 	return (x - fromIntegral width `div` 2, fromIntegral height `div` 2 - y)
 
-pastDrawLines :: IORef [Maybe (((Position, Position), Int), IO ())]
+pastDrawLines :: IORef [Maybe (((Position, Position), Double), IO ())]
 pastDrawLines = unsafePerformIO $ newIORef []
 
 data PenState = PenUp | PenDown
@@ -95,16 +95,16 @@ shapeSize s = do
 	drawWorld w
 	flushWorld w
 
-forward, rawForward :: Position -> IO ()
+forward, rawForward :: Double -> IO ()
 forward len = rawForward len >> modifyIORef pastDrawLines (++ [Nothing])
 rawForward len = do
 	w <- readIORef world
 	(x_, y_) <- getCursorPos w
 	d <- getCursorDir w
-	let	step = signum (fromIntegral len) * 10 :: Double
+	let	step = signum len * 10 :: Double
 		x0 = fromIntegral x_ :: Double
 		y0 = fromIntegral y_ :: Double
-		rad = fromIntegral d * pi / 180
+		rad = d * pi / 180
 		dx = step * cos rad
 		dy = step * sin rad
 	(x', y') <- doWhile (x0, y0) $ \(x, y) -> do
@@ -117,9 +117,9 @@ rawForward len = do
 		flushWorld w
 		threadDelay 20000
 		return ((nx, ny),
-			(nx - x0) ** 2 + (ny - y0) ** 2 < (fromIntegral len - step) ** 2)
-	let	nx' = x0 + fromIntegral len * cos rad
-		ny' = y0 + fromIntegral len * sin rad
+			(nx - x0) ** 2 + (ny - y0) ** 2 < (len - step) ** 2)
+	let	nx' = x0 + len * cos rad
+		ny' = y0 + len * sin rad
 	setCursorPos w (round nx') (round ny')
 --	lineToBG w (round x') (round y') (round nx') (round ny')
 	drawLine w x' y' nx' ny'
@@ -127,7 +127,7 @@ rawForward len = do
 	flushWorld w
 	return ()
 
-backward :: Position -> IO ()
+backward :: Double -> IO ()
 backward = forward . negate
 
 penUp :: IO ()
@@ -191,34 +191,44 @@ undo = do
 		threadDelay 20000
 	modifyIORef pastDrawLines $ reverse . dropWhile isJust . tail . reverse
 
-rotateBy :: Int -> IO ()
+rotateBy :: Double -> IO ()
 rotateBy dd = do
 	w <- readIORef world
 	d0 <- getCursorDir w
-	let	nd = (d0 + dd) `mod` 360
+	let	nd = (d0 + dd) `gMod` 360
 	setCursorDir w nd
 	drawWorld w
 	flushWorld w
 	pos <- getCursorPos w
 	modifyIORef pastDrawLines (++ [Just ((pos, nd), return ())])
 
-rotate, rawRotate :: Int -> IO ()
+rotate, rawRotate :: Double -> IO ()
 rotate d = rawRotate d >> modifyIORef pastDrawLines (++ [Nothing])
 rawRotate d = do
 	let step = 5
-	replicateM_ (fromIntegral $ abs d `div` step) $
+	replicateM_ (abs d `gDiv` step) $
 		rotateBy (signum d * step) >> threadDelay 10000
-	rotateBy $ signum d * (abs d `mod` step)
+	rotateBy $ signum d * (abs d `gMod` step)
 
-right :: Int -> IO ()
+gDiv :: (Num a, Ord a, Integral b) => a -> a -> b
+x `gDiv` y
+	| x >= y = 1 + (x - y) `gDiv` y
+	| otherwise = 0
+
+gMod :: (Num a, Ord a) => a -> a -> a
+x `gMod` y
+	| x >= y = (x - y) `gMod` y
+	| otherwise = x
+
+right :: Double -> IO ()
 right = rotate
 
-left :: Int -> IO ()
+left :: Double -> IO ()
 left = rotate . negate
 
 circle :: Position -> IO ()
 circle r = replicateM_ 36 $ do
-	rawForward $ round $ (2 * fromIntegral r * pi / 36 :: Double)
+	rawForward $ (2 * fromIntegral r * pi / 36 :: Double)
 	rawRotate (- 10)
 
 home :: IO ()

@@ -56,11 +56,11 @@ setCursorPos w x y = writeIORef (wPos w) (x, y)
 getCursorPos :: World -> IO (Position, Position)
 getCursorPos w = readIORef (wPos w)
 
-setCursorDir :: World -> Int -> IO ()
-setCursorDir w d = writeIORef (wDir w) d
+setCursorDir :: World -> Double -> IO ()
+setCursorDir w d = writeIORef (wDir w) $ round d
 
-getCursorDir :: World -> IO Int
-getCursorDir w = readIORef (wDir w)
+getCursorDir :: World -> IO Double
+getCursorDir w = fmap (fromIntegral) $ readIORef (wDir w)
 
 setCursorSize :: World -> Double -> IO ()
 setCursorSize w s = writeIORef (wSize w) s
