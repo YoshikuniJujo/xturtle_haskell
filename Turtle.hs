@@ -6,7 +6,7 @@ module Turtle (
 	right,
 	penUp,
 	penDown,
-	clean,
+	clear,
 	undoAll,
 	undo,
 
@@ -76,8 +76,9 @@ shapeSize s = do
 	drawWorld w
 	flushWorld w
 
-forward :: Position -> IO ()
-forward len = do
+forward, rawForward :: Position -> IO ()
+forward len = rawForward len >> modifyIORef pastDrawLines (++ [Nothing])
+rawForward len = do
 	w <- readIORef world
 	(x_, y_) <- getCursorPos w
 	d <- getCursorDir w
@@ -106,7 +107,6 @@ forward len = do
 	drawWorld w
 	flushWorld w
 	return ()
-	modifyIORef pastDrawLines $ (++ [Nothing])
 
 backward :: Position -> IO ()
 backward = forward . negate
@@ -131,7 +131,7 @@ redrawLines :: IO ()
 redrawLines = do
 	w <- readIORef world
 	dls <- fmap (map fromJust . filter isJust) $ readIORef pastDrawLines
-	clean
+	clear
 	flip mapM_ dls $ \dl -> do
 		snd dl
 		drawWorld w
@@ -156,9 +156,13 @@ undo :: IO ()
 undo = do
 	w <- readIORef world
 	dls <- fmap init $ readIORef pastDrawLines
-	let	draw = map (map fromJust . filter isJust) $ takeWhile (isJust . last) $ reverse $ inits dls
-	flip mapM_ (zip (tail $ reverse $ map (fst . fromJust) $ filter isJust dls ) $ map sequence_
-		$ map (map snd) draw) $ \((pos, dir), dl) -> do
+	let	draw = map (map fromJust . filter isJust)
+			$ takeWhile (isJust . last) $ reverse $ inits dls
+		draw1 = map fromJust $ filter isJust $ head
+			$ dropWhile (isJust . last) $ reverse $ inits dls
+		draw' = draw ++ [draw1]
+	flip mapM_ (zip ({-tail $-} reverse $ map (fst . fromJust) $ filter isJust dls ) $ map sequence_
+		$ map (map snd) draw') $ \((pos, dir), dl) -> do
 		cleanBG w
 		dl
 		uncurry (setCursorPos w) pos
@@ -179,13 +183,13 @@ rotateBy dd = do
 	pos <- getCursorPos w
 	modifyIORef pastDrawLines (++ [Just ((pos, nd), return ())])
 
-rotate :: Int -> IO ()
-rotate d = do
+rotate, rawRotate :: Int -> IO ()
+rotate d = rawRotate d >> modifyIORef pastDrawLines (++ [Nothing])
+rawRotate d = do
 	let step = 5
 	replicateM_ (fromIntegral $ abs d `div` step) $
 		rotateBy (signum d * step) >> threadDelay 10000
 	rotateBy $ signum d * (abs d `mod` step)
-	modifyIORef pastDrawLines $ (++ [Nothing])
 
 right :: Int -> IO ()
 right = rotate
@@ -195,8 +199,8 @@ left = rotate . negate
 
 circle :: Position -> IO ()
 circle r = replicateM_ 36 $ do
-	forward $ round $ (2 * fromIntegral r * pi / 36 :: Double)
-	left 10
+	rawForward $ round $ (2 * fromIntegral r * pi / 36 :: Double)
+	rawRotate (- 10)
 
 home :: IO ()
 home = do
@@ -206,8 +210,8 @@ home = do
 	drawWorld w
 	flushWorld w
 
-clean :: IO ()
-clean = do
+clear :: IO ()
+clear = do
 	w <- readIORef world
 	cleanBG w
 	drawWorld w >> flushWorld w
