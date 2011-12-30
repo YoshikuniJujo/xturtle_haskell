@@ -8,6 +8,7 @@ module Turtle (
 	penDown,
 	clean,
 	undoAll,
+	undo,
 
 	Position
 ) where
@@ -20,11 +21,12 @@ import Control.Arrow (second)
 import Control.Monad.Tools
 import Control.Monad
 import Control.Concurrent
+import Data.Maybe
 
 world :: IORef World
 world = unsafePerformIO $ newIORef undefined
 
-pastDrawLines :: IORef [(((Position, Position), Int), IO ())]
+pastDrawLines :: IORef [Maybe (((Position, Position), Int), IO ())]
 pastDrawLines = unsafePerformIO $ newIORef []
 
 data PenState = PenUp | PenDown
@@ -104,6 +106,7 @@ forward len = do
 	drawWorld w
 	flushWorld w
 	return ()
+	modifyIORef pastDrawLines $ (++ [Nothing])
 
 backward :: Position -> IO ()
 backward = forward . negate
@@ -122,12 +125,12 @@ drawLine w x1 y1 x2 y2 = do
 			lineToBG w (round x1) (round y1) (round x2) (round y2)
 	act
 	dir <- readIORef world >>= getCursorDir 
-	modifyIORef pastDrawLines (++ [(((round x2, round y2), dir), act)])
+	modifyIORef pastDrawLines (++ [Just (((round x2, round y2), dir), act)])
 
 redrawLines :: IO ()
 redrawLines = do
-	dls <- readIORef pastDrawLines
 	w <- readIORef world
+	dls <- fmap (map fromJust . filter isJust) $ readIORef pastDrawLines
 	clean
 	flip mapM_ dls $ \dl -> do
 		snd dl
@@ -138,7 +141,7 @@ redrawLines = do
 undoAll :: IO ()
 undoAll = do
 	w <- readIORef world
-	dls <- readIORef pastDrawLines
+	dls <- fmap (map fromJust . filter isJust) $ readIORef pastDrawLines
 	flip mapM_ (zip (reverse $ map fst dls) $ map sequence_ $ reverse $ inits $ map snd dls)
 		$ \((pos, dir), dl) -> do
 		cleanBG w
@@ -149,6 +152,22 @@ undoAll = do
 		flushWorld w
 		threadDelay 20000
 
+undo :: IO ()
+undo = do
+	w <- readIORef world
+	dls <- fmap init $ readIORef pastDrawLines
+	let	draw = map (map fromJust . filter isJust) $ takeWhile (isJust . last) $ reverse $ inits dls
+	flip mapM_ (zip (tail $ reverse $ map (fst . fromJust) $ filter isJust dls ) $ map sequence_
+		$ map (map snd) draw) $ \((pos, dir), dl) -> do
+		cleanBG w
+		dl
+		uncurry (setCursorPos w) pos
+		setCursorDir w dir
+		drawWorld w
+		flushWorld w
+		threadDelay 20000
+	modifyIORef pastDrawLines $ reverse . dropWhile isJust . tail . reverse
+
 rotateBy :: Int -> IO ()
 rotateBy dd = do
 	w <- readIORef world
@@ -157,6 +176,8 @@ rotateBy dd = do
 	setCursorDir w nd
 	drawWorld w
 	flushWorld w
+	pos <- getCursorPos w
+	modifyIORef pastDrawLines (++ [Just ((pos, nd), return ())])
 
 rotate :: Int -> IO ()
 rotate d = do
@@ -164,6 +185,7 @@ rotate d = do
 	replicateM_ (fromIntegral $ abs d `div` step) $
 		rotateBy (signum d * step) >> threadDelay 10000
 	rotateBy $ signum d * (abs d `mod` step)
+	modifyIORef pastDrawLines $ (++ [Nothing])
 
 right :: Int -> IO ()
 right = rotate
@@ -185,7 +207,13 @@ home = do
 	flushWorld w
 
 clean :: IO ()
-clean = readIORef world >>= \w -> cleanBG w >> drawWorld w >> flushWorld w
+clean = do
+	w <- readIORef world
+	cleanBG w
+	drawWorld w >> flushWorld w
+	pos <- getCursorPos w
+	dir <- getCursorDir w
+	modifyIORef pastDrawLines (++ [Just ((pos, dir), cleanBG w)])
 
 closeTurtle :: IO ()
 closeTurtle = readIORef world >>= closeWorld
