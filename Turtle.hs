@@ -95,33 +95,42 @@ shapeSize s = do
 	drawWorld w
 	flushWorld w
 
+goto, rawGoto :: Double -> Double -> IO ()
+goto x y = rawGoto x y >> modifyIORef pastDrawLines (++ [Nothing])
+rawGoto xTo yTo = do
+	w <- readIORef world
+	(x0, y0) <- getCursorPos w
+	let	step = 10
+		distX = xTo - x0
+		distY = yTo - y0
+		dist = (distX ** 2 + distY ** 2) ** (1 / 2)
+		dx = step * distX / dist
+		dy = step * distY / dist
+	(x', y') <- doWhile (x0, y0) $ \(x, y) -> do
+		let	nx = x + dx
+			ny = y + dy
+		setCursorPos w nx ny
+		drawLine w x y nx ny
+		drawWorld w
+		flushWorld w
+		threadDelay 20000
+		return ((nx, ny),
+			(nx + dx - x0) ** 2 + (ny + dy - y0) ** 2 < dist ** 2)
+	setCursorPos w xTo yTo
+	drawLine w x' y' xTo yTo
+	drawWorld w
+	flushWorld w
+
 forward, rawForward :: Double -> IO ()
 forward len = rawForward len >> modifyIORef pastDrawLines (++ [Nothing])
 rawForward len = do
 	w <- readIORef world
 	(x0, y0) <- getCursorPos w
 	d <- getCursorDir w
-	let	step = signum len * 10 :: Double
-		rad = d * pi / 180
-		dx = step * cos rad
-		dy = step * sin rad
-	(x', y') <- doWhile (x0, y0) $ \(x, y) -> do
-		let	nx = x + dx
-			ny = y + dy
-		setCursorPos w x y
-		drawLine w x y nx ny
-		drawWorld w
-		flushWorld w
-		threadDelay 20000
-		return ((nx, ny),
-			(nx - x0) ** 2 + (ny - y0) ** 2 < (len - step) ** 2)
-	let	nx' = x0 + len * cos rad
+	let	rad = d * pi / 180
+		nx' = x0 + len * cos rad
 		ny' = y0 + len * sin rad
-	setCursorPos w nx' ny'
-	drawLine w x' y' nx' ny'
-	drawWorld w
-	flushWorld w
-	return ()
+	rawGoto nx' ny'
 
 backward :: Double -> IO ()
 backward = forward . negate
