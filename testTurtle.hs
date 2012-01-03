@@ -1,5 +1,6 @@
 import Graphics.X11.Turtle
 import Control.Monad
+import System.Random
 
 spiral :: Double -> Double -> IO ()
 spiral size angle
@@ -40,3 +41,9 @@ triangles size
 polygon :: Double -> Int -> IO ()
 polygon size repeats =
 	replicateM_ repeats $ forward size >> right (fromIntegral $ 360 `div` repeats)
+
+randomTurtle :: IO ()
+randomTurtle = sequence_ $ repeat $ do
+	randomRIO (-180, 180) >>= left >> forward 15
+	d <- distance 0 0
+	when (d > 200) undo
