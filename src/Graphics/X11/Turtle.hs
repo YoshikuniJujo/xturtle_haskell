@@ -31,6 +31,33 @@ import Control.Monad
 import Control.Concurrent
 import Data.Maybe
 
+data TurtleEvent = Forward Double | Rotate Double | Undo | Home | Clear
+	| Penup | Pendown | Goto Double Double
+	deriving Show
+
+getHistory :: IO [TurtleEvent]
+getHistory = readIORef eventPoint >>= return . flip take turtleEvents
+
+eventChan :: Chan TurtleEvent
+eventChan = unsafePerformIO newChan
+
+turtleEvents :: [TurtleEvent]
+turtleEvents = unsafePerformIO getTurtleEvents
+
+getTurtleEvents :: IO [TurtleEvent]
+getTurtleEvents = unsafeInterleaveIO $ do
+	ev <- readChan eventChan
+	evs <- getTurtleEvents
+	return $ ev : evs
+
+eventPoint :: IORef Int
+eventPoint = unsafePerformIO $ newIORef 0
+
+pushTurtleEvent :: TurtleEvent -> IO ()
+pushTurtleEvent te = do
+	writeChan eventChan te
+	modifyIORef eventPoint (+ 1)
+
 world :: IORef World
 world = unsafePerformIO $ newIORef undefined
 
@@ -71,7 +98,7 @@ setUndoPoint = modifyIORef pastDrawLines $ (++ [Nothing])
 
 data PenState = PenUp | PenDown
 
-data Order = Forward Double | Left Double | Undo deriving Show
+-- data Order = Forward Double | Left Double | Undo deriving Show
 
 doesPenDown :: PenState -> Bool
 doesPenDown PenUp = False
@@ -104,6 +131,7 @@ main = do
 			_ -> error $ "not implemented for event " ++ show ev
 	closeTurtle
 
+{-
 orderChan :: IORef (Chan Order)
 orderChan = unsafePerformIO $ newChan >>= newIORef
 
@@ -112,6 +140,7 @@ getOrders = unsafeInterleaveIO $ do
 	o <- readIORef orderChan >>= readChan
 	os <- getOrders
 	return $ o : os
+-}
 
 initTurtle :: IO ()
 initTurtle = do
@@ -136,12 +165,16 @@ shapesize s = do
 	drawWorld w
 	flushWorld w
 
-goto, rawGoto :: Double -> Double -> IO ()
+goto, goto', rawGoto :: Double -> Double -> IO ()
 goto x y = do
 	width <- windowWidth
 	height <- windowHeight
 	rawGoto (x + width / 2) (- y + height / 2)
-		>> setUndoPoint
+		>> setUndoPoint >> pushTurtleEvent (Goto x y)
+goto' x y = do
+	width <- windowWidth
+	height <- windowHeight
+	rawGoto (x + width / 2) (- y + height / 2)
 rawGoto xTo yTo = do
 	w <- readIORef world
 	(x0, y0) <- getCursorPos w
@@ -167,7 +200,7 @@ rawGoto xTo yTo = do
 	flushWorld w
 
 forward, rawForward :: Double -> IO ()
-forward len = rawForward len >> setUndoPoint
+forward len = rawForward len >> setUndoPoint >> pushTurtleEvent (Forward len)
 rawForward len = do
 	w <- readIORef world
 	(x0, y0) <- getCursorPos w
@@ -181,10 +214,10 @@ backward :: Double -> IO ()
 backward = forward . negate
 
 penup :: IO ()
-penup = writeIORef penState PenUp
+penup = writeIORef penState PenUp >> pushTurtleEvent Penup
 
 pendown :: IO ()
-pendown = writeIORef penState PenDown
+pendown = writeIORef penState PenDown >> pushTurtleEvent Pendown
 
 isdown :: IO Bool
 isdown = do
@@ -250,6 +283,7 @@ undo = do
 		flushWorld w
 		threadDelay 20000
 	modifyIORef pastDrawLines $ reverse . dropWhile isJust . tail . reverse
+	pushTurtleEvent Undo
 
 rotateBy :: Double -> IO ()
 rotateBy dd = do
@@ -275,7 +309,7 @@ rotateTo d = do
 	flushWorld w
 
 rotate, rawRotate :: Double -> IO ()
-rotate d = rawRotate d >> setUndoPoint
+rotate d = rawRotate d >> setUndoPoint >> pushTurtleEvent (Rotate d)
 rawRotate d = do
 	w <- readIORef world
 	d0 <- getCursorDir w
@@ -303,7 +337,7 @@ circle r = replicateM_ 36 $ do
 	rawRotate (- 10)
 
 home :: IO ()
-home = goto 0 0 >> rotateTo 0
+home = goto' 0 0 >> rotateTo 0 >> pushTurtleEvent Home
 
 clear :: IO ()
 clear = do
@@ -313,6 +347,7 @@ clear = do
 	pos <- getCursorPos w
 	dir <- getCursorDir w
 	putToPastDrawLines pos dir $ cleanBG w
+	pushTurtleEvent Clear
 
 closeTurtle :: IO ()
 closeTurtle = readIORef world >>= closeWorld
