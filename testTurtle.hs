@@ -46,4 +46,4 @@ randomTurtle :: IO ()
 randomTurtle = sequence_ $ repeat $ do
 	randomRIO (-180, 180) >>= left >> forward 15
 	d <- distance 0 0
-	when (d > 200) undo
+	when (d > 100) undo

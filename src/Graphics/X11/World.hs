@@ -8,6 +8,7 @@ module Graphics.X11.World (
 	setCursorSize,
 	setCursorShape,
 	drawWorld,
+	undoBufToBG,
 	closeWorld,
 	withEvent,
 	flushWorld,
@@ -17,6 +18,7 @@ module Graphics.X11.World (
 	lineToBG,
 	cleanBG,
 	getWindowSize,
+	Buf(..),
 
 	Event(..),
 	Position,
@@ -40,6 +42,7 @@ data World = World{
 	wDel :: Atom,
 	wBG :: Pixmap,
 	wBuf :: Pixmap,
+	wUndoBuf :: Pixmap,
 	wPos :: IORef (Double, Double),
 	wDir :: IORef Double,
 	wSize :: IORef Double,
@@ -100,11 +103,13 @@ openWorld = do
 	win <- createSimpleWindow dpy root 0 0 width height 1 black white
 	bg <- createPixmap dpy root width height $ defaultDepth dpy scr
 	buf <- createPixmap dpy root width height $ defaultDepth dpy scr
+	undoBuf <- createPixmap dpy root width height $ defaultDepth dpy scr
 	gc <- createGC dpy win
 	gc' <- createGC dpy win
 	setForeground dpy gc' 0xffffff
 	fillRectangle dpy bg gc' 0 0 width height
 	fillRectangle dpy buf gc' 0 0 width height
+	fillRectangle dpy undoBuf gc' 0 0 width height
 	setWMProtocols dpy win [del]
 	selectInput dpy win $ exposureMask .|. keyPressMask
 	mapWindow dpy win
@@ -113,7 +118,7 @@ openWorld = do
 	initDir <- newIORef undefined
 	initSize <- newIORef undefined
 	initShape <- newIORef undefined
-	return $ World dpy win gc del bg buf initPos initDir initSize initShape
+	return $ World dpy win gc del bg buf undoBuf initPos initDir initSize initShape
 
 closeWorld :: World -> IO ()
 closeWorld = closeDisplay . wDisplay
@@ -128,6 +133,12 @@ drawWorld w = do
 	displayCursor <- readIORef $ wShape w
 	displayCursor w s d x y
 	copyArea (wDisplay w) (wBuf w) (wWindow w) (wGC w) 0 0 width height 0 0
+
+undoBufToBG :: World -> IO ()
+undoBufToBG w = do
+	(_, _, _, width, height, _, _) <- getGeometry (wDisplay w) (wWindow w)
+	copyArea (wDisplay w) (wUndoBuf w) (wBG w) (wGC w) 0 0 width height 0 0
+
 
 withEvent :: World -> s -> (s -> Event -> IO (s, Bool)) -> IO s
 withEvent w stat0 act = doWhile stat0 $ \stat -> allocaXEvent $ \e -> do
@@ -146,15 +157,21 @@ makeFilledPolygonCursor :: World -> [Point] -> IO ()
 makeFilledPolygonCursor w ps =
 	fillPolygon (wDisplay w) (wBuf w) (wGC w) ps nonconvex coordModeOrigin
 
-lineToBG :: World -> Position -> Position -> Position -> Position -> IO ()
-lineToBG w x1 y1 x2 y2 = drawLine (wDisplay w) (wBG w) (wGC w) x1 y1 x2 y2
+data Buf = BG | UndoBuf
 
-cleanBG :: World -> IO ()
-cleanBG w = do
+lineToBG :: World -> Buf -> Position -> Position -> Position -> Position -> IO ()
+lineToBG w BG x1 y1 x2 y2 = drawLine (wDisplay w) (wBG w) (wGC w) x1 y1 x2 y2
+lineToBG w UndoBuf x1 y1 x2 y2 = drawLine (wDisplay w) (wUndoBuf w) (wGC w) x1 y1 x2 y2
+
+cleanBG :: World -> Buf -> IO ()
+cleanBG w b = do
 	(_, _, _, width, height, _, _) <- getGeometry (wDisplay w) (wWindow w)
 	gc <- createGC (wDisplay w) (wWindow w)
 	setForeground (wDisplay w) gc 0xffffff
-	fillRectangle (wDisplay w) (wBG w) gc 0 0 width height
+	let buf = case b of
+		BG -> wBG w
+		UndoBuf -> wUndoBuf w
+	fillRectangle (wDisplay w) buf gc 0 0 width height
 
 flushWorld :: World -> IO ()
 flushWorld = flush . wDisplay

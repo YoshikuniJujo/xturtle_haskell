@@ -53,10 +53,25 @@ distance x0 y0 = do
 	(x, y) <- position
 	return $ ((x - x0) ** 2 + (y - y0) ** 2) ** (1 / 2)
 
-pastDrawLines :: IORef [Maybe (((Double, Double), Double), IO ())]
+pastDrawLines :: IORef [Maybe (((Double, Double), Double), Buf -> IO ())]
 pastDrawLines = unsafePerformIO $ newIORef []
 
+putToPastDrawLines :: (Double, Double) -> Double -> (Buf -> IO ()) -> IO ()
+putToPastDrawLines tpos tdir dl = do
+	pdls <- readIORef pastDrawLines
+	if length pdls < 300
+		then do
+			writeIORef pastDrawLines $ pdls ++ [Just ((tpos, tdir), dl)]
+		else do
+			maybe (return ()) (($ UndoBuf) . snd) $ head pdls
+			writeIORef pastDrawLines $ tail pdls ++ [Just ((tpos, tdir), dl)]
+
+setUndoPoint :: IO ()
+setUndoPoint = modifyIORef pastDrawLines $ (++ [Nothing])
+
 data PenState = PenUp | PenDown
+
+data Order = Forward Double | Left Double | Undo deriving Show
 
 doesPenDown :: PenState -> Bool
 doesPenDown PenUp = False
@@ -89,6 +104,15 @@ main = do
 			_ -> error $ "not implemented for event " ++ show ev
 	closeTurtle
 
+orderChan :: IORef (Chan Order)
+orderChan = unsafePerformIO $ newChan >>= newIORef
+
+getOrders :: IO [Order]
+getOrders = unsafeInterleaveIO $ do
+	o <- readIORef orderChan >>= readChan
+	os <- getOrders
+	return $ o : os
+
 initTurtle :: IO ()
 initTurtle = do
 	w <- openWorld
@@ -117,7 +141,7 @@ goto x y = do
 	width <- windowWidth
 	height <- windowHeight
 	rawGoto (x + width / 2) (- y + height / 2)
-		>> modifyIORef pastDrawLines (++ [Nothing])
+		>> setUndoPoint
 rawGoto xTo yTo = do
 	w <- readIORef world
 	(x0, y0) <- getCursorPos w
@@ -143,7 +167,7 @@ rawGoto xTo yTo = do
 	flushWorld w
 
 forward, rawForward :: Double -> IO ()
-forward len = rawForward len >> modifyIORef pastDrawLines (++ [Nothing])
+forward len = rawForward len >> setUndoPoint
 rawForward len = do
 	w <- readIORef world
 	(x0, y0) <- getCursorPos w
@@ -171,13 +195,13 @@ isdown = do
 
 drawLine :: World -> Double -> Double -> Double -> Double -> IO ()
 drawLine w x1 y1 x2 y2 = do
-	let act = do
+	let act buf = do
 		ps <- readIORef penState
 		when (doesPenDown ps) $
-			lineToBG w (round x1) (round y1) (round x2) (round y2)
-	act
+			lineToBG w buf (round x1) (round y1) (round x2) (round y2)
+	act BG
 	dir <- readIORef world >>= getCursorDir 
-	modifyIORef pastDrawLines (++ [Just (((x2, y2), dir), act)])
+	putToPastDrawLines (x2, y2) dir act
 
 redrawLines :: IO ()
 redrawLines = do
@@ -185,7 +209,7 @@ redrawLines = do
 	dls <- fmap (map fromJust . filter isJust) $ readIORef pastDrawLines
 	clear
 	flip mapM_ dls $ \dl -> do
-		snd dl
+		snd dl BG
 		drawWorld w
 		flushWorld w
 		threadDelay 20000
@@ -194,9 +218,10 @@ undoAll :: IO ()
 undoAll = do
 	w <- readIORef world
 	dls <- fmap (map fromJust . filter isJust) $ readIORef pastDrawLines
-	flip mapM_ (zip (reverse $ map fst dls) $ map sequence_ $ reverse $ inits $ map snd dls)
+	flip mapM_ (zip (reverse $ map fst dls) $ map sequence_ $ reverse $ inits
+		$ map (($ BG) . snd) dls)
 		$ \((pos, dir), dl) -> do
-		cleanBG w
+		cleanBG w BG
 		dl
 		uncurry (setCursorPos w) pos
 		setCursorDir w dir
@@ -213,9 +238,11 @@ undo = do
 		draw1 = map fromJust $ filter isJust $ head
 			$ dropWhile (isJust . last) $ reverse $ inits dls
 		draw' = draw ++ [draw1]
-	flip mapM_ (zip (reverse $ map (fst . fromJust) $ filter isJust dls ) $ map sequence_
-		$ map (map snd) draw') $ \((pos, dir), dl) -> do
-		cleanBG w
+	flip mapM_ (zip (reverse $ map (fst . fromJust) $ filter isJust dls )
+		$ map sequence_
+		$ map (map (($ BG) . snd)) draw') $ \((pos, dir), dl) -> do
+		cleanBG w BG
+		undoBufToBG w
 		dl
 		uncurry (setCursorPos w) pos
 		setCursorDir w dir
@@ -233,7 +260,7 @@ rotateBy dd = do
 	drawWorld w
 	flushWorld w
 	pos <- getCursorPos w
-	modifyIORef pastDrawLines (++ [Just ((pos, nd), return ())])
+	putToPastDrawLines pos nd $ const (return ())
 
 rotateTo :: Double -> IO ()
 rotateTo d = do
@@ -248,7 +275,7 @@ rotateTo d = do
 	flushWorld w
 
 rotate, rawRotate :: Double -> IO ()
-rotate d = rawRotate d >> modifyIORef pastDrawLines (++ [Nothing])
+rotate d = rawRotate d >> setUndoPoint
 rawRotate d = do
 	w <- readIORef world
 	d0 <- getCursorDir w
@@ -281,11 +308,11 @@ home = goto 0 0 >> rotateTo 0
 clear :: IO ()
 clear = do
 	w <- readIORef world
-	cleanBG w
+	cleanBG w BG
 	drawWorld w >> flushWorld w
 	pos <- getCursorPos w
 	dir <- getCursorDir w
-	modifyIORef pastDrawLines (++ [Just ((pos, dir), cleanBG w)])
+	putToPastDrawLines pos dir $ cleanBG w
 
 closeTurtle :: IO ()
 closeTurtle = readIORef world >>= closeWorld
