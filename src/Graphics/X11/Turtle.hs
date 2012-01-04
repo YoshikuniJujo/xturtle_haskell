@@ -36,6 +36,8 @@ data TurtleEvent = Forward Double | Rotate Double | Undo | Home | Clear
 	| Penup | Pendown | Goto Double Double
 	deriving Show
 
+data Buf = BG | UndoBuf
+
 getHistory :: IO [TurtleEvent]
 getHistory = readIORef eventPoint >>= return . flip take turtleEvents
 
@@ -63,10 +65,10 @@ world :: IORef World
 world = unsafePerformIO $ newIORef undefined
 
 windowWidth :: IO Double
-windowWidth = readIORef world >>= fmap fst . getWindowSize
+windowWidth = readIORef world >>= fmap fst . getWindowSize . wWin
 
 windowHeight :: IO Double
-windowHeight = readIORef world >>= fmap snd . getWindowSize
+windowHeight = readIORef world >>= fmap snd . getWindowSize . wWin
 
 position :: IO (Double, Double)
 position = do
@@ -153,20 +155,20 @@ initTurtle = do
 	setCursorSize w 2
 	setCursorShape w displayTurtle
 	drawWorld w
-	flushWorld w
+	flushWorld $ wWin w
 	writeIORef world w
 	width <- windowWidth
 	height <- windowHeight
 	setCursorPos w (width / 2) (height / 2)
 	drawWorld w
-	flushWorld w
+	flushWorld $ wWin w
 
 shapesize :: Double -> IO ()
 shapesize s = do
 	w <- readIORef world
 	setCursorSize w s
 	drawWorld w
-	flushWorld w
+	flushWorld $ wWin w
 
 goto, goto', rawGoto :: Double -> Double -> IO ()
 goto x y = do
@@ -191,16 +193,16 @@ rawGoto xTo yTo = do
 		let	nx = x + dx
 			ny = y + dy
 		setCursorPos w nx ny
-		drawLine w x y nx ny
+		drawLine (wWin w) x y nx ny
 		drawWorld w
-		flushWorld w
+		flushWorld $ wWin w
 		threadDelay 20000
 		return ((nx, ny),
 			(nx + dx - x0) ** 2 + (ny + dy - y0) ** 2 < dist ** 2)
 	setCursorPos w xTo yTo
-	drawLine w x' y' xTo yTo
+	drawLine (wWin w) x' y' xTo yTo
 	drawWorld w
-	flushWorld w
+	flushWorld $ wWin w
 
 forward, rawForward :: Double -> IO ()
 forward len = rawForward len >> setUndoPoint >> pushTurtleEvent (Forward len)
@@ -229,12 +231,14 @@ isdown = do
 		PenUp -> False
 		PenDown -> True
 
-drawLine :: World -> Double -> Double -> Double -> Double -> IO ()
+drawLine :: Win -> Double -> Double -> Double -> Double -> IO ()
 drawLine w x1 y1 x2 y2 = do
 	let act buf = do
 		ps <- readIORef penState
 		when (doesPenDown ps) $
-			lineToBG w buf x1 y1 x2 y2
+			case buf of
+				BG -> lineToBG w x1 y1 x2 y2
+				UndoBuf -> lineToUndoBuf w x1 y1 x2 y2
 	act BG
 	dir <- readIORef world >>= getCursorDir 
 	putToPastDrawLines (x2, y2) dir act
@@ -247,7 +251,7 @@ redrawLines = do
 	flip mapM_ dls $ \dl -> do
 		snd dl BG
 		drawWorld w
-		flushWorld w
+		flushWorld $ wWin w
 		threadDelay 20000
 
 undoAll :: IO ()
@@ -257,12 +261,12 @@ undoAll = do
 	flip mapM_ (zip (reverse $ map fst dls) $ map sequence_ $ reverse $ inits
 		$ map (($ BG) . snd) dls)
 		$ \((pos, dir), dl) -> do
-		cleanBG w BG
+		cleanBG (wWin w)
 		dl
 		uncurry (setCursorPos w) pos
 		setCursorDir w dir
 		drawWorld w
-		flushWorld w
+		flushWorld $ wWin w
 		threadDelay 20000
 
 undo :: IO ()
@@ -277,13 +281,13 @@ undo = do
 	flip mapM_ (zip (reverse $ map (fst . fromJust) $ filter isJust dls )
 		$ map sequence_
 		$ map (map (($ BG) . snd)) draw') $ \((pos, dir), dl) -> do
-		cleanBG w BG
-		undoBufToBG w
+		cleanBG (wWin w)
+		undoBufToBG (wWin w)
 		dl
 		uncurry (setCursorPos w) pos
 		setCursorDir w dir
 		drawWorld w
-		flushWorld w
+		flushWorld (wWin w)
 		threadDelay 20000
 	modifyIORef pastDrawLines $ reverse . dropWhile isJust . tail . reverse
 	pushTurtleEvent Undo
@@ -295,7 +299,7 @@ rotateBy dd = do
 	let	nd = (d0 + dd) `gMod` 360
 	setCursorDir w nd
 	drawWorld w
-	flushWorld w
+	flushWorld $ wWin w
 	pos <- getCursorPos w
 	putToPastDrawLines pos nd $ const (return ())
 
@@ -309,7 +313,7 @@ rotateTo d = do
 		rotateBy (signum dd * step) >> threadDelay 10000
 	setCursorDir w d
 	drawWorld w
-	flushWorld w
+	flushWorld $ wWin w
 
 rotate, rawRotate :: Double -> IO ()
 rotate d = rawRotate d >> setUndoPoint >> pushTurtleEvent (Rotate d)
@@ -345,17 +349,20 @@ home = goto' 0 0 >> rotateTo 0 >> pushTurtleEvent Home
 clear :: IO ()
 clear = do
 	w <- readIORef world
-	cleanBG w BG
-	drawWorld w >> flushWorld w
+	cleanBG (wWin w)
+	drawWorld w >> flushWorld (wWin w)
 	pos <- getCursorPos w
 	dir <- getCursorDir w
-	putToPastDrawLines pos dir $ cleanBG w
+	putToPastDrawLines pos dir $ \buf ->
+		case buf of
+			BG -> cleanBG $ wWin w
+			UndoBuf -> cleanUndoBuf $ wWin w
 	pushTurtleEvent Clear
 
 closeTurtle :: IO ()
-closeTurtle = readIORef world >>= closeWorld
+closeTurtle = readIORef world >>= closeWorld . wWin
 
-displayTurtle :: World -> Double -> Double -> Double -> Double -> IO ()
+displayTurtle :: Win -> Double -> Double -> Double -> Double -> IO ()
 displayTurtle w s d x y =
 	makeFilledPolygonCursor w $ map (uncurry $ addDoubles (x, y))
 		$ map (rotatePointD d)
