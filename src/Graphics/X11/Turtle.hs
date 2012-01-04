@@ -16,8 +16,9 @@ module Graphics.X11.Turtle (
 	undoAll,
 	undo,
 	distance,
+	getHistory,
 
-	Position,
+--	Position,
 	testModuleTurtle
 ) where
 
@@ -113,6 +114,7 @@ testModuleTurtle = main
 main :: IO ()
 main = do
 	putStrLn "module Turtle"
+{-
 	initTurtle
 	w <- readIORef world
 	redrawLines
@@ -130,6 +132,7 @@ main = do
 				return ((), True)
 			_ -> error $ "not implemented for event " ++ show ev
 	closeTurtle
+-}
 
 {-
 orderChan :: IORef (Chan Order)
@@ -231,7 +234,7 @@ drawLine w x1 y1 x2 y2 = do
 	let act buf = do
 		ps <- readIORef penState
 		when (doesPenDown ps) $
-			lineToBG w buf (round x1) (round y1) (round x2) (round y2)
+			lineToBG w buf x1 y1 x2 y2
 	act BG
 	dir <- readIORef world >>= getCursorDir 
 	putToPastDrawLines (x2, y2) dir act
@@ -331,9 +334,9 @@ right = rotate
 left :: Double -> IO ()
 left = rotate . negate
 
-circle :: Position -> IO ()
+circle :: Double -> IO ()
 circle r = replicateM_ 36 $ do
-	rawForward $ (2 * fromIntegral r * pi / 36 :: Double)
+	rawForward $ (2 * r * pi / 36 :: Double)
 	rawRotate (- 10)
 
 home :: IO ()
@@ -354,27 +357,29 @@ closeTurtle = readIORef world >>= closeWorld
 
 displayTurtle :: World -> Double -> Double -> Double -> Double -> IO ()
 displayTurtle w s d x y =
-	makeFilledPolygonCursor w $ map (uncurry $ addPoint $ Point (round x) (round y))
+	makeFilledPolygonCursor w $ map (uncurry $ addDoubles (x, y))
 		$ map (rotatePointD d)
 		$ map (mulPoint s) turtle
 
+addDoubles :: (Double, Double) -> Double -> Double -> (Double, Double)
+addDoubles (x, y) dx dy = (x + dx, y + dy)
+
+{-
 addPoint :: Point -> Position -> Position -> Point
 addPoint (Point x y) dx dy = Point (x + dx) (y + dy)
+-}
 
-rotatePointD :: Double -> (Position, Position) -> (Position, Position)
+rotatePointD :: Double -> (Double, Double) -> (Double, Double)
 rotatePointD = rotatePointR . (* pi) . (/ 180)
 
-rotatePointR :: Double -> (Position, Position) -> (Position, Position)
+rotatePointR :: Double -> (Double, Double) -> (Double, Double)
 rotatePointR rad (x, y) =
-	(x `mul` cos rad - y `mul` sin rad, x `mul` sin rad + y `mul` cos rad)
+	(x * cos rad - y * sin rad, x * sin rad + y * cos rad)
 
-mulPoint :: Double -> (Position, Position) -> (Position, Position)
-mulPoint s (x, y) = (x `mul` s, y `mul` s)
+mulPoint :: Double -> (Double, Double) -> (Double, Double)
+mulPoint s (x, y) = (x * s, y * s)
 
-mul :: (Integral a, RealFrac b) => a -> b -> a
-x `mul` y = round $ fromIntegral x * y
-
-turtle :: [(Position, Position)]
+turtle :: [(Double, Double)]
 turtle = ttl ++ reverse (map (second negate) ttl)
 	where
 	ttl = [

@@ -16,3 +16,7 @@ src/Graphics/X11/Turtle.hs に source code を置こう。
 speed up を図ろう。
 また、python において、関数にまとめられた動作の undo がどういうふうになっているか
 調べよう。
+
+2012.01.04 Wed.
+
+thread を利用して、ghci からでも expose event に反応するようにしたい。

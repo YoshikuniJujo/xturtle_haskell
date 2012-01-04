@@ -10,20 +10,13 @@ module Graphics.X11.World (
 	drawWorld,
 	undoBufToBG,
 	closeWorld,
-	withEvent,
 	flushWorld,
-	eventToChar,
-	isDeleteEvent,
 	makeFilledPolygonCursor,
 	lineToBG,
 	cleanBG,
 	getWindowSize,
 	Buf(..),
 
-	Event(..),
-	Position,
-	Dimension,
-	Point(..),
 	testModuleWorld
 ) where
 
@@ -153,15 +146,20 @@ isDeleteEvent :: World -> Event -> Bool
 isDeleteEvent w ev@ClientMessageEvent{} = convert (head $ ev_data ev) == wDel w
 isDeleteEvent _ _ = False
 
-makeFilledPolygonCursor :: World -> [Point] -> IO ()
+makeFilledPolygonCursor :: World -> [(Double, Double)] -> IO ()
 makeFilledPolygonCursor w ps =
-	fillPolygon (wDisplay w) (wBuf w) (wGC w) ps nonconvex coordModeOrigin
+	fillPolygon (wDisplay w) (wBuf w) (wGC w) (mkPs ps) nonconvex coordModeOrigin
+	where
+	doublesToPoint (x, y) = Point (round x) (round y)
+	mkPs = map doublesToPoint
 
 data Buf = BG | UndoBuf
 
-lineToBG :: World -> Buf -> Position -> Position -> Position -> Position -> IO ()
-lineToBG w BG x1 y1 x2 y2 = drawLine (wDisplay w) (wBG w) (wGC w) x1 y1 x2 y2
-lineToBG w UndoBuf x1 y1 x2 y2 = drawLine (wDisplay w) (wUndoBuf w) (wGC w) x1 y1 x2 y2
+lineToBG :: World -> Buf -> Double -> Double -> Double -> Double -> IO ()
+lineToBG w BG x1_ y1_ x2_ y2_ = drawLine (wDisplay w) (wBG w) (wGC w) x1 y1 x2 y2
+	where	[x1, y1, x2, y2] = map round [x1_, y1_, x2_, y2_]
+lineToBG w UndoBuf x1_ y1_ x2_ y2_ = drawLine (wDisplay w) (wUndoBuf w) (wGC w) x1 y1 x2 y2
+	where	[x1, y1, x2, y2] = map round [x1_, y1_, x2_, y2_]
 
 cleanBG :: World -> Buf -> IO ()
 cleanBG w b = do
