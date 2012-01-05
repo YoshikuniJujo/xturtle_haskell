@@ -1,57 +1,58 @@
 module Graphics.X11.Window (
 	Win,
-	openWindow,
-	closeWindow,
-	flushWindow,
-	getWindowSize,
-	cleanBG,
-	cleanUndoBuf,
-	lineToBG,
-	lineToUndoBuf,
-	makeFilledPolygonCursor,
+	openWin,
+	flushWin,
+	winSize,
+
+	clearBG,
+	clearUndoBuf,
+	lineBG,
+	lineUndoBuf,
+	fillPolygonBuf,
+
 	undoBufToBG,
 	bgToBuf,
-	bufToWin,
-
-	testModuleWindow,
+	bufToWin
 ) where
 
-import Graphics.X11
-import Graphics.X11.Xlib.Extras
-import Data.Bits
-import Data.Char
-import Data.Convertible
-import Control.Monad.Tools
-import Control.Monad
-import Data.IORef
-import Control.Concurrent
+import Graphics.X11(
+	Display, Window, Pixmap, GC, Atom, Point(..), Dimension,
+
+	openDisplay, closeDisplay, flush, defaultScreen, rootWindow,
+	whitePixel, blackPixel,	defaultDepth,
+	createSimpleWindow, mapWindow, createPixmap, internAtom, createGC,
+
+	setForeground, copyArea,
+	drawLine, fillRectangle, fillPolygon, nonconvex, coordModeOrigin,
+
+	setWMProtocols, selectInput, allocaXEvent, nextEvent,
+	keyPressMask, exposureMask,
+
+	getGeometry, initThreads
+ )
+import Graphics.X11.Xlib.Extras(Event(..), getEvent)
+import Control.Monad(join)
+import Control.Monad.Tools(doWhile_)
+import Control.Arrow((***))
+import Control.Concurrent(forkIO)
+import Data.IORef(IORef, newIORef, readIORef, writeIORef)
+import Data.Bits((.|.))
+import Data.Convertible(convert)
 
 data Win = Win{
 	wDisplay :: Display,
 	wWindow :: Window,
 	wGC :: GC,
 	wDel :: Atom,
+	wUndoBuf :: Pixmap,
 	wBG :: Pixmap,
 	wBuf :: Pixmap,
-	wUndoBuf :: Pixmap,
 	wWidth :: IORef Dimension,
 	wHeight :: IORef Dimension
  }
 
-getWindowSize :: Win -> IO (Double, Double)
-getWindowSize w = do
-	width <- readIORef $ wWidth w
-	height <- readIORef $ wHeight w
-	return (fromIntegral width, fromIntegral height)
-
-getWindowSizeRaw :: Win -> IO (Dimension, Dimension)
-getWindowSizeRaw w = do
-	width <- readIORef $ wWidth w
-	height <- readIORef $ wHeight w
-	return (width, height)
-
-openWindow :: IO (Win, IORef (IO ()))
-openWindow = do
+openWin :: IO (Win, IORef (IO ()))
+openWin = do
 	dpy <- openDisplay ""
 	del <- internAtom dpy "WM_DELETE_WINDOW" True
 	let	scr = defaultScreen dpy
@@ -59,10 +60,11 @@ openWindow = do
 	(_, _, _, rWidth, rHeight, _, _) <- getGeometry dpy root
 	let	black = blackPixel dpy scr
 		white = whitePixel dpy scr
+		depth = defaultDepth dpy scr
+	undoBuf <- createPixmap dpy root rWidth rHeight depth
+	bg <- createPixmap dpy root rWidth rHeight depth
+	buf <- createPixmap dpy root rWidth rHeight depth
 	win <- createSimpleWindow dpy root 0 0 rWidth rHeight 1 black white
-	bg <- createPixmap dpy root rWidth rHeight $ defaultDepth dpy scr
-	buf <- createPixmap dpy root rWidth rHeight $ defaultDepth dpy scr
-	undoBuf <- createPixmap dpy root rWidth rHeight $ defaultDepth dpy scr
 	gc <- createGC dpy win
 	gc' <- createGC dpy win
 	setForeground dpy gc' 0xffffff
@@ -72,60 +74,61 @@ openWindow = do
 	setWMProtocols dpy win [del]
 	selectInput dpy win $ exposureMask .|. keyPressMask
 	mapWindow dpy win
-	flush dpy
-	exposeAction <- newIORef (return ())
 	widthRef <- newIORef rWidth
 	heightRef <- newIORef rHeight
-	let w = Win dpy win gc del bg buf undoBuf widthRef heightRef
-	_ <- forkIO $ withEvent w () $ \() ev ->
+	let w = Win dpy win gc del undoBuf bg buf widthRef heightRef
+	exposeAction <- newIORef $ return ()
+	_ <- forkIO $ (>> closeDisplay dpy) $ (initThreads >>) $ withEvent w $ \ev ->
 		case ev of
 			ExposeEvent{} -> do
 				(_, _, _, width, height, _, _) <- getGeometry (wDisplay w) (wWindow w)
 				writeIORef (wWidth w) width
 				writeIORef (wHeight w) height
 				join $ readIORef exposeAction
-				return ((), True)
-			KeyEvent{} -> return ((), True)
+				return True
+			KeyEvent{} -> return True
 			ClientMessageEvent{} ->
-				return ((), not $ isDeleteEvent w ev)
-			_ -> return ((), True)
+				return $ not $ isDeleteEvent w ev
+			_ -> return True
 	return (w, exposeAction)
 
-closeWindow :: Win -> IO ()
-closeWindow = closeDisplay . wDisplay
+winSize :: Win -> IO (Double, Double)
+winSize w = fmap (fromIntegral *** fromIntegral) $ winSizeRaw w
+
+winSizeRaw :: Win -> IO (Dimension, Dimension)
+winSizeRaw w = do
+	width <- readIORef $ wWidth w
+	height <- readIORef $ wHeight w
+	return (width, height)
 
 bgToBuf :: Win -> IO ()
 bgToBuf w = do
-	(width, height) <- getWindowSizeRaw w
+	(width, height) <- winSizeRaw w
 	copyArea (wDisplay w) (wBG w) (wBuf w) (wGC w)
 		0 0 width height 0 0
 
 bufToWin :: Win -> IO ()
 bufToWin w = do
-	(width, height) <- getWindowSizeRaw w
+	(width, height) <- winSizeRaw w
 	copyArea (wDisplay w) (wBuf w) (wWindow w) (wGC w)
 		0 0 width height 0 0
 
 undoBufToBG :: Win -> IO ()
 undoBufToBG w = do
-	(width, height) <- getWindowSizeRaw w
+	(width, height) <- winSizeRaw w
 	copyArea (wDisplay w) (wUndoBuf w) (wBG w) (wGC w) 0 0 width height 0 0
 
-withEvent :: Win -> s -> (s -> Event -> IO (s, Bool)) -> IO s
-withEvent w stat0 act = doWhile stat0 $ \stat -> allocaXEvent $ \e -> do
+withEvent :: Win -> (Event -> IO Bool) -> IO ()
+withEvent w act = doWhile_ $ allocaXEvent $ \e -> do
 	nextEvent (wDisplay w) e
-	getEvent e >>= act stat
-
-eventToChar :: Win -> Event -> IO Char
-eventToChar w ev =
-	fmap (chr . fromEnum) $ keycodeToKeysym (wDisplay w) (ev_keycode ev) 0
+	getEvent e >>= act
 
 isDeleteEvent :: Win -> Event -> Bool
 isDeleteEvent w ev@ClientMessageEvent{} = convert (head $ ev_data ev) == wDel w
 isDeleteEvent _ _ = False
 
-makeFilledPolygonCursor :: Win -> [(Double, Double)] -> IO ()
-makeFilledPolygonCursor w ps =
+fillPolygonBuf :: Win -> [(Double, Double)] -> IO ()
+fillPolygonBuf w ps =
 	fillPolygon (wDisplay w) (wBuf w) (wGC w) (mkPs ps) nonconvex coordModeOrigin
 	where
 	doublesToPoint (x, y) = Point (round x) (round y)
@@ -133,11 +136,11 @@ makeFilledPolygonCursor w ps =
 
 data Buf = BG | UndoBuf
 
-lineToBG :: Win -> Double -> Double -> Double -> Double -> IO ()
-lineToBG w = lineToGen w BG
+lineBG :: Win -> Double -> Double -> Double -> Double -> IO ()
+lineBG w = lineToGen w BG
 
-lineToUndoBuf :: Win -> Double -> Double -> Double -> Double -> IO ()
-lineToUndoBuf w = lineToGen w UndoBuf
+lineUndoBuf :: Win -> Double -> Double -> Double -> Double -> IO ()
+lineUndoBuf w = lineToGen w UndoBuf
 
 lineToGen :: Win -> Buf -> Double -> Double -> Double -> Double -> IO ()
 lineToGen w BG x1_ y1_ x2_ y2_ = drawLine (wDisplay w) (wBG w) (wGC w) x1 y1 x2 y2
@@ -145,11 +148,11 @@ lineToGen w BG x1_ y1_ x2_ y2_ = drawLine (wDisplay w) (wBG w) (wGC w) x1 y1 x2 
 lineToGen w UndoBuf x1_ y1_ x2_ y2_ = drawLine (wDisplay w) (wUndoBuf w) (wGC w) x1 y1 x2 y2
 	where	[x1, y1, x2, y2] = map round [x1_, y1_, x2_, y2_]
 
-cleanBG :: Win -> IO ()
-cleanBG w = cleanGen w BG
+clearBG :: Win -> IO ()
+clearBG w = cleanGen w BG
 
-cleanUndoBuf :: Win -> IO ()
-cleanUndoBuf w = cleanGen w UndoBuf
+clearUndoBuf :: Win -> IO ()
+clearUndoBuf w = cleanGen w UndoBuf
 
 cleanGen :: Win -> Buf -> IO ()
 cleanGen w b = do
@@ -158,27 +161,7 @@ cleanGen w b = do
 	let buf = case b of
 		BG -> wBG w
 		UndoBuf -> wUndoBuf w
-	getWindowSizeRaw w >>= uncurry (fillRectangle (wDisplay w) buf gc 0 0)
+	winSizeRaw w >>= uncurry (fillRectangle (wDisplay w) buf gc 0 0)
 
-flushWindow :: Win -> IO ()
-flushWindow = flush . wDisplay
-
-testModuleWindow :: IO ()
-testModuleWindow = main
-
-main :: IO ()
-main = do
-	putStrLn "module Window"
-{-
-	(w, _) <- openWindow
-	withEvent w () $ \() ev ->
-		case ev of
-			ExposeEvent{} -> return ((), True)
-			KeyEvent{} -> do
-				ch <- eventToChar w ev
-				return ((), ch /= 'q')
-			ClientMessageEvent{} ->
-				return ((), not $ isDeleteEvent w ev)
-			_ -> error $ "not implemented for event " ++ show ev
-	closeWindow w
--}
+flushWin :: Win -> IO ()
+flushWin = flush . wDisplay

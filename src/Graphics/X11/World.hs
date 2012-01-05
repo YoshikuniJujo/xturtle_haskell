@@ -11,7 +11,6 @@ module Graphics.X11.World (
 	setCursorShape,
 	drawWorld,
 	undoBufToBG,
-	closeWorld,
 	flushWorld,
 	makeFilledPolygonCursor,
 	lineToBG,
@@ -53,7 +52,7 @@ setCursorShape w s = writeIORef (wShape w) s
 
 openWorld :: IO World
 openWorld = do
-	(win, forExpose) <- Win.openWindow
+	(win, forExpose) <- Win.openWin
 	initPos <- newIORef undefined
 	initDir <- newIORef undefined
 	initSize <- newIORef undefined
@@ -72,13 +71,12 @@ drawWorld w = do
 	displayCursor (wWin w) s d x y
 	Win.bufToWin $ wWin w
 
-getWindowSize = Win.getWindowSize
-cleanBG = Win.cleanBG
-cleanUndoBuf = Win.cleanUndoBuf
-lineToBG = Win.lineToBG
-lineToUndoBuf = Win.lineToUndoBuf
-makeFilledPolygonCursor = Win.makeFilledPolygonCursor
-flushWorld = Win.flushWindow
-closeWorld = Win.closeWindow
+getWindowSize = Win.winSize
+cleanBG = Win.clearBG
+cleanUndoBuf = Win.clearUndoBuf
+lineToBG = Win.lineBG
+lineToUndoBuf = Win.lineUndoBuf
+makeFilledPolygonCursor = Win.fillPolygonBuf
+flushWorld = Win.flushWin
 undoBufToBG = Win.undoBufToBG
 type Win = Win.Win

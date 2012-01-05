@@ -1,6 +1,5 @@
 module Graphics.X11.Turtle (
 	initTurtle,
-	closeTurtle,
 	shapesize,
 	goto,
 	forward,
@@ -358,9 +357,6 @@ clear = do
 			BG -> cleanBG $ wWin w
 			UndoBuf -> cleanUndoBuf $ wWin w
 	pushTurtleEvent Clear
-
-closeTurtle :: IO ()
-closeTurtle = readIORef world >>= closeWorld . wWin
 
 displayTurtle :: Win -> Double -> Double -> Double -> Double -> IO ()
 displayTurtle w s d x y =
