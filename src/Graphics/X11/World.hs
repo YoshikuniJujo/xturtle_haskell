@@ -53,12 +53,14 @@ setCursorShape w s = writeIORef (wShape w) s
 
 openWorld :: IO World
 openWorld = do
-	win <- Win.openWindow
+	(win, forExpose) <- Win.openWindow
 	initPos <- newIORef undefined
 	initDir <- newIORef undefined
 	initSize <- newIORef undefined
 	initShape <- newIORef undefined
-	return $ World win initPos initDir initSize initShape
+	let world = World win initPos initDir initSize initShape
+	writeIORef forExpose $ drawWorld world
+	return world
 
 drawWorld :: World -> IO ()
 drawWorld w = do

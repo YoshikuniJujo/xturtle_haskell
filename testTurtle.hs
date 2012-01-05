@@ -47,3 +47,22 @@ randomTurtle = sequence_ $ repeat $ do
 	randomRIO (-180, 180) >>= left >> forward 15
 	d <- distance 0 0
 	when (d > 100) undo
+
+squares :: Double -> IO ()
+squares len
+	| len <= 10	= return ()
+	| otherwise	= do
+		replicateM_ 4 $ forward len >> right 90
+		right 90 >> forward len >> left 90
+		squares (len / 2)
+
+coch :: Double -> Double -> Int -> IO ()
+coch len _ 0 = forward len
+coch len d n = do
+	coch (len / 3) d (n - 1)
+	left d
+	coch (len / 3) d (n - 1)
+	right (d * 2)
+	coch (len / 3) d (n - 1)
+	left d
+	coch (len / 3) d (n - 1)

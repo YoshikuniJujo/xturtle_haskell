@@ -11,16 +11,20 @@ module Graphics.X11.Window (
 	makeFilledPolygonCursor,
 	undoBufToBG,
 	bgToBuf,
-	bufToWin
+	bufToWin,
+
+	testModuleWindow,
 ) where
 
 import Graphics.X11
 import Graphics.X11.Xlib.Extras
-import Data.IORef
 import Data.Bits
 import Data.Char
 import Data.Convertible
 import Control.Monad.Tools
+import Data.IORef
+import Control.Concurrent
+import System.IO.Unsafe
 
 data Win = Win{
 	wDisplay :: Display,
@@ -29,21 +33,30 @@ data Win = Win{
 	wDel :: Atom,
 	wBG :: Pixmap,
 	wBuf :: Pixmap,
-	wUndoBuf :: Pixmap
- }
+	wUndoBuf :: Pixmap,
+	wWidth :: Dimension,
+	wHeight :: Dimension
+ } deriving Show
+
+winWidth, winHeight :: IORef Dimension
+winWidth = unsafePerformIO $ newIORef $ error "winWidth undefined"
+winHeight = unsafePerformIO $ newIORef $ error "winHeight undefined"
 
 getWindowSize :: Win -> IO (Double, Double)
 getWindowSize w = do
-	(_, _, _, width, height, _, _) <- getGeometry (wDisplay w) (wWindow w)
+	width <- readIORef winWidth
+	height <- readIORef winHeight
 	return (fromIntegral width, fromIntegral height)
 
-openWindow :: IO Win
+openWindow :: IO (Win, IORef (IO ()))
 openWindow = do
 	dpy <- openDisplay ""
 	del <- internAtom dpy "WM_DELETE_WINDOW" True
 	let	scr = defaultScreen dpy
 	root <- rootWindow dpy scr
 	(_, _, _, width, height, _, _) <- getGeometry dpy root
+	writeIORef winWidth width
+	writeIORef winHeight height
 	let	black = blackPixel dpy scr
 		white = whitePixel dpy scr
 	win <- createSimpleWindow dpy root 0 0 width height 1 black white
@@ -60,27 +73,43 @@ openWindow = do
 	selectInput dpy win $ exposureMask .|. keyPressMask
 	mapWindow dpy win
 	flush dpy
-	return $ Win dpy win gc del bg buf undoBuf
+	exposeAction <- newIORef (return ())
+	let w = Win dpy win gc del bg buf undoBuf width height
+	forkIO $ withEvent w () $ \() ev ->
+		case ev of
+			ExposeEvent{} -> do
+				(_, _, _, width, height, _, _) <- getGeometry (wDisplay w) (wWindow w)
+				writeIORef winWidth width
+				writeIORef winHeight height
+				putStrLn "expose event occur"
+				readIORef exposeAction >>= id
+				return ((), True)
+			KeyEvent{} -> do
+--				ch <- eventToChar w ev
+				return ((), True)
+--				return ((), ch /= 'q')
+			ClientMessageEvent{} ->
+				return ((), not $ isDeleteEvent w ev)
+			_ -> -- error $ "not implemented for event " ++ show ev
+				return ((), True)
+	return (w, exposeAction)
 
 closeWindow :: Win -> IO ()
 closeWindow = closeDisplay . wDisplay
 
 bgToBuf :: Win -> IO ()
 bgToBuf w = do
-	(_, _, _, width, height, _, _) <- getGeometry (wDisplay w) (wWindow w)
 	copyArea (wDisplay w) (wBG w) (wBuf w) (wGC w)
-		0 0 width height 0 0
+		0 0 (wWidth w) (wHeight w) 0 0
 
 bufToWin :: Win -> IO ()
 bufToWin w = do
-	(_, _, _, width, height, _, _) <- getGeometry (wDisplay w) (wWindow w)
 	copyArea (wDisplay w) (wBuf w) (wWindow w) (wGC w)
-		0 0 width height 0 0
+		0 0 (wWidth w) (wHeight w) 0 0
 
 undoBufToBG :: Win -> IO ()
 undoBufToBG w = do
-	(_, _, _, width, height, _, _) <- getGeometry (wDisplay w) (wWindow w)
-	copyArea (wDisplay w) (wUndoBuf w) (wBG w) (wGC w) 0 0 width height 0 0
+	copyArea (wDisplay w) (wUndoBuf w) (wBG w) (wGC w) 0 0 (wWidth w) (wHeight w) 0 0
 
 
 withEvent :: Win -> s -> (s -> Event -> IO (s, Bool)) -> IO s
@@ -125,13 +154,12 @@ cleanUndoBuf w = cleanGen w UndoBuf
 
 cleanGen :: Win -> Buf -> IO ()
 cleanGen w b = do
-	(_, _, _, width, height, _, _) <- getGeometry (wDisplay w) (wWindow w)
 	gc <- createGC (wDisplay w) (wWindow w)
 	setForeground (wDisplay w) gc 0xffffff
 	let buf = case b of
 		BG -> wBG w
 		UndoBuf -> wUndoBuf w
-	fillRectangle (wDisplay w) buf gc 0 0 width height
+	fillRectangle (wDisplay w) buf gc 0 0 (wWidth w) (wHeight w)
 
 flushWindow :: Win -> IO ()
 flushWindow = flush . wDisplay
@@ -142,7 +170,7 @@ testModuleWindow = main
 main :: IO ()
 main = do
 	putStrLn "module Window"
-	w <- openWindow
+	(w, _) <- openWindow
 	withEvent w () $ \() ev ->
 		case ev of
 			ExposeEvent{} -> return ((), True)
