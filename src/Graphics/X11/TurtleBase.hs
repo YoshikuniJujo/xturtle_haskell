@@ -8,15 +8,19 @@ module Graphics.X11.TurtleBase (
 	windowHeight,
 	position,
 
-	penState,
-	PenState(..),
-	doesPenDown
+	penup,
+	pendown,
+	isdown,
+	Buf(..),
+	drawLine
 ) where
 
 import Graphics.X11.World
 import Control.Arrow
 import System.IO.Unsafe
 import Data.IORef
+import Control.Monad
+-- import Control.Concurrent
 
 data Turtle = Turtle{tWorld :: World}
 
@@ -61,9 +65,29 @@ data PenState = PenUp | PenDown
 penState :: IORef PenState
 penState = unsafePerformIO $ newIORef PenDown
 
-doesPenDown :: PenState -> Bool
-doesPenDown PenUp = False
-doesPenDown PenDown = True
+penup :: Turtle -> IO ()
+penup _ = writeIORef penState PenUp
+
+pendown :: Turtle -> IO ()
+pendown _ = writeIORef penState PenDown
+
+isdown :: Turtle -> IO Bool
+isdown _ = do
+	ps <- readIORef penState
+	return $ case ps of
+		PenUp -> False
+		PenDown -> True
+
+data Buf = BG | UndoBuf
+
+drawLine :: Turtle -> Double -> Double -> Double -> Double -> Buf -> IO ()
+drawLine t x1 y1 x2 y2 buf = do
+		let w = tWorld t
+		pd <- isdown t
+		when pd $
+			case buf of
+				BG -> lineToBG (wWin w) x1 y1 x2 y2
+				UndoBuf -> lineToUndoBuf (wWin w) x1 y1 x2 y2
 
 displayTurtle :: Win -> Double -> Double -> Double -> Double -> IO ()
 displayTurtle w s d x y =

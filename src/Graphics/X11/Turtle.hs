@@ -51,29 +51,28 @@ distance x0 y0 = do
 	return $ ((x - x0) ** 2 + (y - y0) ** 2) ** (1 / 2)
 
 penup :: IO ()
-penup = writeIORef Base.penState Base.PenUp >> pushTurtleEvent Penup
+penup = readIORef world >>= Base.penup >> pushTurtleEvent Penup
 
 pendown :: IO ()
-pendown = writeIORef Base.penState Base.PenDown >> pushTurtleEvent Pendown
+pendown = readIORef world >>= Base.pendown >> pushTurtleEvent Pendown
 
 isdown :: IO Bool
-isdown = do
-	ps <- readIORef Base.penState
-	return $ case ps of
-		Base.PenUp -> False
-		Base.PenDown -> True
+isdown = readIORef world >>= Base.isdown
 
-goto, goto', rawGoto :: Double -> Double -> IO ()
+goto, goto' :: Double -> Double -> IO ()
+rawGoto :: Base.Turtle -> Double -> Double -> IO ()
 goto x y = do
 	width <- windowWidth
 	height <- windowHeight
-	rawGoto (x + width / 2) (- y + height / 2)
+	t <- readIORef world
+	rawGoto t (x + width / 2) (- y + height / 2)
 		>> setUndoPoint >> pushTurtleEvent (Goto x y)
 goto' x y = do
 	width <- windowWidth
 	height <- windowHeight
-	rawGoto (x + width / 2) (- y + height / 2)
-rawGoto xTo yTo = do
+	t <- readIORef world
+	rawGoto t (x + width / 2) (- y + height / 2)
+rawGoto t xTo yTo = do
 	w <- fmap Base.tWorld $ readIORef world
 	(x0, y0) <- Base.getCursorPos w
 	let	step = 10
@@ -86,42 +85,37 @@ rawGoto xTo yTo = do
 		let	nx = x + dx
 			ny = y + dy
 		Base.setCursorPos w nx ny
-		drawLine (Base.wWin w) x y nx ny
+		drawLine t x y nx ny
 		Base.drawWorld w
 		Base.flushWorld $ Base.wWin w
 		threadDelay 20000
 		return ((nx, ny),
 			(nx + dx - x0) ** 2 + (ny + dy - y0) ** 2 < dist ** 2)
 	Base.setCursorPos w xTo yTo
-	drawLine (Base.wWin w) x' y' xTo yTo
+	drawLine t x' y' xTo yTo
 	Base.drawWorld w
 	Base.flushWorld $ Base.wWin w
 
 forward, rawForward :: Double -> IO ()
 forward len = rawForward len >> setUndoPoint >> pushTurtleEvent (Forward len)
 rawForward len = do
+	t <- readIORef world
 	w <- fmap Base.tWorld $ readIORef world
 	(x0, y0) <- Base.getCursorPos w
 	d <- Base.getCursorDir w
 	let	rad = d * pi / 180
 		nx' = x0 + len * cos rad
 		ny' = y0 + len * sin rad
-	rawGoto nx' ny'
+	rawGoto t nx' ny'
 
 backward :: Double -> IO ()
 backward = forward . negate
 
-drawLine :: Base.Win -> Double -> Double -> Double -> Double -> IO ()
-drawLine w x1 y1 x2 y2 = do
-	let act buf = do
-		ps <- readIORef Base.penState
-		when (Base.doesPenDown ps) $
-			case buf of
-				BG -> Base.lineToBG w x1 y1 x2 y2
-				UndoBuf -> Base.lineToUndoBuf w x1 y1 x2 y2
-	act BG
+drawLine :: Base.Turtle -> Double -> Double -> Double -> Double -> IO ()
+drawLine t x1 y1 x2 y2 = do
+	Base.drawLine t x1 y1 x2 y2 Base.BG
 	dir <- readIORef world >>= Base.getCursorDir . Base.tWorld
-	putToPastDrawLines (x2, y2) dir act
+	putToPastDrawLines (x2, y2) dir (Base.drawLine t x1 y1 x2 y2)
 
 undo :: IO ()
 undo = do
@@ -133,7 +127,7 @@ undo = do
 			$ dropWhile (isJust . last) $ reverse $ inits dls
 		draw' = draw ++ [draw1]
 	forM_ (zip (reverse $ map (fst . fromJust) $ filter isJust dls )
-		$ map (mapM_ (($ BG) . snd)) draw') $ \((pos, dir), dl) -> do
+		$ map (mapM_ (($ Base.BG) . snd)) draw') $ \((pos, dir), dl) -> do
 		Base.cleanBG (Base.wWin w)
 		Base.undoBufToBG (Base.wWin w)
 		dl
@@ -208,8 +202,8 @@ clear = do
 	dir <- Base.getCursorDir w
 	putToPastDrawLines pos dir $ \buf ->
 		case buf of
-			BG -> Base.cleanBG $ Base.wWin w
-			UndoBuf -> Base.cleanUndoBuf $ Base.wWin w
+			Base.BG -> Base.cleanBG $ Base.wWin w
+			Base.UndoBuf -> Base.cleanUndoBuf $ Base.wWin w
 	pushTurtleEvent Clear
 
 --------------------------------------------------------------------------------
@@ -217,8 +211,6 @@ clear = do
 data TurtleEvent = Forward Double | Rotate Double | Undo | Home | Clear
 	| Penup | Pendown | Goto Double Double
 	deriving Show
-
-data Buf = BG | UndoBuf
 
 getHistory :: IO [TurtleEvent]
 getHistory = liftM (`take` turtleEvents) $ readIORef eventPoint 
@@ -243,16 +235,16 @@ pushTurtleEvent te = do
 	writeChan eventChan te
 	modifyIORef eventPoint (+ 1)
 
-pastDrawLines :: IORef [Maybe (((Double, Double), Double), Buf -> IO ())]
+pastDrawLines :: IORef [Maybe (((Double, Double), Double), Base.Buf -> IO ())]
 pastDrawLines = unsafePerformIO $ newIORef []
 
-putToPastDrawLines :: (Double, Double) -> Double -> (Buf -> IO ()) -> IO ()
+putToPastDrawLines :: (Double, Double) -> Double -> (Base.Buf -> IO ()) -> IO ()
 putToPastDrawLines tpos tdir dl = do
 	pdls <- readIORef pastDrawLines
 	if length pdls < 300
 		then writeIORef pastDrawLines $ pdls ++ [Just ((tpos, tdir), dl)]
 		else do
-			maybe (return ()) (($ UndoBuf) . snd) $ head pdls
+			maybe (return ()) (($ Base.UndoBuf) . snd) $ head pdls
 			writeIORef pastDrawLines $ tail pdls ++ [Just ((tpos, tdir), dl)]
 
 setUndoPoint :: IO ()
