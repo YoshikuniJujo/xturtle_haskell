@@ -5,11 +5,18 @@ module Graphics.X11.TurtleBase (
 	initTurtle,
 	shapesize,
 	windowWidth,
-	windowHeight
+	windowHeight,
+	position,
+
+	penState,
+	PenState(..),
+	doesPenDown
 ) where
 
 import Graphics.X11.World
 import Control.Arrow
+import System.IO.Unsafe
+import Data.IORef
 
 data Turtle = Turtle{tWorld :: World}
 
@@ -35,11 +42,28 @@ shapesize t s = do
 	drawWorld w
 	flushWorld $ wWin w
 
+position :: Turtle -> IO (Double, Double)
+position t = do
+	let w = tWorld t
+	(x, y) <- getCursorPos w
+	width <- windowWidth t
+	height <- windowHeight t
+	return (x - width / 2, height / 2 - y)
+
 windowWidth :: Turtle -> IO Double
 windowWidth = fmap fst . winSize . wWin . tWorld
 
 windowHeight :: Turtle -> IO Double
 windowHeight = fmap snd . winSize . wWin . tWorld
+
+data PenState = PenUp | PenDown
+
+penState :: IORef PenState
+penState = unsafePerformIO $ newIORef PenDown
+
+doesPenDown :: PenState -> Bool
+doesPenDown PenUp = False
+doesPenDown PenDown = True
 
 displayTurtle :: Win -> Double -> Double -> Double -> Double -> IO ()
 displayTurtle w s d x y =

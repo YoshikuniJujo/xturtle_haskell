@@ -13,6 +13,7 @@ module Graphics.X11.Turtle (
 	circle,
 	clear,
 	undo,
+	position,
 	distance,
 	getHistory
 ) where
@@ -42,41 +43,25 @@ windowHeight :: IO Double
 windowHeight = readIORef world >>= Base.windowHeight
 
 position :: IO (Double, Double)
-position = do
-	w <- fmap Base.tWorld $ readIORef world
-	(x, y) <- Base.getCursorPos w
-	width <- windowWidth
-	height <- windowHeight
-	return (x - width / 2, height / 2 - y)
+position = readIORef world >>= Base.position
 
 distance :: Double -> Double -> IO Double
 distance x0 y0 = do
 	(x, y) <- position
 	return $ ((x - x0) ** 2 + (y - y0) ** 2) ** (1 / 2)
 
-pastDrawLines :: IORef [Maybe (((Double, Double), Double), Buf -> IO ())]
-pastDrawLines = unsafePerformIO $ newIORef []
+penup :: IO ()
+penup = writeIORef Base.penState Base.PenUp >> pushTurtleEvent Penup
 
-putToPastDrawLines :: (Double, Double) -> Double -> (Buf -> IO ()) -> IO ()
-putToPastDrawLines tpos tdir dl = do
-	pdls <- readIORef pastDrawLines
-	if length pdls < 300
-		then writeIORef pastDrawLines $ pdls ++ [Just ((tpos, tdir), dl)]
-		else do
-			maybe (return ()) (($ UndoBuf) . snd) $ head pdls
-			writeIORef pastDrawLines $ tail pdls ++ [Just ((tpos, tdir), dl)]
+pendown :: IO ()
+pendown = writeIORef Base.penState Base.PenDown >> pushTurtleEvent Pendown
 
-setUndoPoint :: IO ()
-setUndoPoint = modifyIORef pastDrawLines (++ [Nothing])
-
-data PenState = PenUp | PenDown
-
-doesPenDown :: PenState -> Bool
-doesPenDown PenUp = False
-doesPenDown PenDown = True
-
-penState :: IORef PenState
-penState = unsafePerformIO $ newIORef PenDown
+isdown :: IO Bool
+isdown = do
+	ps <- readIORef Base.penState
+	return $ case ps of
+		Base.PenUp -> False
+		Base.PenDown -> True
 
 goto, goto', rawGoto :: Double -> Double -> IO ()
 goto x y = do
@@ -126,24 +111,11 @@ rawForward len = do
 backward :: Double -> IO ()
 backward = forward . negate
 
-penup :: IO ()
-penup = writeIORef penState PenUp >> pushTurtleEvent Penup
-
-pendown :: IO ()
-pendown = writeIORef penState PenDown >> pushTurtleEvent Pendown
-
-isdown :: IO Bool
-isdown = do
-	ps <- readIORef penState
-	return $ case ps of
-		PenUp -> False
-		PenDown -> True
-
 drawLine :: Base.Win -> Double -> Double -> Double -> Double -> IO ()
 drawLine w x1 y1 x2 y2 = do
 	let act buf = do
-		ps <- readIORef penState
-		when (doesPenDown ps) $
+		ps <- readIORef Base.penState
+		when (Base.doesPenDown ps) $
 			case buf of
 				BG -> Base.lineToBG w x1 y1 x2 y2
 				UndoBuf -> Base.lineToUndoBuf w x1 y1 x2 y2
@@ -270,3 +242,18 @@ pushTurtleEvent :: TurtleEvent -> IO ()
 pushTurtleEvent te = do
 	writeChan eventChan te
 	modifyIORef eventPoint (+ 1)
+
+pastDrawLines :: IORef [Maybe (((Double, Double), Double), Buf -> IO ())]
+pastDrawLines = unsafePerformIO $ newIORef []
+
+putToPastDrawLines :: (Double, Double) -> Double -> (Buf -> IO ()) -> IO ()
+putToPastDrawLines tpos tdir dl = do
+	pdls <- readIORef pastDrawLines
+	if length pdls < 300
+		then writeIORef pastDrawLines $ pdls ++ [Just ((tpos, tdir), dl)]
+		else do
+			maybe (return ()) (($ UndoBuf) . snd) $ head pdls
+			writeIORef pastDrawLines $ tail pdls ++ [Just ((tpos, tdir), dl)]
+
+setUndoPoint :: IO ()
+setUndoPoint = modifyIORef pastDrawLines (++ [Nothing])
