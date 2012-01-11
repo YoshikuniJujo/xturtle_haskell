@@ -43,6 +43,7 @@ data Win = Win{
 	wDisplay :: Display,
 	wWindow :: Window,
 	wGC :: GC,
+	wGCWhite :: GC,
 	wDel :: Atom,
 	wUndoBuf :: Pixmap,
 	wBG :: Pixmap,
@@ -66,22 +67,23 @@ openWin = do
 	buf <- createPixmap dpy root rWidth rHeight depth
 	win <- createSimpleWindow dpy root 0 0 rWidth rHeight 1 black white
 	gc <- createGC dpy win
-	gc' <- createGC dpy win
-	setForeground dpy gc' 0xffffff
-	fillRectangle dpy bg gc' 0 0 rWidth rHeight
-	fillRectangle dpy buf gc' 0 0 rWidth rHeight
-	fillRectangle dpy undoBuf gc' 0 0 rWidth rHeight
+	gcWhite <- createGC dpy win
+	setForeground dpy gcWhite 0xffffff
+	fillRectangle dpy bg gcWhite 0 0 rWidth rHeight
+	fillRectangle dpy buf gcWhite 0 0 rWidth rHeight
+	fillRectangle dpy undoBuf gcWhite 0 0 rWidth rHeight
 	setWMProtocols dpy win [del]
 	selectInput dpy win $ exposureMask .|. keyPressMask
 	mapWindow dpy win
 	widthRef <- newIORef rWidth
 	heightRef <- newIORef rHeight
-	let w = Win dpy win gc del undoBuf bg buf widthRef heightRef
+	let w = Win dpy win gc gcWhite del undoBuf bg buf widthRef heightRef
 	exposeAction <- newIORef $ return ()
 	_ <- forkIO $ (>> closeDisplay dpy) $ (initThreads >>) $ withEvent w $ \ev ->
 		case ev of
 			ExposeEvent{} -> do
-				(_, _, _, width, height, _, _) <- getGeometry (wDisplay w) (wWindow w)
+				(_, _, _, width, height, _, _) <-
+					getGeometry (wDisplay w) (wWindow w)
 				writeIORef (wWidth w) width
 				writeIORef (wHeight w) height
 				join $ readIORef exposeAction
@@ -124,31 +126,27 @@ bufToWin w = do
 	copyArea (wDisplay w) (wBuf w) (wWindow w) (wGC w) 0 0 width height 0 0
 
 fillPolygonBuf :: Win -> [(Double, Double)] -> IO ()
-fillPolygonBuf w ps =
-	fillPolygon (wDisplay w) (wBuf w) (wGC w) (mkPs ps) nonconvex coordModeOrigin
+fillPolygonBuf w ps = fillPolygon (wDisplay w) (wBuf w) (wGC w) (map dtp ps)
+						nonconvex coordModeOrigin
 	where
-	doublesToPoint (x, y) = Point (round x) (round y)
-	mkPs = map doublesToPoint
+	dtp (x, y) = Point (round x) (round y)
 
 lineBG :: Win -> Double -> Double -> Double -> Double -> IO ()
 lineBG w x1_ y1_ x2_ y2_ = drawLine (wDisplay w) (wBG w) (wGC w) x1 y1 x2 y2
 	where	[x1, y1, x2, y2] = map round [x1_, y1_, x2_, y2_]
 
 lineUndoBuf :: Win -> Double -> Double -> Double -> Double -> IO ()
-lineUndoBuf w x1_ y1_ x2_ y2_ = drawLine (wDisplay w) (wUndoBuf w) (wGC w) x1 y1 x2 y2
+lineUndoBuf w x1_ y1_ x2_ y2_ =
+	drawLine (wDisplay w) (wUndoBuf w) (wGC w) x1 y1 x2 y2
 	where	[x1, y1, x2, y2] = map round [x1_, y1_, x2_, y2_]
 
 clearBG :: Win -> IO ()
-clearBG w = do
-	gc <- createGC (wDisplay w) (wWindow w)
-	setForeground (wDisplay w) gc 0xffffff
-	winSizeRaw w >>= uncurry (fillRectangle (wDisplay w) (wBG w) gc 0 0)
+clearBG w = winSizeRaw w >>=
+	uncurry (fillRectangle (wDisplay w) (wBG w) (wGCWhite w) 0 0)
 
 clearUndoBuf :: Win -> IO ()
-clearUndoBuf w = do
-	gc <- createGC (wDisplay w) (wWindow w)
-	setForeground (wDisplay w) gc 0xffffff
-	winSizeRaw w >>= uncurry (fillRectangle (wDisplay w) (wUndoBuf w) gc 0 0)
+clearUndoBuf w = winSizeRaw w >>=
+	uncurry (fillRectangle (wDisplay w) (wUndoBuf w) (wGCWhite w) 0 0)
 
 flushWin :: Win -> IO ()
 flushWin = flush . wDisplay
