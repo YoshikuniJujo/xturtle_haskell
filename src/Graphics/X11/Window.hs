@@ -4,10 +4,10 @@ module Graphics.X11.Window (
 	flushWin,
 	winSize,
 
-	clearBG,
 	clearUndoBuf,
-	lineBG,
 	lineUndoBuf,
+	clearBG,
+	lineBG,
 	fillPolygonBuf,
 
 	undoBufToBG,
@@ -91,6 +91,13 @@ openWin = do
 				return $ not $ isDeleteEvent w ev
 			_ -> return True
 	return (w, exposeAction)
+	where
+	withEvent w act = doWhile_ $ allocaXEvent $ \e -> do
+		nextEvent (wDisplay w) e
+		getEvent e >>= act
+	isDeleteEvent w ev@ClientMessageEvent{} =
+		convert (head $ ev_data ev) == wDel w
+	isDeleteEvent _ _ = False
 
 winSize :: Win -> IO (Double, Double)
 winSize w = fmap (fromIntegral *** fromIntegral) $ winSizeRaw w
@@ -101,31 +108,20 @@ winSizeRaw w = do
 	height <- readIORef $ wHeight w
 	return (width, height)
 
-bgToBuf :: Win -> IO ()
-bgToBuf w = do
-	(width, height) <- winSizeRaw w
-	copyArea (wDisplay w) (wBG w) (wBuf w) (wGC w)
-		0 0 width height 0 0
-
-bufToWin :: Win -> IO ()
-bufToWin w = do
-	(width, height) <- winSizeRaw w
-	copyArea (wDisplay w) (wBuf w) (wWindow w) (wGC w)
-		0 0 width height 0 0
-
 undoBufToBG :: Win -> IO ()
 undoBufToBG w = do
 	(width, height) <- winSizeRaw w
 	copyArea (wDisplay w) (wUndoBuf w) (wBG w) (wGC w) 0 0 width height 0 0
 
-withEvent :: Win -> (Event -> IO Bool) -> IO ()
-withEvent w act = doWhile_ $ allocaXEvent $ \e -> do
-	nextEvent (wDisplay w) e
-	getEvent e >>= act
+bgToBuf :: Win -> IO ()
+bgToBuf w = do
+	(width, height) <- winSizeRaw w
+	copyArea (wDisplay w) (wBG w) (wBuf w) (wGC w) 0 0 width height 0 0
 
-isDeleteEvent :: Win -> Event -> Bool
-isDeleteEvent w ev@ClientMessageEvent{} = convert (head $ ev_data ev) == wDel w
-isDeleteEvent _ _ = False
+bufToWin :: Win -> IO ()
+bufToWin w = do
+	(width, height) <- winSizeRaw w
+	copyArea (wDisplay w) (wBuf w) (wWindow w) (wGC w) 0 0 width height 0 0
 
 fillPolygonBuf :: Win -> [(Double, Double)] -> IO ()
 fillPolygonBuf w ps =
@@ -134,34 +130,25 @@ fillPolygonBuf w ps =
 	doublesToPoint (x, y) = Point (round x) (round y)
 	mkPs = map doublesToPoint
 
-data Buf = BG | UndoBuf
-
 lineBG :: Win -> Double -> Double -> Double -> Double -> IO ()
-lineBG w = lineToGen w BG
+lineBG w x1_ y1_ x2_ y2_ = drawLine (wDisplay w) (wBG w) (wGC w) x1 y1 x2 y2
+	where	[x1, y1, x2, y2] = map round [x1_, y1_, x2_, y2_]
 
 lineUndoBuf :: Win -> Double -> Double -> Double -> Double -> IO ()
-lineUndoBuf w = lineToGen w UndoBuf
-
-lineToGen :: Win -> Buf -> Double -> Double -> Double -> Double -> IO ()
-lineToGen w BG x1_ y1_ x2_ y2_ = drawLine (wDisplay w) (wBG w) (wGC w) x1 y1 x2 y2
-	where	[x1, y1, x2, y2] = map round [x1_, y1_, x2_, y2_]
-lineToGen w UndoBuf x1_ y1_ x2_ y2_ = drawLine (wDisplay w) (wUndoBuf w) (wGC w) x1 y1 x2 y2
+lineUndoBuf w x1_ y1_ x2_ y2_ = drawLine (wDisplay w) (wUndoBuf w) (wGC w) x1 y1 x2 y2
 	where	[x1, y1, x2, y2] = map round [x1_, y1_, x2_, y2_]
 
 clearBG :: Win -> IO ()
-clearBG w = cleanGen w BG
-
-clearUndoBuf :: Win -> IO ()
-clearUndoBuf w = cleanGen w UndoBuf
-
-cleanGen :: Win -> Buf -> IO ()
-cleanGen w b = do
+clearBG w = do
 	gc <- createGC (wDisplay w) (wWindow w)
 	setForeground (wDisplay w) gc 0xffffff
-	let buf = case b of
-		BG -> wBG w
-		UndoBuf -> wUndoBuf w
-	winSizeRaw w >>= uncurry (fillRectangle (wDisplay w) buf gc 0 0)
+	winSizeRaw w >>= uncurry (fillRectangle (wDisplay w) (wBG w) gc 0 0)
+
+clearUndoBuf :: Win -> IO ()
+clearUndoBuf w = do
+	gc <- createGC (wDisplay w) (wWindow w)
+	setForeground (wDisplay w) gc 0xffffff
+	winSizeRaw w >>= uncurry (fillRectangle (wDisplay w) (wUndoBuf w) gc 0 0)
 
 flushWin :: Win -> IO ()
 flushWin = flush . wDisplay
