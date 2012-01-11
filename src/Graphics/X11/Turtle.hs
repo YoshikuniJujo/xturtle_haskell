@@ -22,7 +22,6 @@ import qualified Graphics.X11.TurtleBase as Base
 import Data.IORef
 import Data.List
 import System.IO.Unsafe
-import Control.Monad.Tools
 import Control.Monad
 import Control.Concurrent
 import Data.Maybe
@@ -72,29 +71,12 @@ goto' x y = do
 	height <- windowHeight
 	t <- readIORef world
 	rawGoto t (x + width / 2) (- y + height / 2)
+
 rawGoto t xTo yTo = do
-	w <- fmap Base.tWorld $ readIORef world
-	(x0, y0) <- Base.getCursorPos w
-	let	step = 10
-		distX = xTo - x0
-		distY = yTo - y0
-		dist = (distX ** 2 + distY ** 2) ** (1 / 2)
-		dx = step * distX / dist
-		dy = step * distY / dist
-	(x', y') <- if dist <= step then return (x0, y0) else doWhile (x0, y0) $ \(x, y) -> do
-		let	nx = x + dx
-			ny = y + dy
-		Base.setCursorPos w nx ny
-		drawLine t x y nx ny
-		Base.drawWorld w
-		Base.flushWorld $ Base.wWin w
-		threadDelay 20000
-		return ((nx, ny),
-			(nx + dx - x0) ** 2 + (ny + dy - y0) ** 2 < dist ** 2)
-	Base.setCursorPos w xTo yTo
-	drawLine t x' y' xTo yTo
-	Base.drawWorld w
-	Base.flushWorld $ Base.wWin w
+	(act, past) <- Base.rawGotoGen t xTo yTo
+	act
+	dir <- readIORef world >>= Base.getCursorDir . Base.tWorld
+	forM_ past $ \(pos, act') -> putToPastDrawLines pos dir act'
 
 forward, rawForward :: Double -> IO ()
 forward len = rawForward len >> setUndoPoint >> pushTurtleEvent (Forward len)
@@ -110,12 +92,6 @@ rawForward len = do
 
 backward :: Double -> IO ()
 backward = forward . negate
-
-drawLine :: Base.Turtle -> Double -> Double -> Double -> Double -> IO ()
-drawLine t x1 y1 x2 y2 = do
-	Base.drawLine t x1 y1 x2 y2 Base.BG
-	dir <- readIORef world >>= Base.getCursorDir . Base.tWorld
-	putToPastDrawLines (x2, y2) dir (Base.drawLine t x1 y1 x2 y2)
 
 undo :: IO ()
 undo = do

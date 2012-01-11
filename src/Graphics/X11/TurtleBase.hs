@@ -12,7 +12,8 @@ module Graphics.X11.TurtleBase (
 	pendown,
 	isdown,
 	Buf(..),
-	drawLine
+	drawLine,
+	rawGotoGen
 ) where
 
 import Graphics.X11.World
@@ -20,7 +21,8 @@ import Control.Arrow
 import System.IO.Unsafe
 import Data.IORef
 import Control.Monad
--- import Control.Concurrent
+import Control.Monad.Tools
+import Control.Concurrent
 
 data Turtle = Turtle{tWorld :: World}
 
@@ -79,6 +81,46 @@ isdown _ = do
 		PenDown -> True
 
 data Buf = BG | UndoBuf
+
+rawGotoGen :: Turtle -> Double -> Double ->
+	IO (IO (), [((Double, Double), Buf -> IO ())])
+rawGotoGen t xTo yTo = do
+	let w = tWorld t
+	(x0, y0) <- getCursorPos w
+	let	step = 10
+		distX = xTo - x0
+		distY = yTo - y0
+		dist = (distX ** 2 + distY ** 2) ** (1 / 2)
+		dx = step * distX / dist
+		dy = step * distY / dist
+	acts <- newIORef $ return ()
+	pasts <- newIORef []
+	(x', y') <- if dist <= step then return (x0, y0) else
+		doWhile (x0, y0) $ \(x, y) -> do
+			let	nx = x + dx
+				ny = y + dy
+			modifyIORef acts (>> moveTurtle t x y nx ny)
+			mkPastDrawLineWithDir nx ny (drawLine t x y nx ny) >>=
+				modifyIORef pasts . (:)
+			return ((nx, ny),
+				(nx + dx - x0) ** 2 + (ny + dy - y0) ** 2 < dist ** 2)
+	lastPastAct <- mkPastDrawLineWithDir xTo yTo (drawLine t x' y' xTo yTo)
+	pastActs <- fmap ((++[lastPastAct]) . reverse) $ readIORef pasts
+	return (join (readIORef acts) >> moveTurtle t x' y' xTo yTo, pastActs)
+
+mkPastDrawLineWithDir :: Double -> Double -> (Buf -> IO ()) ->
+	IO ((Double, Double), Buf -> IO ())
+mkPastDrawLineWithDir x2 y2 act = do
+	return ((x2, y2), act)
+
+moveTurtle :: Turtle -> Double -> Double -> Double -> Double -> IO ()
+moveTurtle t x1 y1 x2 y2 = do
+	let w = tWorld t
+	setCursorPos w x2 y2
+	drawLine t x1 y1 x2 y2 BG
+	drawWorld w
+	flushWorld $ wWin w
+	threadDelay 20000
 
 drawLine :: Turtle -> Double -> Double -> Double -> Double -> Buf -> IO ()
 drawLine t x1 y1 x2 y2 buf = do
