@@ -15,16 +15,13 @@ module Graphics.X11.Turtle (
 	undoAll,
 	undo,
 	distance,
-	getHistory,
-
-	testModuleTurtle
+	getHistory
 ) where
 
-import Graphics.X11.World
+import Graphics.X11.TurtleBase
 import Data.IORef
 import Data.List
 import System.IO.Unsafe
-import Control.Arrow (second)
 import Control.Monad.Tools
 import Control.Monad
 import Control.Concurrent
@@ -99,51 +96,12 @@ setUndoPoint = modifyIORef pastDrawLines $ (++ [Nothing])
 
 data PenState = PenUp | PenDown
 
--- data Order = Forward Double | Left Double | Undo deriving Show
-
 doesPenDown :: PenState -> Bool
 doesPenDown PenUp = False
 doesPenDown PenDown = True
 
 penState :: IORef PenState
 penState = unsafePerformIO $ newIORef PenDown
-
-testModuleTurtle :: IO ()
-testModuleTurtle = main
-
-main :: IO ()
-main = do
-	putStrLn "module Turtle"
-{-
-	initTurtle
-	w <- readIORef world
-	redrawLines
-	withEvent w () $ \() ev ->
-		case ev of
-			ExposeEvent{} -> do
-				drawWorld w
-				return ((), True)
-			KeyEvent{} -> do
-				ch <- eventToChar w ev
-				return ((), (ch /= 'q'))
-			ClientMessageEvent{} ->
-				return ((), not $ isDeleteEvent w ev)
-			AnyEvent{ev_event_type = 14} ->
-				return ((), True)
-			_ -> error $ "not implemented for event " ++ show ev
-	closeTurtle
--}
-
-{-
-orderChan :: IORef (Chan Order)
-orderChan = unsafePerformIO $ newChan >>= newIORef
-
-getOrders :: IO [Order]
-getOrders = unsafeInterleaveIO $ do
-	o <- readIORef orderChan >>= readChan
-	os <- getOrders
-	return $ o : os
--}
 
 initTurtle :: IO ()
 initTurtle = do
@@ -356,41 +314,3 @@ clear = do
 			BG -> cleanBG $ wWin w
 			UndoBuf -> cleanUndoBuf $ wWin w
 	pushTurtleEvent Clear
-
-displayTurtle :: Win -> Double -> Double -> Double -> Double -> IO ()
-displayTurtle w s d x y =
-	makeFilledPolygonCursor w $ map (uncurry $ addDoubles (x, y))
-		$ map (rotatePointD d)
-		$ map (mulPoint s) turtle
-
-addDoubles :: (Double, Double) -> Double -> Double -> (Double, Double)
-addDoubles (x, y) dx dy = (x + dx, y + dy)
-
-rotatePointD :: Double -> (Double, Double) -> (Double, Double)
-rotatePointD = rotatePointR . (* pi) . (/ 180)
-
-rotatePointR :: Double -> (Double, Double) -> (Double, Double)
-rotatePointR rad (x, y) =
-	(x * cos rad - y * sin rad, x * sin rad + y * cos rad)
-
-mulPoint :: Double -> (Double, Double) -> (Double, Double)
-mulPoint s (x, y) = (x * s, y * s)
-
-turtle :: [(Double, Double)]
-turtle = ttl ++ reverse (map (second negate) ttl)
-	where
-	ttl = [
-		(- 10, 0),
-		(- 8, - 3),
-		(- 10, - 5),
-		(- 7, - 9),
-		(- 5, - 6),
-		(0, - 8),
-		(4, - 7),
-		(6, - 10),
-		(8, - 7),
-		(7, - 5),
-		(10, - 2),
-		(13, - 3),
-		(16, 0)
-	 ]

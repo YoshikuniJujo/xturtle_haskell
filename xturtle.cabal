@@ -31,4 +31,5 @@ library
   Exposed-modules:	Graphics.X11.Turtle
   Build-depends:	base > 3 && < 5, yjtools, convertible, X11
   Ghc-options:		-Wall
-  Other-modules:	Graphics.X11.World, Graphics.X11.Window
+  Other-modules:	Graphics.X11.World, Graphics.X11.Window,
+    Graphics.X11.TurtleBase
