@@ -64,10 +64,10 @@ world :: IORef World
 world = unsafePerformIO $ newIORef undefined
 
 windowWidth :: IO Double
-windowWidth = readIORef world >>= fmap fst . getWindowSize . wWin
+windowWidth = readIORef world >>= fmap fst . winSize . wWin
 
 windowHeight :: IO Double
-windowHeight = readIORef world >>= fmap snd . getWindowSize . wWin
+windowHeight = readIORef world >>= fmap snd . winSize . wWin
 
 position :: IO (Double, Double)
 position = do

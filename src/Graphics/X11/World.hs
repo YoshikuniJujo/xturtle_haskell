@@ -17,7 +17,7 @@ module Graphics.X11.World (
 	lineToUndoBuf,
 	cleanBG,
 	cleanUndoBuf,
-	getWindowSize,
+	winSize
 ) where
 
 import qualified Graphics.X11.Window as Win
@@ -38,17 +38,17 @@ getCursorPos :: World -> IO (Double, Double)
 getCursorPos w = readIORef (wPos w)
 
 setCursorDir :: World -> Double -> IO ()
-setCursorDir w d = writeIORef (wDir w) d
+setCursorDir = writeIORef . wDir
 
 getCursorDir :: World -> IO Double
 getCursorDir w = readIORef (wDir w)
 
 setCursorSize :: World -> Double -> IO ()
-setCursorSize w s = writeIORef (wSize w) s
+setCursorSize = writeIORef . wSize
 
 setCursorShape ::
 	World -> (Win -> Double -> Double -> Double -> Double -> IO ()) -> IO ()
-setCursorShape w s = writeIORef (wShape w) s
+setCursorShape = writeIORef . wShape
 
 openWorld :: IO World
 openWorld = do
@@ -71,12 +71,24 @@ drawWorld w = do
 	displayCursor (wWin w) s d x y
 	Win.bufToWin $ wWin w
 
-getWindowSize = Win.winSize
+winSize :: Win -> IO (Double, Double)
+winSize = Win.winSize
+
+cleanBG, cleanUndoBuf :: Win -> IO ()
 cleanBG = Win.clearBG
 cleanUndoBuf = Win.clearUndoBuf
+
+lineToUndoBuf, lineToBG :: Win -> Double -> Double -> Double -> Double -> IO ()
 lineToBG = Win.lineBG
 lineToUndoBuf = Win.lineUndoBuf
+
+makeFilledPolygonCursor :: Win -> [(Double, Double)] -> IO ()
 makeFilledPolygonCursor = Win.fillPolygonBuf
+
+flushWorld :: Win -> IO ()
 flushWorld = Win.flushWin
+
+undoBufToBG :: Win -> IO ()
 undoBufToBG = Win.undoBufToBG
+
 type Win = Win.Win
