@@ -17,7 +17,6 @@ module Graphics.X11.Turtle (
 	distance,
 	getHistory,
 
---	Position,
 	testModuleTurtle
 ) where
 
@@ -366,11 +365,6 @@ displayTurtle w s d x y =
 
 addDoubles :: (Double, Double) -> Double -> Double -> (Double, Double)
 addDoubles (x, y) dx dy = (x + dx, y + dy)
-
-{-
-addPoint :: Point -> Position -> Position -> Point
-addPoint (Point x y) dx dy = Point (x + dx) (y + dy)
--}
 
 rotatePointD :: Double -> (Double, Double) -> (Double, Double)
 rotatePointD = rotatePointR . (* pi) . (/ 180)
