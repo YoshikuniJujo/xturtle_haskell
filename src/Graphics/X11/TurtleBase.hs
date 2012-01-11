@@ -3,7 +3,9 @@ module Graphics.X11.TurtleBase (
 	displayTurtle,
 	Turtle(..),
 	initTurtle,
-	shapesize
+	shapesize,
+	windowWidth,
+	windowHeight
 ) where
 
 import Graphics.X11.World
@@ -32,6 +34,12 @@ shapesize t s = do
 	setCursorSize w s
 	drawWorld w
 	flushWorld $ wWin w
+
+windowWidth :: Turtle -> IO Double
+windowWidth = fmap fst . winSize . wWin . tWorld
+
+windowHeight :: Turtle -> IO Double
+windowHeight = fmap snd . winSize . wWin . tWorld
 
 displayTurtle :: Win -> Double -> Double -> Double -> Double -> IO ()
 displayTurtle w s d x y =

@@ -12,7 +12,6 @@ module Graphics.X11.Turtle (
 	home,
 	circle,
 	clear,
---	undoAll,
 	undo,
 	distance,
 	getHistory
@@ -36,41 +35,11 @@ initTurtle = Base.initTurtle >>= writeIORef world
 shapesize :: Double -> IO ()
 shapesize s = readIORef world >>= flip Base.shapesize s
 
-data TurtleEvent = Forward Double | Rotate Double | Undo | Home | Clear
-	| Penup | Pendown | Goto Double Double
-	deriving Show
-
-data Buf = BG | UndoBuf
-
-getHistory :: IO [TurtleEvent]
-getHistory = -- readIORef eventPoint >>= return . flip take turtleEvents
-	liftM (`take` turtleEvents) $ readIORef eventPoint 
-
-eventChan :: Chan TurtleEvent
-eventChan = unsafePerformIO newChan
-
-turtleEvents :: [TurtleEvent]
-turtleEvents = unsafePerformIO getTurtleEvents
-
-getTurtleEvents :: IO [TurtleEvent]
-getTurtleEvents = unsafeInterleaveIO $ do
-	ev <- readChan eventChan
-	evs <- getTurtleEvents
-	return $ ev : evs
-
-eventPoint :: IORef Int
-eventPoint = unsafePerformIO $ newIORef 0
-
-pushTurtleEvent :: TurtleEvent -> IO ()
-pushTurtleEvent te = do
-	writeChan eventChan te
-	modifyIORef eventPoint (+ 1)
-
 windowWidth :: IO Double
-windowWidth = readIORef world >>= fmap fst . Base.winSize . Base.wWin . Base.tWorld
+windowWidth = readIORef world >>= Base.windowWidth
 
 windowHeight :: IO Double
-windowHeight = readIORef world >>= fmap snd . Base.winSize . Base.wWin . Base.tWorld
+windowHeight = readIORef world >>= Base.windowHeight
 
 position :: IO (Double, Double)
 position = do
@@ -182,37 +151,6 @@ drawLine w x1 y1 x2 y2 = do
 	dir <- readIORef world >>= Base.getCursorDir . Base.tWorld
 	putToPastDrawLines (x2, y2) dir act
 
-{-
-redrawLines :: IO ()
-redrawLines = do
-	w <- fmap Base.tWorld $ readIORef world
-	dls <- fmap catMaybes -- (map fromJust . filter isJust)
-		$ readIORef pastDrawLines
-	clear
-	forM_ dls $ \dl -> do
-		snd dl BG
-		Base.drawWorld w
-		Base.flushWorld $ Base.wWin w
-		threadDelay 20000
-
-undoAll :: IO ()
-undoAll = do
-	w <- fmap Base.tWorld $ readIORef world
-	dls <- fmap catMaybes
---		(map fromJust . filter isJust)
-		$ readIORef pastDrawLines
-	forM_ (zip (reverse $ map fst dls) $ map sequence_ $ reverse $ inits
-		$ map (($ BG) . snd) dls)
-		$ \((pos, dir), dl) -> do
-		Base.cleanBG (Base.wWin w)
-		dl
-		uncurry (Base.setCursorPos w) pos
-		Base.setCursorDir w dir
-		Base.drawWorld w
-		Base.flushWorld $ Base.wWin w
-		threadDelay 20000
--}
-
 undo :: IO ()
 undo = do
 	w <- fmap Base.tWorld $ readIORef world
@@ -301,3 +239,34 @@ clear = do
 			BG -> Base.cleanBG $ Base.wWin w
 			UndoBuf -> Base.cleanUndoBuf $ Base.wWin w
 	pushTurtleEvent Clear
+
+--------------------------------------------------------------------------------
+
+data TurtleEvent = Forward Double | Rotate Double | Undo | Home | Clear
+	| Penup | Pendown | Goto Double Double
+	deriving Show
+
+data Buf = BG | UndoBuf
+
+getHistory :: IO [TurtleEvent]
+getHistory = liftM (`take` turtleEvents) $ readIORef eventPoint 
+
+eventChan :: Chan TurtleEvent
+eventChan = unsafePerformIO newChan
+
+turtleEvents :: [TurtleEvent]
+turtleEvents = unsafePerformIO getTurtleEvents
+
+getTurtleEvents :: IO [TurtleEvent]
+getTurtleEvents = unsafeInterleaveIO $ do
+	ev <- readChan eventChan
+	evs <- getTurtleEvents
+	return $ ev : evs
+
+eventPoint :: IORef Int
+eventPoint = unsafePerformIO $ newIORef 0
+
+pushTurtleEvent :: TurtleEvent -> IO ()
+pushTurtleEvent te = do
+	writeChan eventChan te
+	modifyIORef eventPoint (+ 1)
