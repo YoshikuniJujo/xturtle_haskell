@@ -12,7 +12,7 @@ module Graphics.X11.Turtle (
 	home,
 	circle,
 	clear,
-	undoAll,
+--	undoAll,
 	undo,
 	distance,
 	getHistory
@@ -27,6 +27,15 @@ import Control.Monad
 import Control.Concurrent
 import Data.Maybe
 
+world :: IORef Base.Turtle
+world = unsafePerformIO $ newIORef undefined
+
+initTurtle :: IO ()
+initTurtle = Base.initTurtle >>= writeIORef world
+
+shapesize :: Double -> IO ()
+shapesize s = readIORef world >>= flip Base.shapesize s
+
 data TurtleEvent = Forward Double | Rotate Double | Undo | Home | Clear
 	| Penup | Pendown | Goto Double Double
 	deriving Show
@@ -34,7 +43,8 @@ data TurtleEvent = Forward Double | Rotate Double | Undo | Home | Clear
 data Buf = BG | UndoBuf
 
 getHistory :: IO [TurtleEvent]
-getHistory = readIORef eventPoint >>= return . flip take turtleEvents
+getHistory = -- readIORef eventPoint >>= return . flip take turtleEvents
+	liftM (`take` turtleEvents) $ readIORef eventPoint 
 
 eventChan :: Chan TurtleEvent
 eventChan = unsafePerformIO newChan
@@ -55,9 +65,6 @@ pushTurtleEvent :: TurtleEvent -> IO ()
 pushTurtleEvent te = do
 	writeChan eventChan te
 	modifyIORef eventPoint (+ 1)
-
-world :: IORef Base.Turtle
-world = unsafePerformIO $ newIORef undefined
 
 windowWidth :: IO Double
 windowWidth = readIORef world >>= fmap fst . Base.winSize . Base.wWin . Base.tWorld
@@ -85,14 +92,13 @@ putToPastDrawLines :: (Double, Double) -> Double -> (Buf -> IO ()) -> IO ()
 putToPastDrawLines tpos tdir dl = do
 	pdls <- readIORef pastDrawLines
 	if length pdls < 300
-		then do
-			writeIORef pastDrawLines $ pdls ++ [Just ((tpos, tdir), dl)]
+		then writeIORef pastDrawLines $ pdls ++ [Just ((tpos, tdir), dl)]
 		else do
 			maybe (return ()) (($ UndoBuf) . snd) $ head pdls
 			writeIORef pastDrawLines $ tail pdls ++ [Just ((tpos, tdir), dl)]
 
 setUndoPoint :: IO ()
-setUndoPoint = modifyIORef pastDrawLines $ (++ [Nothing])
+setUndoPoint = modifyIORef pastDrawLines (++ [Nothing])
 
 data PenState = PenUp | PenDown
 
@@ -102,16 +108,6 @@ doesPenDown PenDown = True
 
 penState :: IORef PenState
 penState = unsafePerformIO $ newIORef PenDown
-
-initTurtle :: IO ()
-initTurtle = Base.initTurtle >>= writeIORef world
-
-shapesize :: Double -> IO ()
-shapesize s = do
-	w <- fmap Base.tWorld $ readIORef world
-	Base.setCursorSize w s
-	Base.drawWorld w
-	Base.flushWorld $ Base.wWin w
 
 goto, goto', rawGoto :: Double -> Double -> IO ()
 goto x y = do
@@ -132,7 +128,7 @@ rawGoto xTo yTo = do
 		dist = (distX ** 2 + distY ** 2) ** (1 / 2)
 		dx = step * distX / dist
 		dy = step * distY / dist
-	(x', y') <- if (dist <= step) then return (x0, y0) else doWhile (x0, y0) $ \(x, y) -> do
+	(x', y') <- if dist <= step then return (x0, y0) else doWhile (x0, y0) $ \(x, y) -> do
 		let	nx = x + dx
 			ny = y + dy
 		Base.setCursorPos w nx ny
@@ -186,12 +182,14 @@ drawLine w x1 y1 x2 y2 = do
 	dir <- readIORef world >>= Base.getCursorDir . Base.tWorld
 	putToPastDrawLines (x2, y2) dir act
 
+{-
 redrawLines :: IO ()
 redrawLines = do
 	w <- fmap Base.tWorld $ readIORef world
-	dls <- fmap (map fromJust . filter isJust) $ readIORef pastDrawLines
+	dls <- fmap catMaybes -- (map fromJust . filter isJust)
+		$ readIORef pastDrawLines
 	clear
-	flip mapM_ dls $ \dl -> do
+	forM_ dls $ \dl -> do
 		snd dl BG
 		Base.drawWorld w
 		Base.flushWorld $ Base.wWin w
@@ -200,8 +198,10 @@ redrawLines = do
 undoAll :: IO ()
 undoAll = do
 	w <- fmap Base.tWorld $ readIORef world
-	dls <- fmap (map fromJust . filter isJust) $ readIORef pastDrawLines
-	flip mapM_ (zip (reverse $ map fst dls) $ map sequence_ $ reverse $ inits
+	dls <- fmap catMaybes
+--		(map fromJust . filter isJust)
+		$ readIORef pastDrawLines
+	forM_ (zip (reverse $ map fst dls) $ map sequence_ $ reverse $ inits
 		$ map (($ BG) . snd) dls)
 		$ \((pos, dir), dl) -> do
 		Base.cleanBG (Base.wWin w)
@@ -211,19 +211,19 @@ undoAll = do
 		Base.drawWorld w
 		Base.flushWorld $ Base.wWin w
 		threadDelay 20000
+-}
 
 undo :: IO ()
 undo = do
 	w <- fmap Base.tWorld $ readIORef world
 	dls <- fmap init $ readIORef pastDrawLines
-	let	draw = map (map fromJust . filter isJust)
+	let	draw = map catMaybes
 			$ takeWhile (isJust . last) $ reverse $ inits dls
 		draw1 = map fromJust $ filter isJust $ head
 			$ dropWhile (isJust . last) $ reverse $ inits dls
 		draw' = draw ++ [draw1]
-	flip mapM_ (zip (reverse $ map (fst . fromJust) $ filter isJust dls )
-		$ map sequence_
-		$ map (map (($ BG) . snd)) draw') $ \((pos, dir), dl) -> do
+	forM_ (zip (reverse $ map (fst . fromJust) $ filter isJust dls )
+		$ map (mapM_ (($ BG) . snd)) draw') $ \((pos, dir), dl) -> do
 		Base.cleanBG (Base.wWin w)
 		Base.undoBufToBG (Base.wWin w)
 		dl
@@ -283,7 +283,7 @@ left = rotate . negate
 
 circle :: Double -> IO ()
 circle r = replicateM_ 36 $ do
-	rawForward $ (2 * r * pi / 36 :: Double)
+	rawForward (2 * r * pi / 36 :: Double)
 	rawRotate (- 10)
 
 home :: IO ()
