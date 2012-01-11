@@ -18,7 +18,7 @@ module Graphics.X11.Turtle (
 	getHistory
 ) where
 
-import Graphics.X11.TurtleBase
+import qualified Graphics.X11.TurtleBase as Base
 import Data.IORef
 import Data.List
 import System.IO.Unsafe
@@ -56,19 +56,19 @@ pushTurtleEvent te = do
 	writeChan eventChan te
 	modifyIORef eventPoint (+ 1)
 
-world :: IORef World
+world :: IORef Base.Turtle
 world = unsafePerformIO $ newIORef undefined
 
 windowWidth :: IO Double
-windowWidth = readIORef world >>= fmap fst . winSize . wWin
+windowWidth = readIORef world >>= fmap fst . Base.winSize . Base.wWin . Base.tWorld
 
 windowHeight :: IO Double
-windowHeight = readIORef world >>= fmap snd . winSize . wWin
+windowHeight = readIORef world >>= fmap snd . Base.winSize . Base.wWin . Base.tWorld
 
 position :: IO (Double, Double)
 position = do
-	w <- readIORef world
-	(x, y) <- getCursorPos w
+	w <- fmap Base.tWorld $ readIORef world
+	(x, y) <- Base.getCursorPos w
 	width <- windowWidth
 	height <- windowHeight
 	return (x - width / 2, height / 2 - y)
@@ -104,27 +104,14 @@ penState :: IORef PenState
 penState = unsafePerformIO $ newIORef PenDown
 
 initTurtle :: IO ()
-initTurtle = do
-	w <- openWorld
-	setCursorPos w 100 200
-	setCursorDir w 0
-	setCursorSize w 2
-	setCursorShape w displayTurtle
-	drawWorld w
-	flushWorld $ wWin w
-	writeIORef world w
-	width <- windowWidth
-	height <- windowHeight
-	setCursorPos w (width / 2) (height / 2)
-	drawWorld w
-	flushWorld $ wWin w
+initTurtle = Base.initTurtle >>= writeIORef world
 
 shapesize :: Double -> IO ()
 shapesize s = do
-	w <- readIORef world
-	setCursorSize w s
-	drawWorld w
-	flushWorld $ wWin w
+	w <- fmap Base.tWorld $ readIORef world
+	Base.setCursorSize w s
+	Base.drawWorld w
+	Base.flushWorld $ Base.wWin w
 
 goto, goto', rawGoto :: Double -> Double -> IO ()
 goto x y = do
@@ -137,8 +124,8 @@ goto' x y = do
 	height <- windowHeight
 	rawGoto (x + width / 2) (- y + height / 2)
 rawGoto xTo yTo = do
-	w <- readIORef world
-	(x0, y0) <- getCursorPos w
+	w <- fmap Base.tWorld $ readIORef world
+	(x0, y0) <- Base.getCursorPos w
 	let	step = 10
 		distX = xTo - x0
 		distY = yTo - y0
@@ -148,24 +135,24 @@ rawGoto xTo yTo = do
 	(x', y') <- if (dist <= step) then return (x0, y0) else doWhile (x0, y0) $ \(x, y) -> do
 		let	nx = x + dx
 			ny = y + dy
-		setCursorPos w nx ny
-		drawLine (wWin w) x y nx ny
-		drawWorld w
-		flushWorld $ wWin w
+		Base.setCursorPos w nx ny
+		drawLine (Base.wWin w) x y nx ny
+		Base.drawWorld w
+		Base.flushWorld $ Base.wWin w
 		threadDelay 20000
 		return ((nx, ny),
 			(nx + dx - x0) ** 2 + (ny + dy - y0) ** 2 < dist ** 2)
-	setCursorPos w xTo yTo
-	drawLine (wWin w) x' y' xTo yTo
-	drawWorld w
-	flushWorld $ wWin w
+	Base.setCursorPos w xTo yTo
+	drawLine (Base.wWin w) x' y' xTo yTo
+	Base.drawWorld w
+	Base.flushWorld $ Base.wWin w
 
 forward, rawForward :: Double -> IO ()
 forward len = rawForward len >> setUndoPoint >> pushTurtleEvent (Forward len)
 rawForward len = do
-	w <- readIORef world
-	(x0, y0) <- getCursorPos w
-	d <- getCursorDir w
+	w <- fmap Base.tWorld $ readIORef world
+	(x0, y0) <- Base.getCursorPos w
+	d <- Base.getCursorDir w
 	let	rad = d * pi / 180
 		nx' = x0 + len * cos rad
 		ny' = y0 + len * sin rad
@@ -187,47 +174,47 @@ isdown = do
 		PenUp -> False
 		PenDown -> True
 
-drawLine :: Win -> Double -> Double -> Double -> Double -> IO ()
+drawLine :: Base.Win -> Double -> Double -> Double -> Double -> IO ()
 drawLine w x1 y1 x2 y2 = do
 	let act buf = do
 		ps <- readIORef penState
 		when (doesPenDown ps) $
 			case buf of
-				BG -> lineToBG w x1 y1 x2 y2
-				UndoBuf -> lineToUndoBuf w x1 y1 x2 y2
+				BG -> Base.lineToBG w x1 y1 x2 y2
+				UndoBuf -> Base.lineToUndoBuf w x1 y1 x2 y2
 	act BG
-	dir <- readIORef world >>= getCursorDir 
+	dir <- readIORef world >>= Base.getCursorDir . Base.tWorld
 	putToPastDrawLines (x2, y2) dir act
 
 redrawLines :: IO ()
 redrawLines = do
-	w <- readIORef world
+	w <- fmap Base.tWorld $ readIORef world
 	dls <- fmap (map fromJust . filter isJust) $ readIORef pastDrawLines
 	clear
 	flip mapM_ dls $ \dl -> do
 		snd dl BG
-		drawWorld w
-		flushWorld $ wWin w
+		Base.drawWorld w
+		Base.flushWorld $ Base.wWin w
 		threadDelay 20000
 
 undoAll :: IO ()
 undoAll = do
-	w <- readIORef world
+	w <- fmap Base.tWorld $ readIORef world
 	dls <- fmap (map fromJust . filter isJust) $ readIORef pastDrawLines
 	flip mapM_ (zip (reverse $ map fst dls) $ map sequence_ $ reverse $ inits
 		$ map (($ BG) . snd) dls)
 		$ \((pos, dir), dl) -> do
-		cleanBG (wWin w)
+		Base.cleanBG (Base.wWin w)
 		dl
-		uncurry (setCursorPos w) pos
-		setCursorDir w dir
-		drawWorld w
-		flushWorld $ wWin w
+		uncurry (Base.setCursorPos w) pos
+		Base.setCursorDir w dir
+		Base.drawWorld w
+		Base.flushWorld $ Base.wWin w
 		threadDelay 20000
 
 undo :: IO ()
 undo = do
-	w <- readIORef world
+	w <- fmap Base.tWorld $ readIORef world
 	dls <- fmap init $ readIORef pastDrawLines
 	let	draw = map (map fromJust . filter isJust)
 			$ takeWhile (isJust . last) $ reverse $ inits dls
@@ -237,45 +224,45 @@ undo = do
 	flip mapM_ (zip (reverse $ map (fst . fromJust) $ filter isJust dls )
 		$ map sequence_
 		$ map (map (($ BG) . snd)) draw') $ \((pos, dir), dl) -> do
-		cleanBG (wWin w)
-		undoBufToBG (wWin w)
+		Base.cleanBG (Base.wWin w)
+		Base.undoBufToBG (Base.wWin w)
 		dl
-		uncurry (setCursorPos w) pos
-		setCursorDir w dir
-		drawWorld w
-		flushWorld (wWin w)
+		uncurry (Base.setCursorPos w) pos
+		Base.setCursorDir w dir
+		Base.drawWorld w
+		Base.flushWorld (Base.wWin w)
 		threadDelay 20000
 	modifyIORef pastDrawLines $ reverse . dropWhile isJust . tail . reverse
 	pushTurtleEvent Undo
 
 rotateBy :: Double -> IO ()
 rotateBy dd = do
-	w <- readIORef world
-	d0 <- getCursorDir w
+	w <- fmap Base.tWorld $ readIORef world
+	d0 <- Base.getCursorDir w
 	let	nd = (d0 + dd) `gMod` 360
-	setCursorDir w nd
-	drawWorld w
-	flushWorld $ wWin w
-	pos <- getCursorPos w
+	Base.setCursorDir w nd
+	Base.drawWorld w
+	Base.flushWorld $ Base.wWin w
+	pos <- Base.getCursorPos w
 	putToPastDrawLines pos nd $ const (return ())
 
 rotateTo :: Double -> IO ()
 rotateTo d = do
-	w <- readIORef world
-	d0 <- getCursorDir w
+	w <- fmap Base.tWorld $ readIORef world
+	d0 <- Base.getCursorDir w
 	let	step = 5
 		dd = d - d0
 	replicateM_ (abs dd `gDiv` step) $
 		rotateBy (signum dd * step) >> threadDelay 10000
-	setCursorDir w d
-	drawWorld w
-	flushWorld $ wWin w
+	Base.setCursorDir w d
+	Base.drawWorld w
+	Base.flushWorld $ Base.wWin w
 
 rotate, rawRotate :: Double -> IO ()
 rotate d = rawRotate d >> setUndoPoint >> pushTurtleEvent (Rotate d)
 rawRotate d = do
-	w <- readIORef world
-	d0 <- getCursorDir w
+	w <- fmap Base.tWorld $ readIORef world
+	d0 <- Base.getCursorDir w
 	rotateTo $ d0 + d
 
 gDiv :: (Num a, Ord a, Integral b) => a -> a -> b
@@ -304,13 +291,13 @@ home = goto' 0 0 >> rotateTo 0 >> pushTurtleEvent Home
 
 clear :: IO ()
 clear = do
-	w <- readIORef world
-	cleanBG (wWin w)
-	drawWorld w >> flushWorld (wWin w)
-	pos <- getCursorPos w
-	dir <- getCursorDir w
+	w <- fmap Base.tWorld $ readIORef world
+	Base.cleanBG (Base.wWin w)
+	Base.drawWorld w >> Base.flushWorld (Base.wWin w)
+	pos <- Base.getCursorPos w
+	dir <- Base.getCursorDir w
 	putToPastDrawLines pos dir $ \buf ->
 		case buf of
-			BG -> cleanBG $ wWin w
-			UndoBuf -> cleanUndoBuf $ wWin w
+			BG -> Base.cleanBG $ Base.wWin w
+			UndoBuf -> Base.cleanUndoBuf $ Base.wWin w
 	pushTurtleEvent Clear
