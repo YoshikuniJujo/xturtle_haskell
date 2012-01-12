@@ -1,39 +1,41 @@
 module Graphics.X11.TurtleBase (
-	displayTurtle,
 	Turtle,
+	Buf(..),
+
 	initTurtle,
-	shapesize,
+
 	windowWidth,
 	windowHeight,
 	position,
-
-	penup,
-	pendown,
+	getPosition,
+	getDirection,
 	isdown,
-	Buf(..),
+
+	shapesize,
 	drawLine,
 	rawGotoGen,
 	rotateBy,
 	clear,
-
-	getDirection,
-	getPosition,
+	penup,
+	pendown,
+	setDirection,
+	setPosition,
 
 	initUndo,
-	flushW,
-	setDirection,
-	setPosition
+	flushW
 ) where
 
 import Graphics.X11.World
 import Control.Arrow
-import System.IO.Unsafe
 import Data.IORef
 import Control.Monad
 import Control.Monad.Tools
 import Control.Concurrent
 
-data Turtle = Turtle{tWorld :: World}
+data Turtle = Turtle{
+	tWorld :: World,
+	tPenState :: IORef PenState
+ }
 
 getDirection :: Turtle -> IO Double
 getDirection = getCursorDir . tWorld
@@ -54,7 +56,8 @@ initTurtle = do
 	setCursorPos w (width / 2) (height / 2)
 	drawWorld w
 	flushWorld $ wWin w
-	return $ Turtle w
+	ps <- newIORef PenDown
+	return $ Turtle{tWorld = w, tPenState = ps}
 
 shapesize :: Turtle -> Double -> IO ()
 shapesize t s = do
@@ -79,18 +82,15 @@ windowHeight = fmap snd . winSize . wWin . tWorld
 
 data PenState = PenUp | PenDown
 
-penState :: IORef PenState
-penState = unsafePerformIO $ newIORef PenDown
-
 penup :: Turtle -> IO ()
-penup _ = writeIORef penState PenUp
+penup t = writeIORef (tPenState t) PenUp
 
 pendown :: Turtle -> IO ()
-pendown _ = writeIORef penState PenDown
+pendown t = writeIORef (tPenState t) PenDown
 
 isdown :: Turtle -> IO Bool
-isdown _ = do
-	ps <- readIORef penState
+isdown t = do
+	ps <- readIORef $ tPenState t
 	return $ case ps of
 		PenUp -> False
 		PenDown -> True
