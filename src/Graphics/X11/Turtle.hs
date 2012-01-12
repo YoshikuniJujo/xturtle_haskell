@@ -33,23 +33,23 @@ import Control.Monad
 import Control.Concurrent
 import Data.Maybe
 
-world :: IORef Base.Turtle
-world = unsafePerformIO $ newIORef undefined
+turtle :: IORef Base.Turtle
+turtle = unsafePerformIO $ newIORef undefined
 
 initTurtle :: IO ()
-initTurtle = Base.initTurtle >>= writeIORef world
+initTurtle = Base.initTurtle >>= writeIORef turtle
 
 shapesize :: Double -> IO ()
-shapesize s = readIORef world >>= flip Base.shapesize s
+shapesize s = readIORef turtle >>= flip Base.shapesize s
 
 windowWidth :: IO Double
-windowWidth = readIORef world >>= Base.windowWidth
+windowWidth = readIORef turtle >>= Base.windowWidth
 
 windowHeight :: IO Double
-windowHeight = readIORef world >>= Base.windowHeight
+windowHeight = readIORef turtle >>= Base.windowHeight
 
 position :: IO (Double, Double)
-position = readIORef world >>= Base.position
+position = readIORef turtle >>= Base.position
 
 distance :: Double -> Double -> IO Double
 distance x0 y0 = do
@@ -57,13 +57,13 @@ distance x0 y0 = do
 	return $ ((x - x0) ** 2 + (y - y0) ** 2) ** (1 / 2)
 
 penup :: IO ()
-penup = readIORef world >>= Base.penup >> pushTurtleEvent Penup
+penup = readIORef turtle >>= Base.penup >> pushTurtleEvent Penup
 
 pendown :: IO ()
-pendown = readIORef world >>= Base.pendown >> pushTurtleEvent Pendown
+pendown = readIORef turtle >>= Base.pendown >> pushTurtleEvent Pendown
 
 isdown :: IO Bool
-isdown = readIORef world >>= Base.isdown
+isdown = readIORef turtle >>= Base.isdown
 
 goto, goto' :: Double -> Double -> IO ()
 rawGoto :: Base.Turtle -> Double -> Double -> IO ()
@@ -71,7 +71,7 @@ goto x y = goto' x y >> setUndoPoint >> pushTurtleEvent (Goto x y)
 goto' x y = do
 	width <- windowWidth
 	height <- windowHeight
-	t <- readIORef world
+	t <- readIORef turtle
 	rawGoto t (x + width / 2) (- y + height / 2)
 
 rawGoto t xTo yTo = do
@@ -83,7 +83,7 @@ rawGoto t xTo yTo = do
 forward, rawForward :: Double -> IO ()
 forward len = rawForward len >> setUndoPoint >> pushTurtleEvent (Forward len)
 rawForward len = do
-	t <- readIORef world
+	t <- readIORef turtle
 	(x0, y0) <- Base.getPosition t
 	d <- Base.getDirection t
 	let	rad = d * pi / 180
@@ -96,14 +96,14 @@ backward = forward . negate
 
 rotateBy :: Double -> IO ()
 rotateBy dd = do
-	t <- readIORef world
+	t <- readIORef turtle
 	nd <- Base.rotateBy t dd
 	pos <- Base.getPosition t
 	putToPastDrawLines pos nd $ const (return ())
 
 rotateTo :: Double -> IO ()
 rotateTo d = do
-	t <- readIORef world
+	t <- readIORef turtle
 	d0 <- Base.getDirection t
 	let	step = 5
 		dd = d - d0
@@ -115,7 +115,7 @@ rotateTo d = do
 rotate, rawRotate :: Double -> IO ()
 rotate d = rawRotate d >> setUndoPoint >> pushTurtleEvent (Rotate d)
 rawRotate d = do
-	d0 <- readIORef world >>= Base.getDirection
+	d0 <- readIORef turtle >>= Base.getDirection
 	rotateTo $ d0 + d
 
 gDiv :: (Num a, Ord a, Integral b) => a -> a -> b
@@ -139,7 +139,7 @@ home = goto' 0 0 >> rotateTo 0 >> pushTurtleEvent Home
 
 clear :: IO ()
 clear = do
-	t <- readIORef world
+	t <- readIORef turtle
 	(retAct, (pos, dir, pastAct)) <- Base.clear t
 	retAct
 	putToPastDrawLines pos dir pastAct
@@ -149,7 +149,7 @@ clear = do
 
 undo :: IO ()
 undo = do
-	t <- readIORef world
+	t <- readIORef turtle
 	dls <- fmap init $ readIORef pastDrawLines
 	let	draw = map catMaybes
 			$ takeWhile (isJust . last) $ reverse $ inits dls
