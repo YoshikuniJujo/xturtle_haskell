@@ -1,21 +1,28 @@
 module Graphics.X11.Turtle (
 	initTurtle,
-	shapesize,
-	goto,
+
 	forward,
 	backward,
 	left,
 	right,
+	circle,
+
 	penup,
 	pendown,
 	isdown,
+
+	shapesize,
+	goto,
 	home,
-	circle,
 	clear,
-	undo,
+
+	windowWidth,
+	windowHeight,
 	position,
 	distance,
-	getHistory,
+
+	undo,
+	getHistory
 ) where
 
 import qualified Graphics.X11.TurtleBase as Base

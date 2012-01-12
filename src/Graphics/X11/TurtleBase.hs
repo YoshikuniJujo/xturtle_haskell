@@ -57,7 +57,7 @@ initTurtle = do
 	drawWorld w
 	flushWorld $ wWin w
 	ps <- newIORef PenDown
-	return $ Turtle{tWorld = w, tPenState = ps}
+	return Turtle{tWorld = w, tPenState = ps}
 
 shapesize :: Turtle -> Double -> IO ()
 shapesize t s = do
@@ -125,8 +125,7 @@ rawGotoGen t xTo yTo = do
 
 mkPastDrawLineWithDir :: Double -> Double -> (Buf -> IO ()) ->
 	IO ((Double, Double), Buf -> IO ())
-mkPastDrawLineWithDir x2 y2 act = do
-	return ((x2, y2), act)
+mkPastDrawLineWithDir x2 y2 act = return ((x2, y2), act)
 
 moveTurtle :: Turtle -> Double -> Double -> Double -> Double -> IO ()
 moveTurtle t x1 y1 x2 y2 = do
@@ -187,17 +186,14 @@ clear t = do
 			drawWorld w >> flushWorld (wWin w)
 	pos <- getCursorPos w
 	dir <- getCursorDir w
-	let	pastAct = \buf ->
-			case buf of
-				BG -> cleanBG $ wWin w
-				UndoBuf -> cleanUndoBuf $ wWin w
+	let	pastAct buf = case buf of
+			BG -> cleanBG $ wWin w
+			UndoBuf -> cleanUndoBuf $ wWin w
 	return (retAct, (pos, dir, pastAct))
 
 displayTurtle :: Win -> Double -> Double -> Double -> Double -> IO ()
-displayTurtle w s d x y =
-	makeFilledPolygonCursor w $ map (uncurry $ addDoubles (x, y))
-		$ map (rotatePointD d)
-		$ map (mulPoint s) turtle
+displayTurtle w s d x y = makeFilledPolygonCursor w
+	$ map (uncurry (addDoubles (x, y)) . rotatePointD d . mulPoint s) turtle
 
 turtle :: [(Double, Double)]
 turtle = ttl ++ reverse (map (second negate) ttl)
