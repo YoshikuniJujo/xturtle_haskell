@@ -15,7 +15,7 @@ module Graphics.X11.Turtle (
 	undo,
 	position,
 	distance,
-	getHistory
+	getHistory,
 ) where
 
 import qualified Graphics.X11.TurtleBase as Base
@@ -60,12 +60,7 @@ isdown = readIORef world >>= Base.isdown
 
 goto, goto' :: Double -> Double -> IO ()
 rawGoto :: Base.Turtle -> Double -> Double -> IO ()
-goto x y = do
-	width <- windowWidth
-	height <- windowHeight
-	t <- readIORef world
-	rawGoto t (x + width / 2) (- y + height / 2)
-		>> setUndoPoint >> pushTurtleEvent (Goto x y)
+goto x y = goto' x y >> setUndoPoint >> pushTurtleEvent (Goto x y)
 goto' x y = do
 	width <- windowWidth
 	height <- windowHeight
@@ -75,16 +70,15 @@ goto' x y = do
 rawGoto t xTo yTo = do
 	(act, past) <- Base.rawGotoGen t xTo yTo
 	act
-	dir <- readIORef world >>= Base.getCursorDir . Base.tWorld
+	dir <- Base.getDirection t
 	forM_ past $ \(pos, act') -> putToPastDrawLines pos dir act'
 
 forward, rawForward :: Double -> IO ()
 forward len = rawForward len >> setUndoPoint >> pushTurtleEvent (Forward len)
 rawForward len = do
 	t <- readIORef world
-	w <- fmap Base.tWorld $ readIORef world
-	(x0, y0) <- Base.getCursorPos w
-	d <- Base.getCursorDir w
+	(x0, y0) <- Base.getPosition t
+	d <- Base.getDirection t
 	let	rad = d * pi / 180
 		nx' = x0 + len * cos rad
 		ny' = y0 + len * sin rad
@@ -93,67 +87,34 @@ rawForward len = do
 backward :: Double -> IO ()
 backward = forward . negate
 
-undo :: IO ()
-undo = do
-	w <- fmap Base.tWorld $ readIORef world
-	dls <- fmap init $ readIORef pastDrawLines
-	let	draw = map catMaybes
-			$ takeWhile (isJust . last) $ reverse $ inits dls
-		draw1 = map fromJust $ filter isJust $ head
-			$ dropWhile (isJust . last) $ reverse $ inits dls
-		draw' = draw ++ [draw1]
-	forM_ (zip (reverse $ map (fst . fromJust) $ filter isJust dls )
-		$ map (mapM_ (($ Base.BG) . snd)) draw') $ \((pos, dir), dl) -> do
-		Base.cleanBG (Base.wWin w)
-		Base.undoBufToBG (Base.wWin w)
-		dl
-		uncurry (Base.setCursorPos w) pos
-		Base.setCursorDir w dir
-		Base.drawWorld w
-		Base.flushWorld (Base.wWin w)
-		threadDelay 20000
-	modifyIORef pastDrawLines $ reverse . dropWhile isJust . tail . reverse
-	pushTurtleEvent Undo
-
 rotateBy :: Double -> IO ()
 rotateBy dd = do
-	w <- fmap Base.tWorld $ readIORef world
-	d0 <- Base.getCursorDir w
-	let	nd = (d0 + dd) `gMod` 360
-	Base.setCursorDir w nd
-	Base.drawWorld w
-	Base.flushWorld $ Base.wWin w
-	pos <- Base.getCursorPos w
+	t <- readIORef world
+	nd <- Base.rotateBy t dd
+	pos <- Base.getPosition t
 	putToPastDrawLines pos nd $ const (return ())
 
 rotateTo :: Double -> IO ()
 rotateTo d = do
-	w <- fmap Base.tWorld $ readIORef world
-	d0 <- Base.getCursorDir w
+	t <- readIORef world
+	d0 <- Base.getDirection t
 	let	step = 5
 		dd = d - d0
 	replicateM_ (abs dd `gDiv` step) $
 		rotateBy (signum dd * step) >> threadDelay 10000
-	Base.setCursorDir w d
-	Base.drawWorld w
-	Base.flushWorld $ Base.wWin w
+	Base.setDirection t d
+	Base.flushW t
 
 rotate, rawRotate :: Double -> IO ()
 rotate d = rawRotate d >> setUndoPoint >> pushTurtleEvent (Rotate d)
 rawRotate d = do
-	w <- fmap Base.tWorld $ readIORef world
-	d0 <- Base.getCursorDir w
+	d0 <- readIORef world >>= Base.getDirection
 	rotateTo $ d0 + d
 
 gDiv :: (Num a, Ord a, Integral b) => a -> a -> b
 x `gDiv` y
 	| x >= y = 1 + (x - y) `gDiv` y
 	| otherwise = 0
-
-gMod :: (Num a, Ord a) => a -> a -> a
-x `gMod` y
-	| x >= y = (x - y) `gMod` y
-	| otherwise = x
 
 right :: Double -> IO ()
 right = rotate
@@ -171,18 +132,33 @@ home = goto' 0 0 >> rotateTo 0 >> pushTurtleEvent Home
 
 clear :: IO ()
 clear = do
-	w <- fmap Base.tWorld $ readIORef world
-	Base.cleanBG (Base.wWin w)
-	Base.drawWorld w >> Base.flushWorld (Base.wWin w)
-	pos <- Base.getCursorPos w
-	dir <- Base.getCursorDir w
-	putToPastDrawLines pos dir $ \buf ->
-		case buf of
-			Base.BG -> Base.cleanBG $ Base.wWin w
-			Base.UndoBuf -> Base.cleanUndoBuf $ Base.wWin w
+	t <- readIORef world
+	(retAct, (pos, dir, pastAct)) <- Base.clear t
+	retAct
+	putToPastDrawLines pos dir pastAct
 	pushTurtleEvent Clear
 
 --------------------------------------------------------------------------------
+
+undo :: IO ()
+undo = do
+	t <- readIORef world
+	dls <- fmap init $ readIORef pastDrawLines
+	let	draw = map catMaybes
+			$ takeWhile (isJust . last) $ reverse $ inits dls
+		draw1 = map fromJust $ filter isJust $ head
+			$ dropWhile (isJust . last) $ reverse $ inits dls
+		draw' = draw ++ [draw1]
+	forM_ (zip (reverse $ map (fst . fromJust) $ filter isJust dls )
+		$ map (mapM_ (($ Base.BG) . snd)) draw') $ \((pos, dir), dl) -> do
+		Base.initUndo t
+		dl
+		uncurry (Base.setPosition t) pos
+		Base.setDirection t dir
+		Base.flushW t
+		threadDelay 20000
+	modifyIORef pastDrawLines $ reverse . dropWhile isJust . tail . reverse
+	pushTurtleEvent Undo
 
 data TurtleEvent = Forward Double | Rotate Double | Undo | Home | Clear
 	| Penup | Pendown | Goto Double Double

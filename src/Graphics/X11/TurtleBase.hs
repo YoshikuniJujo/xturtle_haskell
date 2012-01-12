@@ -1,7 +1,6 @@
 module Graphics.X11.TurtleBase (
-	module Graphics.X11.World,
 	displayTurtle,
-	Turtle(..),
+	Turtle,
 	initTurtle,
 	shapesize,
 	windowWidth,
@@ -13,7 +12,17 @@ module Graphics.X11.TurtleBase (
 	isdown,
 	Buf(..),
 	drawLine,
-	rawGotoGen
+	rawGotoGen,
+	rotateBy,
+	clear,
+
+	getDirection,
+	getPosition,
+
+	initUndo,
+	flushW,
+	setDirection,
+	setPosition
 ) where
 
 import Graphics.X11.World
@@ -25,6 +34,12 @@ import Control.Monad.Tools
 import Control.Concurrent
 
 data Turtle = Turtle{tWorld :: World}
+
+getDirection :: Turtle -> IO Double
+getDirection = getCursorDir . tWorld
+
+getPosition :: Turtle -> IO (Double, Double)
+getPosition = getCursorPos . tWorld
 
 initTurtle :: IO Turtle
 initTurtle = do
@@ -131,6 +146,53 @@ drawLine t x1 y1 x2 y2 buf = do
 				BG -> lineToBG (wWin w) x1 y1 x2 y2
 				UndoBuf -> lineToUndoBuf (wWin w) x1 y1 x2 y2
 
+{-
+rotateTo :: Turtle -> Double -> IO ()
+rotateTo t d = do
+--	w <- fmap tWorld $ readIORef world
+	let w = tWorld t
+	d0 <- getCursorDir w
+	let	step = 5
+		dd = d - d0
+	replicateM_ (abs dd `gDiv` step) $
+		rotateBy (signum dd * step) >> threadDelay 10000
+	setCursorDir w d
+	drawWorld w
+	flushWorld $ wWin w
+-}
+
+rotateBy :: Turtle -> Double -> IO Double
+rotateBy t dd = do
+--	w <- fmap tWorld $ readIORef world
+	let w = tWorld t
+	d0 <- getCursorDir w
+	let	nd = (d0 + dd) `gMod` 360
+	setCursorDir w nd
+	drawWorld w
+	flushWorld $ wWin w
+--	pos <- getCursorPos w
+	return nd
+--	putToPastDrawLines pos nd $ const (return ())
+
+gMod :: (Num a, Ord a) => a -> a -> a
+x `gMod` y
+	| x >= y = (x - y) `gMod` y
+	| otherwise = x
+
+clear :: Turtle -> IO (IO (), ((Double, Double), Double, Buf -> IO ()))
+clear t = do
+	let	w = tWorld t
+		retAct = do
+			cleanBG (wWin w)
+			drawWorld w >> flushWorld (wWin w)
+	pos <- getCursorPos w
+	dir <- getCursorDir w
+	let	pastAct = \buf ->
+			case buf of
+				BG -> cleanBG $ wWin w
+				UndoBuf -> cleanUndoBuf $ wWin w
+	return (retAct, (pos, dir, pastAct))
+
 displayTurtle :: Win -> Double -> Double -> Double -> Double -> IO ()
 displayTurtle w s d x y =
 	makeFilledPolygonCursor w $ map (uncurry $ addDoubles (x, y))
@@ -168,3 +230,25 @@ rotatePointR rad (x, y) =
 
 mulPoint :: Double -> (Double, Double) -> (Double, Double)
 mulPoint s (x, y) = (x * s, y * s)
+
+initUndo :: Turtle -> IO ()
+initUndo t = do
+	let w = tWorld t
+	cleanBG (wWin w)
+	undoBufToBG (wWin w)
+
+flushW :: Turtle -> IO ()
+flushW t = do
+	let w = tWorld t
+	drawWorld w
+	flushWorld $ wWin w
+
+setDirection :: Turtle -> Double -> IO ()
+setDirection t dir = do
+	let	w = tWorld t
+	setCursorDir w dir
+
+setPosition :: Turtle -> Double -> Double -> IO ()
+setPosition t x y = do
+	let	w = tWorld t
+	setCursorPos w x y
