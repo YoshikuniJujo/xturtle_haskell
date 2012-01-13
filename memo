@@ -20,3 +20,27 @@ speed up を図ろう。
 2012.01.04 Wed.
 
 thread を利用して、ghci からでも expose event に反応するようにしたい。
+
+2012.01.13 Fri.
+
+infinite list を使って、状態変化を [Turtle] で表現してみたい。
+これはもしかすると、GC の問題により、効率が低下する可能性がある。
+そのため、test branch において作業することにする。
+
+状態は Turtle で表現すれば良いが状態変化に伴って生じる IO をどう扱えば良いか。
+Turtle 中に、draw と redraw を用意しておけば良いのかもしれない。
+event は eventPoint を increment するようにする。
+そして、同時に draw を実行する。
+
+それとも Turtle の状態から、IO をその都度生成するほうが良いのかもしれない。
+Event は Turtle の状態を変化させる。
+その Turtle の状態の遷移から、draw や redraw 等の IO を生成するようにする、か。
+Turtle の状態遷移を扱う module を TurtleState として、
+基本的には Turtle -> Command -> Turtle という関数があれば良いはずだ。
+Turtle の描画を扱う module を TurtleDraw として別々に作ったらどうだろうか。
+こちらは Turtle -> Turtle -> IO () という関数が基本的な関数となるだろう。
+Pixmap による buffer をどこで扱うかという問題もある。
+undo を考えなければ Turtle -> Turtle -> IO () 関数は buffer の存在を前提として、
+そこのうえに追加していく形をとれば良いだろう。
+undo は原始的には直前までの Turtle による描画を buffer に書き込んで、
+そのうえで undo のアニメーションを実行すれば良いだろう。
