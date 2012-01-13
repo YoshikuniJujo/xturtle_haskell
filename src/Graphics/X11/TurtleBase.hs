@@ -13,7 +13,7 @@ module Graphics.X11.TurtleBase (
 
 	shapesize,
 	drawLine,
-	rawGotoGen,
+	goto,
 	rotateBy,
 	clear,
 	penup,
@@ -97,9 +97,8 @@ isdown t = do
 
 data Buf = BG | UndoBuf
 
-rawGotoGen :: Turtle -> Double -> Double ->
-	IO (IO (), [((Double, Double), Buf -> IO ())])
-rawGotoGen t xTo yTo = do
+goto :: Turtle -> Double -> Double -> IO (IO (), [(Double, Double)])
+goto t xTo yTo = do
 	let w = tWorld t
 	(x0, y0) <- getCursorPos w
 	let	step = 10
@@ -115,17 +114,12 @@ rawGotoGen t xTo yTo = do
 			let	nx = x + dx
 				ny = y + dy
 			modifyIORef acts (>> moveTurtle t x y nx ny)
-			mkPastDrawLineWithDir nx ny (drawLine t x y nx ny) >>=
-				modifyIORef pasts . (:)
+			modifyIORef pasts ((x, y) :)
 			return ((nx, ny),
 				(nx + dx - x0) ** 2 + (ny + dy - y0) ** 2 < dist ** 2)
-	lastPastAct <- mkPastDrawLineWithDir xTo yTo (drawLine t x' y' xTo yTo)
-	pastActs <- fmap ((++[lastPastAct]) . reverse) $ readIORef pasts
-	return (join (readIORef acts) >> moveTurtle t x' y' xTo yTo, pastActs)
-
-mkPastDrawLineWithDir :: Double -> Double -> (Buf -> IO ()) ->
-	IO ((Double, Double), Buf -> IO ())
-mkPastDrawLineWithDir x2 y2 act = return ((x2, y2), act)
+	pastsRet <- readIORef pasts
+	let	pastsRet' = reverse $ (xTo, yTo) : (x', y') : pastsRet
+	return (join (readIORef acts) >> moveTurtle t x' y' xTo yTo, pastsRet')
 
 moveTurtle :: Turtle -> Double -> Double -> Double -> Double -> IO ()
 moveTurtle t x1 y1 x2 y2 = do

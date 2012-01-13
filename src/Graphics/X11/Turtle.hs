@@ -75,10 +75,20 @@ goto' x y = do
 	rawGoto t (x + width / 2) (- y + height / 2)
 
 rawGoto t xTo yTo = do
-	(act, past) <- Base.rawGotoGen t xTo yTo
+	(act, past) <- rawGotoGen t xTo yTo
 	act
 	dir <- Base.getDirection t
 	forM_ past $ \(pos, act') -> putToPastDrawLines pos dir act'
+
+rawGotoGen :: Base.Turtle -> Double -> Double ->
+	IO (IO (), [((Double, Double), Base.Buf -> IO ())])
+rawGotoGen t xTo yTo = do
+	(act, past) <- Base.goto t xTo yTo
+	return (act, map (uncurry $ mkAction t) $ zip past $ tail past)
+
+mkAction :: Base.Turtle -> (Double, Double) -> (Double, Double) ->
+	((Double, Double), Base.Buf -> IO ())
+mkAction t (x0, y0) (x1, y1) = ((x1, y1), Base.drawLine t x0 y0 x1 y1)
 
 forward, rawForward :: Double -> IO ()
 forward len = rawForward len >> setUndoPoint >> pushTurtleEvent (Forward len)
