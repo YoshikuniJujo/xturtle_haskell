@@ -13,7 +13,7 @@ module Graphics.X11.TurtleBase (
 
 	shapesize,
 	drawLine,
-	goto,
+	moveTurtle,
 	rotateBy,
 	clear,
 	penup,
@@ -96,28 +96,6 @@ isdown t = do
 
 data Buf = BG | UndoBuf
 
-step :: Double
-step = 10
-
-getSteps :: Double -> Double -> Double -> Double -> [(Double, Double)]
-getSteps x0 y0 x y = let
-	dist = ((x - x0) ** 2 + (y - y0) ** 2) ** (1 / 2)
-	dx = step * (x - x0) / dist
-	dy = step * (y - y0) / dist
-	xs = takeWhile (aida x0 x) (map ((x0 +) . (* dx)) [0 ..]) ++ [x]
-	ys = takeWhile (aida y0 y) (map ((y0 +) . (* dy)) [0 ..]) ++ [y] in
-	zip xs ys
-
-goto :: Turtle -> Double -> Double -> IO (IO (), [(Double, Double)])
-goto t x y = do
-	(x0, y0) <- getPosition t
-	let	poss = getSteps x0 y0 x y
-		actss = mapM_ (uncurry $ moveTurtle t) $ tail poss
-	return (actss, poss)
-
-aida :: Ord a => a -> a -> a -> Bool
-aida xs xe x = xs <= x && x <= xe || xs >= x && x >= xe
-
 moveTurtle :: Turtle -> Double -> Double -> IO ()
 moveTurtle t x2 y2 = do
 	let w = tWorld t
@@ -137,33 +115,15 @@ drawLine t x1 y1 x2 y2 buf = do
 				BG -> lineToBG (wWin w) x1 y1 x2 y2
 				UndoBuf -> lineToUndoBuf (wWin w) x1 y1 x2 y2
 
-{-
-rotateTo :: Turtle -> Double -> IO ()
-rotateTo t d = do
---	w <- fmap tWorld $ readIORef world
-	let w = tWorld t
-	d0 <- getCursorDir w
-	let	step = 5
-		dd = d - d0
-	replicateM_ (abs dd `gDiv` step) $
-		rotateBy (signum dd * step) >> threadDelay 10000
-	setCursorDir w d
-	drawWorld w
-	flushWorld $ wWin w
--}
-
 rotateBy :: Turtle -> Double -> IO Double
 rotateBy t dd = do
---	w <- fmap tWorld $ readIORef world
 	let w = tWorld t
 	d0 <- getCursorDir w
 	let	nd = (d0 + dd) `gMod` 360
 	setCursorDir w nd
 	drawWorld w
 	flushWorld $ wWin w
---	pos <- getCursorPos w
 	return nd
---	putToPastDrawLines pos nd $ const (return ())
 
 gMod :: (Num a, Ord a) => a -> a -> a
 x `gMod` y

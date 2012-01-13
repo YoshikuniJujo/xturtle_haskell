@@ -83,8 +83,30 @@ rawGoto t xTo yTo = do
 rawGotoGen :: Base.Turtle -> Double -> Double ->
 	IO (IO (), [((Double, Double), Base.Buf -> IO ())])
 rawGotoGen t xTo yTo = do
-	(act, past) <- Base.goto t xTo yTo
+	(act, past) <- gotoGen t xTo yTo
 	return (act, map (uncurry $ mkAction t) $ zip past $ tail past)
+
+getSteps :: Double -> Double -> Double -> Double -> [(Double, Double)]
+getSteps x0 y0 x y = let
+	dist = ((x - x0) ** 2 + (y - y0) ** 2) ** (1 / 2)
+	dx = step * (x - x0) / dist
+	dy = step * (y - y0) / dist
+	xs = takeWhile (aida x0 x) (map ((x0 +) . (* dx)) [0 ..]) ++ [x]
+	ys = takeWhile (aida y0 y) (map ((y0 +) . (* dy)) [0 ..]) ++ [y] in
+	zip xs ys
+
+aida :: Ord a => a -> a -> a -> Bool
+aida xs xe x = xs <= x && x <= xe || xs >= x && x >= xe
+
+step :: Double
+step = 10
+
+gotoGen :: Base.Turtle -> Double -> Double -> IO (IO (), [(Double, Double)])
+gotoGen t x y = do
+	(x0, y0) <- Base.getPosition t
+	let	poss = getSteps x0 y0 x y
+		actss = mapM_ (uncurry $ Base.moveTurtle t) $ tail poss
+	return (actss, poss)
 
 mkAction :: Base.Turtle -> (Double, Double) -> (Double, Double) ->
 	((Double, Double), Base.Buf -> IO ())
@@ -115,10 +137,10 @@ rotateTo :: Double -> IO ()
 rotateTo d = do
 	t <- readIORef turtle
 	d0 <- Base.getDirection t
-	let	step = 5
+	let	st = 5
 		dd = d - d0
-	replicateM_ (abs dd `gDiv` step) $
-		rotateBy (signum dd * step) >> threadDelay 10000
+	replicateM_ (abs dd `gDiv` st) $
+		rotateBy (signum dd * st) >> threadDelay 10000
 	Base.setDirection t d
 	Base.flushW t
 
