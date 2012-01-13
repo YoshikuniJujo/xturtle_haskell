@@ -29,7 +29,6 @@ import Graphics.X11.World
 import Control.Arrow
 import Data.IORef
 import Control.Monad
-import Control.Monad.Tools
 import Control.Concurrent
 
 data Turtle = Turtle{
@@ -97,33 +96,32 @@ isdown t = do
 
 data Buf = BG | UndoBuf
 
-goto :: Turtle -> Double -> Double -> IO (IO (), [(Double, Double)])
-goto t xTo yTo = do
-	let w = tWorld t
-	(x0, y0) <- getCursorPos w
-	let	step = 10
-		distX = xTo - x0
-		distY = yTo - y0
-		dist = (distX ** 2 + distY ** 2) ** (1 / 2)
-		dx = step * distX / dist
-		dy = step * distY / dist
-	acts <- newIORef $ return ()
-	pasts <- newIORef []
-	(x', y') <- if dist <= step then return (x0, y0) else
-		doWhile (x0, y0) $ \(x, y) -> do
-			let	nx = x + dx
-				ny = y + dy
-			modifyIORef acts (>> moveTurtle t x y nx ny)
-			modifyIORef pasts ((x, y) :)
-			return ((nx, ny),
-				(nx + dx - x0) ** 2 + (ny + dy - y0) ** 2 < dist ** 2)
-	pastsRet <- readIORef pasts
-	let	pastsRet' = reverse $ (xTo, yTo) : (x', y') : pastsRet
-	return (join (readIORef acts) >> moveTurtle t x' y' xTo yTo, pastsRet')
+step :: Double
+step = 10
 
-moveTurtle :: Turtle -> Double -> Double -> Double -> Double -> IO ()
-moveTurtle t x1 y1 x2 y2 = do
+getSteps :: Double -> Double -> Double -> Double -> [(Double, Double)]
+getSteps x0 y0 x y = let
+	dist = ((x - x0) ** 2 + (y - y0) ** 2) ** (1 / 2)
+	dx = step * (x - x0) / dist
+	dy = step * (y - y0) / dist
+	xs = takeWhile (aida x0 x) (map ((x0 +) . (* dx)) [0 ..]) ++ [x]
+	ys = takeWhile (aida y0 y) (map ((y0 +) . (* dy)) [0 ..]) ++ [y] in
+	zip xs ys
+
+goto :: Turtle -> Double -> Double -> IO (IO (), [(Double, Double)])
+goto t x y = do
+	(x0, y0) <- getPosition t
+	let	poss = getSteps x0 y0 x y
+		actss = mapM_ (uncurry $ moveTurtle t) $ tail poss
+	return (actss, poss)
+
+aida :: Ord a => a -> a -> a -> Bool
+aida xs xe x = xs <= x && x <= xe || xs >= x && x >= xe
+
+moveTurtle :: Turtle -> Double -> Double -> IO ()
+moveTurtle t x2 y2 = do
 	let w = tWorld t
+	(x1, y1) <- getCursorPos w
 	setCursorPos w x2 y2
 	drawLine t x1 y1 x2 y2 BG
 	drawWorld w
