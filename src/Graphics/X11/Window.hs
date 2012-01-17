@@ -12,7 +12,9 @@ module Graphics.X11.Window (
 
 	undoBufToBG,
 	bgToBuf,
-	bufToWin
+	bufToWin,
+
+	addExposeAction
 ) where
 
 import Graphics.X11(
@@ -35,7 +37,7 @@ import Control.Monad(join)
 import Control.Monad.Tools(doWhile_)
 import Control.Arrow((***))
 import Control.Concurrent(forkIO)
-import Data.IORef(IORef, newIORef, readIORef, writeIORef)
+import Data.IORef(IORef, newIORef, readIORef, writeIORef, modifyIORef)
 import Data.Bits((.|.))
 import Data.Convertible(convert)
 
@@ -49,7 +51,8 @@ data Win = Win{
 	wBG :: Pixmap,
 	wBuf :: Pixmap,
 	wWidth :: IORef Dimension,
-	wHeight :: IORef Dimension
+	wHeight :: IORef Dimension,
+	wExpose :: IORef (IO ())
  }
 
 openWin :: IO (Win, IORef (IO ()))
@@ -77,8 +80,8 @@ openWin = do
 	mapWindow dpy win
 	widthRef <- newIORef rWidth
 	heightRef <- newIORef rHeight
-	let w = Win dpy win gc gcWhite del undoBuf bg buf widthRef heightRef
 	exposeAction <- newIORef $ return ()
+	let w = Win dpy win gc gcWhite del undoBuf bg buf widthRef heightRef exposeAction
 	_ <- forkIO $ (>> closeDisplay dpy) $ (initThreads >>) $ withEvent w $ \ev ->
 		case ev of
 			ExposeEvent{} -> do
@@ -100,6 +103,10 @@ openWin = do
 	isDeleteEvent w ev@ClientMessageEvent{} =
 		convert (head $ ev_data ev) == wDel w
 	isDeleteEvent _ _ = False
+
+addExposeAction :: Win -> (Win -> IO ()) -> IO ()
+addExposeAction w@Win{wExpose = we} act =
+	modifyIORef we (>> act w)
 
 winSize :: Win -> IO (Double, Double)
 winSize w = fmap (fromIntegral *** fromIntegral) $ winSizeRaw w

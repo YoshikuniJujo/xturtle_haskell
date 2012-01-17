@@ -65,14 +65,8 @@ initTurtle = do
 	initDir <- newIORef $ error "dir is undefined"
 	initSize <- newIORef $ error "size is undefined"
 	initShape <- newIORef $ error "shape is undefined"
-	w <- openWorld $ drawWorld initShape initPos initDir initSize
-
-	(width, height) <- winSize w
-	writeIORef initPos (width / 2, height / 2)
-	writeIORef initDir 0
-	writeIORef initSize 2
-	writeIORef initShape displayTurtle
 	ps <- newIORef PenDown
+	w <- openWorld
 
 	let t = Turtle{
 		tWorld = w,
@@ -82,6 +76,14 @@ initTurtle = do
 		tSize = initSize,
 		tShape = initShape
 	 }
+
+	addExposeAction w $ drawWorld initShape initPos initDir initSize
+
+	(width, height) <- winSize w
+	writeIORef initPos (width / 2, height / 2)
+	writeIORef initDir 0
+	writeIORef initSize 2
+	writeIORef initShape displayTurtle
 
 	setPosition t 100 200
 	setDirection t 0

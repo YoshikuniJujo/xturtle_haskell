@@ -8,7 +8,9 @@ module Graphics.X11.World (
 	lineBG,
 	clearBG,
 	lineUndoBuf,
-	clearUndoBuf
+	clearUndoBuf,
+
+	addExposeAction
 ) where
 
 import Graphics.X11.Window
@@ -16,10 +18,9 @@ import Data.IORef
 
 type World = Win
 
-openWorld :: (World -> IO ()) -> IO World
-openWorld exposeAction = do
+openWorld :: IO World
+openWorld = do
 	(win, forExpose) <- openWin
-	writeIORef forExpose $ exposeAction win
 	return win
 
 drawWorld :: IORef (Win -> Double -> Double -> Double -> Double -> IO ()) ->
