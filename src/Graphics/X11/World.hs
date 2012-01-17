@@ -1,5 +1,7 @@
 module Graphics.X11.World (
-	World(wWin, wShape),
+--	World(wWin),
+	World,
+	wWin,
 	Win,
 	openWorld,
 	drawWorld,
@@ -16,26 +18,29 @@ module Graphics.X11.World (
 import qualified Graphics.X11.Window as Win
 import Data.IORef
 
-data World = World {
-	wWin :: Win,
-	wShape :: IORef (Win -> Double -> Double -> Double -> Double -> IO ())
- }
+data World = World{wWin :: Win}
+-- type World = Win
+
+-- wWin :: World -> Win
+-- wWin = id
 
 openWorld :: (World -> IO ()) -> IO World
 openWorld exposeAction = do
 	(win, forExpose) <- Win.openWin
-	initShape <- newIORef undefined
-	let world = World win initShape
+	let world = World win
 	writeIORef forExpose $ exposeAction world
 	return world
 
-drawWorld :: IORef (Double, Double) -> IORef Double -> IORef Double -> World -> IO ()
-drawWorld rpos rd rs w = do
+drawWorld ::
+	IORef (Win -> Double -> Double -> Double -> Double -> IO ()) ->
+		IORef (Double, Double) -> IORef Double -> IORef Double ->
+		World -> IO ()
+drawWorld rshape rpos rd rs w = do
 	Win.bgToBuf $ wWin w
-	(x, y) <- readIORef rpos -- $ wPos w
-	d <- readIORef rd -- $ wDir w
-	s <- readIORef rs -- $ wSize w
-	displayCursor <- readIORef $ wShape w
+	(x, y) <- readIORef rpos
+	d <- readIORef rd
+	s <- readIORef rs
+	displayCursor <- readIORef rshape
 	displayCursor (wWin w) s d x y
 	Win.bufToWin $ wWin w
 

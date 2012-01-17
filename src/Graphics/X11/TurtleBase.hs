@@ -41,7 +41,7 @@ data Turtle = Turtle{
  }
 
 drawTurtle :: Turtle -> IO ()
-drawTurtle t = drawWorld (tPos t) (tDir t) (tSize t) (tWorld t)
+drawTurtle t = drawWorld (tShape t) (tPos t) (tDir t) (tSize t) (tWorld t)
 
 getDirection :: Turtle -> IO Double
 getDirection = readIORef . tDir
@@ -55,9 +55,9 @@ setPosition t = curry $ writeIORef (tPos t)
 setSize :: Turtle -> Double -> IO ()
 setSize = writeIORef . tSize
 
-setCursorShape ::
-	World -> (Win -> Double -> Double -> Double -> Double -> IO ()) -> IO ()
-setCursorShape = writeIORef . wShape
+setShape :: 
+	Turtle -> (Win -> Double -> Double -> Double -> Double -> IO ()) -> IO ()
+setShape = writeIORef . tShape
 
 initTurtle :: IO Turtle
 initTurtle = do
@@ -65,7 +65,7 @@ initTurtle = do
 	initDir <- newIORef $ error "dir is undefined"
 	initSize <- newIORef $ error "size is undefined"
 	initShape <- newIORef $ error "shape is undefined"
-	w <- openWorld $ drawWorld initPos initDir initSize
+	w <- openWorld $ drawWorld initShape initPos initDir initSize
 
 	(width, height) <- winSize $ wWin w
 	writeIORef initPos (width / 2, height / 2)
@@ -86,12 +86,12 @@ initTurtle = do
 	setPosition t 100 200
 	setDirection t 0
 	setSize t 2
-	setCursorShape w displayTurtle
+	setShape t displayTurtle
 
-	drawWorld initPos initDir initSize w
+	drawWorld initShape initPos initDir initSize w
 	flushWorld $ wWin w
 	setPosition t (width / 2) (height / 2)
-	drawWorld initPos initDir initSize w
+	drawWorld initShape initPos initDir initSize w
 	flushWorld $ wWin w
 	return t
 
