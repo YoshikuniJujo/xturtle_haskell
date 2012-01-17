@@ -2,6 +2,7 @@ module Graphics.X11.TurtleBase (
 	Turtle,
 	Buf(..),
 
+	openWorld,
 	initTurtle,
 
 	windowWidth,
@@ -59,14 +60,13 @@ setShape ::
 	Turtle -> (World -> Double -> Double -> Double -> Double -> IO ()) -> IO ()
 setShape = writeIORef . tShape
 
-initTurtle :: IO Turtle
-initTurtle = do
+initTurtle :: World -> IO Turtle
+initTurtle w = do
 	initPos <- newIORef $ error "pos is undefined"
 	initDir <- newIORef $ error "dir is undefined"
 	initSize <- newIORef $ error "size is undefined"
 	initShape <- newIORef $ error "shape is undefined"
 	ps <- newIORef PenDown
-	w <- openWorld
 
 	let t = Turtle{
 		tWorld = w,

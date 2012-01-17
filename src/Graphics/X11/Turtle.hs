@@ -37,7 +37,7 @@ turtle :: IORef Base.Turtle
 turtle = unsafePerformIO $ newIORef undefined
 
 initTurtle :: IO ()
-initTurtle = Base.initTurtle >>= writeIORef turtle
+initTurtle = Base.openWorld >>= Base.initTurtle >>= writeIORef turtle
 
 shapesize :: Double -> IO ()
 shapesize s = readIORef turtle >>= flip Base.shapesize s
