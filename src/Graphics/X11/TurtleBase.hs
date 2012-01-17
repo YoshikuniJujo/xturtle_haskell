@@ -33,42 +33,78 @@ import Control.Concurrent
 
 data Turtle = Turtle{
 	tWorld :: World,
+	tPos :: IORef (Double, Double),
+	tDir :: IORef Double,
+	tSize :: IORef Double,
+	tShape :: IORef (Win -> Double -> Double -> Double -> Double -> IO ()),
 	tPenState :: IORef PenState
  }
 
+drawTurtle :: Turtle -> IO ()
+drawTurtle t = drawWorld (tPos t) (tDir t) (tSize t) (tWorld t)
+
 getDirection :: Turtle -> IO Double
-getDirection = getCursorDir . tWorld
+getDirection = readIORef . tDir
 
 getPosition :: Turtle -> IO (Double, Double)
-getPosition = getCursorPos . tWorld
+getPosition = readIORef . tPos
+
+setPosition :: Turtle -> Double -> Double -> IO ()
+setPosition t = curry $ writeIORef (tPos t)
+
+setSize :: Turtle -> Double -> IO ()
+setSize = writeIORef . tSize
+
+setCursorShape ::
+	World -> (Win -> Double -> Double -> Double -> Double -> IO ()) -> IO ()
+setCursorShape = writeIORef . wShape
 
 initTurtle :: IO Turtle
 initTurtle = do
-	w <- openWorld
-	setCursorPos w 100 200
-	setCursorDir w 0
-	setCursorSize w 2
-	setCursorShape w displayTurtle
-	drawWorld w
-	flushWorld $ wWin w
+	initPos <- newIORef $ error "pos is undefined"
+	initDir <- newIORef $ error "dir is undefined"
+	initSize <- newIORef $ error "size is undefined"
+	initShape <- newIORef $ error "shape is undefined"
+	w <- openWorld $ drawWorld initPos initDir initSize
+
 	(width, height) <- winSize $ wWin w
-	setCursorPos w (width / 2) (height / 2)
-	drawWorld w
-	flushWorld $ wWin w
+	writeIORef initPos (width / 2, height / 2)
+	writeIORef initDir 0
+	writeIORef initSize 2
+	writeIORef initShape displayTurtle
 	ps <- newIORef PenDown
-	return Turtle{tWorld = w, tPenState = ps}
+
+	let t = Turtle{
+		tWorld = w,
+		tPenState = ps,
+		tPos = initPos,
+		tDir = initDir,
+		tSize = initSize,
+		tShape = initShape
+	 }
+
+	setPosition t 100 200
+	setDirection t 0
+	setSize t 2
+	setCursorShape w displayTurtle
+
+	drawWorld initPos initDir initSize w
+	flushWorld $ wWin w
+	setPosition t (width / 2) (height / 2)
+	drawWorld initPos initDir initSize w
+	flushWorld $ wWin w
+	return t
 
 shapesize :: Turtle -> Double -> IO ()
 shapesize t s = do
 	let w = tWorld t
-	setCursorSize w s
-	drawWorld w
+	setSize t s
+	drawTurtle t
 	flushWorld $ wWin w
 
 position :: Turtle -> IO (Double, Double)
 position t = do
-	let w = tWorld t
-	(x, y) <- getCursorPos w
+	(x, y) <- getPosition t
 	width <- windowWidth t
 	height <- windowHeight t
 	return (x - width / 2, height / 2 - y)
@@ -99,10 +135,10 @@ data Buf = BG | UndoBuf
 moveTurtle :: Turtle -> Double -> Double -> IO ()
 moveTurtle t x2 y2 = do
 	let w = tWorld t
-	(x1, y1) <- getCursorPos w
-	setCursorPos w x2 y2
+	(x1, y1) <- getPosition t
+	setPosition t x2 y2
 	drawLine t x1 y1 x2 y2 BG
-	drawWorld w
+	drawTurtle t
 	flushWorld $ wWin w
 	threadDelay 20000
 
@@ -118,10 +154,10 @@ drawLine t x1 y1 x2 y2 buf = do
 rotateBy :: Turtle -> Double -> IO Double
 rotateBy t dd = do
 	let w = tWorld t
-	d0 <- getCursorDir w
+	d0 <- getDirection t
 	let	nd = (d0 + dd) `gMod` 360
-	setCursorDir w nd
-	drawWorld w
+	setDirection t nd
+	drawTurtle t
 	flushWorld $ wWin w
 	return nd
 
@@ -135,9 +171,9 @@ clear t = do
 	let	w = tWorld t
 		retAct = do
 			cleanBG (wWin w)
-			drawWorld w >> flushWorld (wWin w)
-	pos <- getCursorPos w
-	dir <- getCursorDir w
+			drawTurtle t >> flushWorld (wWin w)
+	pos <- getPosition t
+	dir <- getDirection t
 	let	pastAct buf = case buf of
 			BG -> cleanBG $ wWin w
 			UndoBuf -> cleanUndoBuf $ wWin w
@@ -188,15 +224,8 @@ initUndo t = do
 flushW :: Turtle -> IO ()
 flushW t = do
 	let w = tWorld t
-	drawWorld w
+	drawTurtle t
 	flushWorld $ wWin w
 
 setDirection :: Turtle -> Double -> IO ()
-setDirection t dir = do
-	let	w = tWorld t
-	setCursorDir w dir
-
-setPosition :: Turtle -> Double -> Double -> IO ()
-setPosition t x y = do
-	let	w = tWorld t
-	setCursorPos w x y
+setDirection t = writeIORef (tDir t)

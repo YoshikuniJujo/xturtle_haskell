@@ -1,14 +1,7 @@
 module Graphics.X11.World (
-	World,
-	wWin,
+	World(wWin, wShape),
 	Win,
 	openWorld,
-	setCursorPos,
-	getCursorPos,
-	setCursorDir,
-	getCursorDir,
-	setCursorSize,
-	setCursorShape,
 	drawWorld,
 	undoBufToBG,
 	flushWorld,
@@ -25,48 +18,23 @@ import Data.IORef
 
 data World = World {
 	wWin :: Win,
-	wPos :: IORef (Double, Double),
-	wDir :: IORef Double,
-	wSize :: IORef Double,
 	wShape :: IORef (Win -> Double -> Double -> Double -> Double -> IO ())
  }
 
-setCursorPos :: World -> Double -> Double -> IO ()
-setCursorPos w x y = writeIORef (wPos w) (x, y)
-
-getCursorPos :: World -> IO (Double, Double)
-getCursorPos w = readIORef (wPos w)
-
-setCursorDir :: World -> Double -> IO ()
-setCursorDir = writeIORef . wDir
-
-getCursorDir :: World -> IO Double
-getCursorDir w = readIORef (wDir w)
-
-setCursorSize :: World -> Double -> IO ()
-setCursorSize = writeIORef . wSize
-
-setCursorShape ::
-	World -> (Win -> Double -> Double -> Double -> Double -> IO ()) -> IO ()
-setCursorShape = writeIORef . wShape
-
-openWorld :: IO World
-openWorld = do
+openWorld :: (World -> IO ()) -> IO World
+openWorld exposeAction = do
 	(win, forExpose) <- Win.openWin
-	initPos <- newIORef undefined
-	initDir <- newIORef undefined
-	initSize <- newIORef undefined
 	initShape <- newIORef undefined
-	let world = World win initPos initDir initSize initShape
-	writeIORef forExpose $ drawWorld world
+	let world = World win initShape
+	writeIORef forExpose $ exposeAction world
 	return world
 
-drawWorld :: World -> IO ()
-drawWorld w = do
+drawWorld :: IORef (Double, Double) -> IORef Double -> IORef Double -> World -> IO ()
+drawWorld rpos rd rs w = do
 	Win.bgToBuf $ wWin w
-	(x, y) <- readIORef $ wPos w
-	d <- readIORef $ wDir w
-	s <- readIORef $ wSize w
+	(x, y) <- readIORef rpos -- $ wPos w
+	d <- readIORef rd -- $ wDir w
+	s <- readIORef rs -- $ wSize w
 	displayCursor <- readIORef $ wShape w
 	displayCursor (wWin w) s d x y
 	Win.bufToWin $ wWin w
