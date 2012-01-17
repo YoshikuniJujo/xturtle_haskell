@@ -42,7 +42,16 @@ data Turtle = Turtle{
  }
 
 drawTurtle :: Turtle -> IO ()
-drawTurtle t = drawWorld (tShape t) (tPos t) (tDir t) (tSize t) (tWorld t)
+drawTurtle t = drawShape (tShape t) (tPos t) (tDir t) (tSize t) (tWorld t)
+
+drawShape :: IORef (World -> Double -> Double -> Double -> Double -> IO ()) ->
+	IORef (Double, Double) -> IORef Double -> IORef Double -> World -> IO ()
+drawShape rshape rpos rd rs w = do
+	(x, y) <- readIORef rpos
+	d <- readIORef rd
+	s <- readIORef rs
+	displayCursor <- readIORef rshape
+	drawWorld w $ \w' -> displayCursor w' s d x y
 
 getDirection :: Turtle -> IO Double
 getDirection = readIORef . tDir
@@ -77,7 +86,7 @@ initTurtle w = do
 		tShape = initShape
 	 }
 
-	addExposeAction w $ drawWorld initShape initPos initDir initSize
+	addExposeAction w $ drawShape initShape initPos initDir initSize
 
 	(width, height) <- winSize w
 	writeIORef initPos (width / 2, height / 2)
