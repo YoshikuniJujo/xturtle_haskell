@@ -36,7 +36,7 @@ data Turtle = Turtle{
 	tPos :: IORef (Double, Double),
 	tDir :: IORef Double,
 	tSize :: IORef Double,
-	tShape :: IORef (Win -> Double -> Double -> Double -> Double -> IO ()),
+	tShape :: IORef (World -> Double -> Double -> Double -> Double -> IO ()),
 	tPenState :: IORef PenState
  }
 
@@ -56,7 +56,7 @@ setSize :: Turtle -> Double -> IO ()
 setSize = writeIORef . tSize
 
 setShape :: 
-	Turtle -> (Win -> Double -> Double -> Double -> Double -> IO ()) -> IO ()
+	Turtle -> (World -> Double -> Double -> Double -> Double -> IO ()) -> IO ()
 setShape = writeIORef . tShape
 
 initTurtle :: IO Turtle
@@ -67,7 +67,7 @@ initTurtle = do
 	initShape <- newIORef $ error "shape is undefined"
 	w <- openWorld $ drawWorld initShape initPos initDir initSize
 
-	(width, height) <- winSize $ wWin w
+	(width, height) <- winSize w
 	writeIORef initPos (width / 2, height / 2)
 	writeIORef initDir 0
 	writeIORef initSize 2
@@ -88,19 +88,14 @@ initTurtle = do
 	setSize t 2
 	setShape t displayTurtle
 
-	drawWorld initShape initPos initDir initSize w
-	flushWorld $ wWin w
 	setPosition t (width / 2) (height / 2)
-	drawWorld initShape initPos initDir initSize w
-	flushWorld $ wWin w
+	drawTurtle t
 	return t
 
 shapesize :: Turtle -> Double -> IO ()
 shapesize t s = do
-	let w = tWorld t
 	setSize t s
 	drawTurtle t
-	flushWorld $ wWin w
 
 position :: Turtle -> IO (Double, Double)
 position t = do
@@ -110,10 +105,10 @@ position t = do
 	return (x - width / 2, height / 2 - y)
 
 windowWidth :: Turtle -> IO Double
-windowWidth = fmap fst . winSize . wWin . tWorld
+windowWidth = fmap fst . winSize . tWorld
 
 windowHeight :: Turtle -> IO Double
-windowHeight = fmap snd . winSize . wWin . tWorld
+windowHeight = fmap snd . winSize . tWorld
 
 data PenState = PenUp | PenDown
 
@@ -134,12 +129,10 @@ data Buf = BG | UndoBuf
 
 moveTurtle :: Turtle -> Double -> Double -> IO ()
 moveTurtle t x2 y2 = do
-	let w = tWorld t
 	(x1, y1) <- getPosition t
 	setPosition t x2 y2
 	drawLine t x1 y1 x2 y2 BG
 	drawTurtle t
-	flushWorld $ wWin w
 	threadDelay 20000
 
 drawLine :: Turtle -> Double -> Double -> Double -> Double -> Buf -> IO ()
@@ -148,17 +141,15 @@ drawLine t x1 y1 x2 y2 buf = do
 		pd <- isdown t
 		when pd $
 			case buf of
-				BG -> lineToBG (wWin w) x1 y1 x2 y2
-				UndoBuf -> lineToUndoBuf (wWin w) x1 y1 x2 y2
+				BG -> lineBG w x1 y1 x2 y2
+				UndoBuf -> lineUndoBuf w x1 y1 x2 y2
 
 rotateBy :: Turtle -> Double -> IO Double
 rotateBy t dd = do
-	let w = tWorld t
 	d0 <- getDirection t
 	let	nd = (d0 + dd) `gMod` 360
 	setDirection t nd
 	drawTurtle t
-	flushWorld $ wWin w
 	return nd
 
 gMod :: (Num a, Ord a) => a -> a -> a
@@ -170,17 +161,17 @@ clear :: Turtle -> IO (IO (), ((Double, Double), Double, Buf -> IO ()))
 clear t = do
 	let	w = tWorld t
 		retAct = do
-			cleanBG (wWin w)
-			drawTurtle t >> flushWorld (wWin w)
+			cleanBG w
+			drawTurtle t
 	pos <- getPosition t
 	dir <- getDirection t
 	let	pastAct buf = case buf of
-			BG -> cleanBG $ wWin w
-			UndoBuf -> cleanUndoBuf $ wWin w
+			BG -> cleanBG w
+			UndoBuf -> cleanUndoBuf w
 	return (retAct, (pos, dir, pastAct))
 
-displayTurtle :: Win -> Double -> Double -> Double -> Double -> IO ()
-displayTurtle w s d x y = makeFilledPolygonCursor w
+displayTurtle :: World -> Double -> Double -> Double -> Double -> IO ()
+displayTurtle w s d x y = makeFilledPolygon w
 	$ map (uncurry (addDoubles (x, y)) . rotatePointD d . mulPoint s) turtle
 
 turtle :: [(Double, Double)]
@@ -218,14 +209,11 @@ mulPoint s (x, y) = (x * s, y * s)
 initUndo :: Turtle -> IO ()
 initUndo t = do
 	let w = tWorld t
-	cleanBG (wWin w)
-	undoBufToBG (wWin w)
+	cleanBG w
+	undoBufToBG w
 
 flushW :: Turtle -> IO ()
-flushW t = do
-	let w = tWorld t
-	drawTurtle t
-	flushWorld $ wWin w
+flushW = drawTurtle
 
 setDirection :: Turtle -> Double -> IO ()
 setDirection t = writeIORef (tDir t)
