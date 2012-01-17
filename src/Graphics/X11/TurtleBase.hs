@@ -161,17 +161,17 @@ clear :: Turtle -> IO (IO (), ((Double, Double), Double, Buf -> IO ()))
 clear t = do
 	let	w = tWorld t
 		retAct = do
-			cleanBG w
+			clearBG w
 			drawTurtle t
 	pos <- getPosition t
 	dir <- getDirection t
 	let	pastAct buf = case buf of
-			BG -> cleanBG w
-			UndoBuf -> cleanUndoBuf w
+			BG -> clearBG w
+			UndoBuf -> clearUndoBuf w
 	return (retAct, (pos, dir, pastAct))
 
 displayTurtle :: World -> Double -> Double -> Double -> Double -> IO ()
-displayTurtle w s d x y = makeFilledPolygon w
+displayTurtle w s d x y = drawCursor w
 	$ map (uncurry (addDoubles (x, y)) . rotatePointD d . mulPoint s) turtle
 
 turtle :: [(Double, Double)]
@@ -209,7 +209,7 @@ mulPoint s (x, y) = (x * s, y * s)
 initUndo :: Turtle -> IO ()
 initUndo t = do
 	let w = tWorld t
-	cleanBG w
+	clearBG w
 	undoBufToBG w
 
 flushW :: Turtle -> IO ()
