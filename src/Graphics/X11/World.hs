@@ -18,12 +18,7 @@ import Data.IORef
 
 type World = Win
 
-openWorld :: IO World
-openWorld = do
-	(win, forExpose) <- openWin
-	return win
-
-drawWorld :: IORef (Win -> Double -> Double -> Double -> Double -> IO ()) ->
+drawWorld :: IORef (World -> Double -> Double -> Double -> Double -> IO ()) ->
 	IORef (Double, Double) -> IORef Double -> IORef Double -> World -> IO ()
 drawWorld rshape rpos rd rs w = do
 	bgToBuf w
@@ -35,8 +30,11 @@ drawWorld rshape rpos rd rs w = do
 	bufToWin w
 	flushWorld w
 
+openWorld :: IO World
+openWorld = openWin
+
 drawCursor :: World -> [(Double, Double)] -> IO ()
 drawCursor = fillPolygonBuf
 
-flushWorld :: Win -> IO ()
+flushWorld :: World -> IO ()
 flushWorld = flushWin

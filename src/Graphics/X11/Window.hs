@@ -55,7 +55,7 @@ data Win = Win{
 	wExpose :: IORef (IO ())
  }
 
-openWin :: IO (Win, IORef (IO ()))
+openWin :: IO Win
 openWin = do
 	dpy <- openDisplay ""
 	del <- internAtom dpy "WM_DELETE_WINDOW" True
@@ -95,7 +95,7 @@ openWin = do
 			ClientMessageEvent{} ->
 				return $ not $ isDeleteEvent w ev
 			_ -> return True
-	return (w, exposeAction)
+	return w
 	where
 	withEvent w act = doWhile_ $ allocaXEvent $ \e -> do
 		nextEvent (wDisplay w) e
