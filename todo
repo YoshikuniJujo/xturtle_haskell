@@ -1,0 +1,21 @@
+Window を改良して、layer の作成とその重ね合わせができるようにする。
+また、layer のそれぞれも [IO ()] として保存しておくことで undo に対応が可能となる。
+単純な実装だと speed に難があるかもしれない。
+その場合には exposed event が生じていない場合かつ undo 以外の場合には、
+もともとの Pixbuf への描画を生かし、新たな IO () のみ実行するようにしよう。
+
+getPixmap :: Win -> IO Pixmap
+drawWin :: Win -> IO ()
+
+makeLayer :: Win -> Pixmap -> (Layer, Win)
+toLayer :: Layer -> (Win -> IO ()) -> Win
+undo :: Layer -> Win
+
+data Layer = Layer Win ID
+
+Pixmap0 に layer を重ねる。
+これは [[IO ()]] によって実現する。
+そして、その Pixmap0 を Pixmap1 に copy したうえで、
+cursor を draw する。
+
+動く物を置くための layer と、軌跡を描くための layer とを分けるべきか。
