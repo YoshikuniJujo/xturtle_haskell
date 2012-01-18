@@ -182,8 +182,12 @@ clear t = do
 	return (retAct, (pos, dir, pastAct))
 
 displayTurtle :: World -> Double -> Double -> Double -> Double -> IO ()
-displayTurtle w s d x y = drawCursor w
-	$ map (uncurry (addDoubles (x, y)) . rotatePointD d . mulPoint s) turtle
+displayTurtle w s d x y = drawCursor w $ getTurtle s d x y
+--	$ map (uncurry (addDoubles (x, y)) . rotatePointD d . mulPoint s) turtle
+
+getTurtle :: Double -> Double -> Double -> Double -> [(Double, Double)]
+getTurtle s d x y =
+	map (uncurry (addDoubles (x, y)) . rotatePointD d . mulPoint s) turtle
 
 turtle :: [(Double, Double)]
 turtle = ttl ++ reverse (map (second negate) ttl)
