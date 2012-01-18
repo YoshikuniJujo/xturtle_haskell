@@ -29,6 +29,8 @@ module WindowLayers (
 	addLayer,
 	addCharacter,
 
+	undoLayer,
+
 	Layer,
 	Character,
 ) where
@@ -138,13 +140,24 @@ setExposeAction w@Win{wExpose = we} (Layer lid) act = do
 	ls <- readIORef we
 	writeIORef we $ take lid ls ++ [[act w]] ++ drop (lid + 1) ls
 
+undoLayer :: Win -> Layer -> IO ()
+undoLayer w@Win{wExpose = we} (Layer lid) = do
+	ls <- readIORef we
+	writeIORef we $ take lid ls ++ [init (ls !! lid)] ++ drop (lid + 1) ls
+	undoBufToBG w
+	readIORef we >>= sequence_ . concat
+	bgToBuf w
+	readIORef (wChars w) >>= sequence_
+--	bufToWin w
+--	flushWin w
+
 setCharacter :: Win -> Character -> IO () -> IO ()
 setCharacter w c act = do
 	bgToBuf w
 	setCharacterAction w c act
 	readIORef (wChars w) >>= sequence_
-	bufToWin w
-	flushWin w
+--	bufToWin w
+--	flushWin w
 
 setCharacterAction :: Win -> Character -> IO () -> IO ()
 setCharacterAction w@Win{wChars = wc} (Character cid) act = do
@@ -228,7 +241,7 @@ lineWin w x1_ y1_ x2_ y2_ = do
 	drawLine (wDisplay w) (wBG w) (wGC w) x1 y1 x2 y2
 	bgToBuf w
 	readIORef (wChars w) >>= sequence_
-	bufToWin w
+--	bufToWin w
 	where	[x1, y1, x2, y2] = map round [x1_, y1_, x2_, y2_]
 
 lineBG :: Win -> Double -> Double -> Double -> Double -> IO ()

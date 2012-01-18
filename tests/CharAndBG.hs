@@ -4,52 +4,47 @@ import WindowLayers
 import Control.Monad.Tools
 import Control.Concurrent
 import Data.IORef
+import Control.Arrow
 
 data Square = Square{
 	sLayer :: Layer,
 	sChar :: Character,
-	sPos :: IORef (Double, Double)
+	sPos :: IORef (Double, Double),
+	sHistory :: IORef [(Double, Double)],
+	sSize :: Double
  }
 
 main :: IO ()
 main = do
 	w <- openWin
-	l0 <- addLayer w
-	c0 <- addCharacter w
-	c1 <- addCharacter w
-	line w l0 20 20 200 200
-	setPolygonCharacter w c0 [(10, 10), (10, 20), (20, 20), (20, 10)]
-	setPolygonCharacter w c1 [(110, 10), (110, 20), (120, 20), (120, 10)]
-	doWhile 0 $ \t -> do
-		setPolygonCharacterAndLine w c0
-			[(10, 10 + 10 * t), (10, 20 + 10 * t), (20, 20 + 10 * t),
-				(20, 10 + 10 * t)]
-			(15, 15) (15, 15 + 10 * t)
-		threadDelay 200000
-		return (t + 1, t < 10)
-	line w l0 15 15 15 115
-	doWhile 0 $ \t -> do
-		setPolygonCharacterAndLine w c0
-			[(10 + 10 * t, 110), (10 + 10 * t, 120), (20 + 10 * t, 120),
-				(20 + 10 * t, 110)]
-			(15, 115) (15 + 10 * t, 115)
-		threadDelay 200000
-		return (t + 1, t < 10)
+	s <- newSquare w 2
+	s1 <- newSquare w 1
+	moveSquare w s 100 105
+	moveSquare w s1 200 30
+	moveSquare w s 50 300
+	moveSquare w s1 20 30
+	moveSquare w s 300 300
+	undoSquare w s
+	moveSquare w s 300 400
+	undoSquare w s
+	moveSquare w s 300 200
+	undoSquare w s
+	undoSquare w s1
+	undoSquare w s
 	getLine >> return ()
-{-
-	setPolygonCharacter w c0 [(10, 110), (10, 120), (20, 120), (20, 110)]
-	getLine >> return ()
--}
 
-newSquare :: Win -> IO Square
-newSquare w = do
+newSquare :: Win -> Double -> IO Square
+newSquare w s = do
 	l <- addLayer w
 	c <- addCharacter w
 	p <- newIORef (0, 0)
+	h <- newIORef []
 	return $ Square{
 		sLayer = l,
 		sChar = c,
-		sPos = p
+		sPos = p,
+		sHistory = h,
+		sSize = s
 	 }
 
 step :: Double
@@ -67,19 +62,73 @@ getPoints x1 y1 x2 y2 = let
 before :: (Num a, Ord a) => a -> a -> a -> Bool
 before d t x = signum d * t >= signum d * x
 
-showAnimation :: Win -> Square -> Double -> Double -> IO ()
-showAnimation w s@Square{sPos = p} x2 y2 = do
-	(x1, y1) <- readIORef p
-	setPolygonCharacterAndLine w (sChar s) 
-		[(x2, y2), (x2 + 10, y2), (x2 + 10, y2 + 10), (x2, y2 + 10)]
+-- showAnimation :: Win -> Square -> Double -> Double -> IO ()
+showAnimation w s@Square{sPos = p} x1 y1 x2 y2 = do
+--	(x1, y1) <- readIORef p
+	setPolygonCharacterAndLine w (sChar s) (getTurtle (sSize s) 0 x2 y2)
+--		[(x2, y2), (x2 + 10, y2), (x2 + 10, y2 + 10), (x2, y2 + 10)]
 		(x1, y1) (x2, y2)
+	bufToWin w
+	flushWin w
 
 moveSquare :: Win -> Square -> Double -> Double -> IO ()
 moveSquare w s@Square{sPos = p} x2 y2 = do
 	(x1, y1) <- readIORef p
-	mapM_ (\(x, y) -> showAnimation w s x y >> threadDelay 50000) $
+	modifyIORef (sHistory s) ((x1, y1) :)
+	mapM_ (\(x, y) -> showAnimation w s x1 y1 x y >> threadDelay 50000) $
 		getPoints x1 y1 x2 y2
 	writeIORef p (x2, y2)
 	line w (sLayer s) x1 y1 x2 y2
+{-
 	setPolygonCharacter w (sChar s)
 		[(x2, y2), (x2 + 10, y2), (x2 + 10, y2 + 10), (x2, y2 + 10)]
+-}
+
+undoSquare :: Win -> Square -> IO ()
+undoSquare w s@Square{sLayer = l} = do
+	undoLayer w l
+	(x1, y1) <- readIORef $ sPos s
+	p@(x2, y2) : ps <- readIORef $ sHistory s
+--	moveSquare w s x y
+--	showAnimation w s x1 y1 x y
+	mapM_ (\(x, y) -> showAnimation w s x2 y2 x y >> threadDelay 50000) $
+		getPoints x1 y1 x2 y2
+	writeIORef (sPos s) p
+	writeIORef (sHistory s) ps
+
+getTurtle :: Double -> Double -> Double -> Double -> [(Double, Double)]
+getTurtle s d x y =
+	map (uncurry (addDoubles (x, y)) . rotatePointD d . mulPoint s) turtle
+
+turtle :: [(Double, Double)]
+turtle = ttl ++ reverse (map (second negate) ttl)
+	where
+	ttl = [
+		(- 10, 0),
+		(- 8, - 3),
+		(- 10, - 5),
+		(- 7, - 9),
+		(- 5, - 6),
+		(0, - 8),
+		(4, - 7),
+		(6, - 10),
+		(8, - 7),
+		(7, - 5),
+		(10, - 2),
+		(13, - 3),
+		(16, 0)
+	 ]
+
+addDoubles :: (Double, Double) -> Double -> Double -> (Double, Double)
+addDoubles (x, y) dx dy = (x + dx, y + dy)
+
+rotatePointD :: Double -> (Double, Double) -> (Double, Double)
+rotatePointD = rotatePointR . (* pi) . (/ 180)
+
+rotatePointR :: Double -> (Double, Double) -> (Double, Double)
+rotatePointR rad (x, y) =
+	(x * cos rad - y * sin rad, x * sin rad + y * cos rad)
+
+mulPoint :: Double -> (Double, Double) -> (Double, Double)
+mulPoint s (x, y) = (x * s, y * s)
+
