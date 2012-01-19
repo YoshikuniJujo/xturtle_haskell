@@ -11,7 +11,9 @@ module CharAndBG (
 	shapesize,
 	undo,
 	clear,
-	setUndoN
+	setUndoN,
+	windowWidth,
+	windowHeight
 ) where
 
 import WindowLayers
@@ -81,6 +83,10 @@ setUndoN t n = do
 
 clear :: Turtle -> IO ()
 clear Square{sWin = w, sLayer = l} = clearLayer w l
+
+windowWidth, windowHeight :: Turtle -> IO Double
+windowWidth = fmap fst . winSize . sWin
+windowHeight = fmap snd . winSize . sWin
 
 data Square = Square{
 	sLayer :: Layer,

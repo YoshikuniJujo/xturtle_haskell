@@ -86,3 +86,8 @@ home :: Turtle -> IO ()
 home t = do
 	goto t 0 0
 	rotate t 0
+
+distance :: Turtle -> Double -> Double -> IO Double
+distance t x0 y0 = do
+	(x, y) <- position t
+	return $ ((x - x0) ^ 2 + (y - y0) ^ 2) ** (1 / 2)
