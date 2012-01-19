@@ -12,14 +12,15 @@ data Square = Square{
 	sPos :: IORef (Double, Double),
 	sHistory :: IORef [(Double, Double)],
 	sSize :: IORef Double,
+	sDir :: IORef Double,
 	sWin :: Win
  }
 
 main :: IO ()
 main = do
 	w <- openWin
-	s <- newSquare w 2
-	s1 <- newSquare w 2
+	s <- newSquare w
+	s1 <- newSquare w
 	shapesize s1 1
 	moveSquare w s 100 105
 	moveSquare w s1 200 30
@@ -29,6 +30,7 @@ main = do
 	shapesize s1 2
 	undoSquare w s
 	moveSquare w s 300 400
+	setDirSquare s1 0
 	undoSquare w s
 	moveSquare w s 300 200
 	undoSquare w s
@@ -36,20 +38,22 @@ main = do
 	undoSquare w s
 	getLine >> return ()
 
-newSquare :: Win -> Double -> IO Square
-newSquare w s = do
+newSquare :: Win -> IO Square
+newSquare w = do
 	l <- addLayer w
 	c <- addCharacter w
 	p <- newIORef (0, 0)
 	h <- newIORef []
-	sr <- newIORef s
+	sr <- newIORef 2
+	dr <- newIORef 90
 	return $ Square{
 		sLayer = l,
 		sChar = c,
 		sPos = p,
 		sHistory = h,
 		sSize = sr,
-		sWin = w
+		sWin = w,
+		sDir = dr
 	 }
 
 shapesize :: Square -> Double -> IO ()
@@ -77,11 +81,19 @@ before d t x = signum d * t >= signum d * x
 showAnimation w s@Square{sPos = p} x1 y1 x2 y2 = do
 --	(x1, y1) <- readIORef p
 	size <- readIORef (sSize s)
-	setPolygonCharacterAndLine w (sChar s) (getTurtle size 0 x2 y2)
+	d <- readIORef (sDir s)
+	setPolygonCharacterAndLine w (sChar s) (getTurtle size d x2 y2)
 --		[(x2, y2), (x2 + 10, y2), (x2 + 10, y2 + 10), (x2, y2 + 10)]
 		(x1, y1) (x2, y2)
 	bufToWin w
 	flushWin w
+
+showSquare :: Square -> IO ()
+showSquare s@Square{sWin = w} = do
+	(x, y) <- readIORef $ sPos s
+	size <- readIORef (sSize s)
+	d <- readIORef (sDir s)
+	setPolygonCharacter w (sChar s) (getTurtle size d x y)
 
 moveSquare :: Win -> Square -> Double -> Double -> IO ()
 moveSquare w s@Square{sPos = p} x2 y2 = do
@@ -95,6 +107,11 @@ moveSquare w s@Square{sPos = p} x2 y2 = do
 	setPolygonCharacter w (sChar s)
 		[(x2, y2), (x2 + 10, y2), (x2 + 10, y2 + 10), (x2, y2 + 10)]
 -}
+
+setDirSquare :: Square -> Double -> IO ()
+setDirSquare s@Square{sDir = dr} d = do
+	writeIORef dr d
+	showSquare s
 
 undoSquare :: Win -> Square -> IO ()
 undoSquare w s@Square{sLayer = l} = do
