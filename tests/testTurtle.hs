@@ -5,6 +5,40 @@ import System.Random
 import Control.Monad
 import Control.Concurrent
 
+qcircle :: Turtle -> Double -> IO ()
+qcircle t s = replicateM_ 9 $ forward t s >> right t 10
+
+leaf :: Turtle -> Double -> IO ()
+leaf t s = qcircle t s >> right t 90 >> qcircle t s
+
+twoFlowers :: IO ()
+twoFlowers = do
+	f <- openField
+	threadDelay 1000000
+	t1 <- newTurtle f
+	t2 <- newTurtle f
+	goto t1 (- 150) 0
+	goto t2 100 (- 80)
+	shape t1 "turtle"
+	shapesize t1 2
+	shape t2 "turtle"
+	forkIO $ flower t1 10
+	forkIO $ flower t2 5
+	return ()
+
+flower :: Turtle -> Double -> IO ()
+flower t s = do
+	left t 90
+	forward t $ 5 * s
+	clear t
+	replicateM_ 9 $ leaf t s >> right t 10
+	right t 180
+	forward t $ 20 * s
+	right t 180
+	forward t $ 3 * s
+	right t 20
+	leaf t s
+
 randomTurtle :: IO ()
 randomTurtle = do
 	f <- openField
