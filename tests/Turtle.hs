@@ -20,6 +20,13 @@ initForTest = do
 	t <- newTurtle f
 	shape t "turtle"
 	shapesize t 3
+	forward t 150
+	forward t 500
+	backward t 500
+	right t 90
+	left t 180
+	circle t 150
+	undo t
 	return t
 
 forward, backward :: Turtle -> Double -> IO ()
@@ -52,3 +59,8 @@ circle t r = do
 	setUndoN t 72
 	replicateM_ 36 $ forwardNotSetUndo t (2 * r * pi / 36) >>
 		leftNotSetUndo t 10
+
+home :: Turtle -> IO ()
+home t = do
+	goto t 0 0
+	rotate t 0

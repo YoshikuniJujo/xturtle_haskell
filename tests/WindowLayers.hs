@@ -5,12 +5,12 @@ module WindowLayers (
 	winSize,
 
 	clearUndoBuf,
-	lineUndoBuf,
+--	lineUndoBuf,
 	clearBG,
-	lineBG,
+--	lineBG,
 	fillPolygonBuf,
 
-	lineWin,
+--	lineWin,
 	changeColor,
 	putSome,
 	line,
@@ -71,7 +71,7 @@ data Win = Win{
 	wBuf :: Pixmap,
 	wWidth :: IORef Dimension,
 	wHeight :: IORef Dimension,
-	wExpose :: IORef [[IO ()]],
+	wExpose :: IORef [[Bool -> IO ()]],
 	wChars :: IORef [IO ()]
  }
 
@@ -114,7 +114,7 @@ openWin = do
 					getGeometry (wDisplay w) (wWindow w)
 				writeIORef (wWidth w) width
 				writeIORef (wHeight w) height
-				readIORef exposeAction >>= sequence_ . concat
+				readIORef exposeAction >>= sequence_ . map ($ False) . concat
 				readIORef charActions >>= sequence_
 				bufToWin w
 				flushWin w
@@ -132,12 +132,20 @@ openWin = do
 		convert (head $ ev_data ev) == wDel w
 	isDeleteEvent _ _ = False
 
-addExposeAction :: Win -> Layer -> (Win -> IO ()) -> IO ()
+undoN :: Int
+undoN = 300
+
+addExposeAction :: Win -> Layer -> (Win -> Bool -> IO ()) -> IO ()
 addExposeAction w@Win{wExpose = we} (Layer lid) act = do
 	ls <- readIORef we
-	writeIORef we $ take lid ls ++ [ls !! lid ++ [act w]] ++ drop (lid + 1) ls
+	let	theLayer = ls !! lid
+		newLayer = theLayer ++ [act w]
+	if length newLayer > undoN
+		then do	head newLayer True
+			writeIORef we $ take lid ls ++ [tail newLayer] ++ drop (lid + 1) ls
+		else writeIORef we $ take lid ls ++ [newLayer] ++ drop (lid + 1) ls
 
-setExposeAction :: Win -> Layer -> (Win -> IO ()) -> IO ()
+setExposeAction :: Win -> Layer -> (Win -> Bool -> IO ()) -> IO ()
 setExposeAction w@Win{wExpose = we} (Layer lid) act = do
 	ls <- readIORef we
 	writeIORef we $ take lid ls ++ [[act w]] ++ drop (lid + 1) ls
@@ -147,7 +155,7 @@ undoLayer w@Win{wExpose = we} (Layer lid) = do
 	ls <- readIORef we
 	writeIORef we $ take lid ls ++ [init (ls !! lid)] ++ drop (lid + 1) ls
 	undoBufToBG w
-	readIORef we >>= sequence_ . concat
+	readIORef we >>= sequence_ . map ($ False) . concat
 	bgToBuf w
 	readIORef (wChars w) >>= sequence_
 --	bufToWin w
@@ -236,7 +244,9 @@ putSome w (x, y) = do
 line :: Win -> Layer -> Double -> Double -> Double -> Double -> IO ()
 line w l x1 y1 x2 y2 = do
 	lineWin w x1 y1 x2 y2
-	addExposeAction w l $ \w' -> lineWin w' x1 y1 x2 y2
+	addExposeAction w l $ \w' buf -> if buf
+		then lineUndoBuf w' x1 y1 x2 y2
+		else lineWin w' x1 y1 x2 y2
 
 lineWin :: Win -> Double -> Double -> Double -> Double -> IO ()
 lineWin w x1_ y1_ x2_ y2_ = do
