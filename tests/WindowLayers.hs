@@ -82,6 +82,7 @@ data Character = Character Int
 
 openWin :: IO Win
 openWin = do
+	initThreads
 	dpy <- openDisplay ""
 	del <- internAtom dpy "WM_DELETE_WINDOW" True
 	let	scr = defaultScreen dpy

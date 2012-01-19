@@ -3,6 +3,18 @@ module Turtle (
 	newTurtle,
 	shape,
 	shapesize,
+	forward,
+	backward,
+	circle,
+	undo,
+	left,
+	right,
+	clear,
+	home,
+	pendown,
+	penup,
+	isdown,
+	distance
 ) where
 
 import CharAndBG
@@ -78,9 +90,12 @@ right t = left t . negate
 
 circle :: Turtle -> Double -> IO ()
 circle t r = do
-	setUndoN t 72
-	replicateM_ 36 $ forwardNotSetUndo t (2 * r * pi / 36) >>
+	setUndoN t 73
+	forwardNotSetUndo t (r * pi / 36)
+	leftNotSetUndo t 10
+	replicateM_ 35 $ forwardNotSetUndo t (2 * r * pi / 36) >>
 		leftNotSetUndo t 10
+	forwardNotSetUndo t (r * pi / 36)
 
 home :: Turtle -> IO ()
 home t = do

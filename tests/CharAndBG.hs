@@ -13,7 +13,10 @@ module CharAndBG (
 	clear,
 	setUndoN,
 	windowWidth,
-	windowHeight
+	windowHeight,
+	penup,
+	pendown,
+	isdown
 ) where
 
 import WindowLayers
@@ -88,6 +91,13 @@ windowWidth, windowHeight :: Turtle -> IO Double
 windowWidth = fmap fst . winSize . sWin
 windowHeight = fmap snd . winSize . sWin
 
+penup, pendown :: Turtle -> IO ()
+penup = flip writeIORef False . sPenDown
+pendown = flip writeIORef True . sPenDown
+
+isdown :: Turtle -> IO Bool
+isdown = readIORef . sPenDown
+
 data Square = Square{
 	sLayer :: Layer,
 	sChar :: Character,
@@ -100,6 +110,7 @@ data Square = Square{
 	sUndoNs :: IORef [Int],
 	sIsRotated :: IORef Bool,
 	sRotHist :: IORef [Maybe Double],
+	sPenDown :: IORef Bool,
 	sWin :: Win
  }
 
@@ -140,6 +151,7 @@ newSquare w = do
 	runs <- newIORef []
 	isr <- newIORef False
 	srh <- newIORef []
+	rpd <- newIORef True
 	return $ Square{
 		sLayer = l,
 		sChar = c,
@@ -152,7 +164,8 @@ newSquare w = do
 		sUndoN = run,
 		sUndoNs = runs,
 		sIsRotated = isr,
-		sRotHist = srh
+		sRotHist = srh,
+		sPenDown = rpd
 	 }
 
 shape :: Square -> String -> IO ()
@@ -175,12 +188,12 @@ shapesize s size = do
 step :: Double
 step = 10
 stepTime :: Int
-stepTime = 30000
+stepTime = 10000
 
 stepDir :: Double
 stepDir = 5
 stepDirTime :: Int
-stepDirTime = 30000
+stepDirTime = 10000
 
 getPoints :: Double -> Double -> Double -> Double -> [(Double, Double)]
 getPoints x1 y1 x2 y2 = let
@@ -195,14 +208,14 @@ before :: (Num a, Ord a) => a -> a -> a -> Bool
 before d t x = signum d * t >= signum d * x
 
 -- showAnimation :: Win -> Square -> Double -> Double -> IO ()
-showAnimation w s@Square{sPos = p} x1 y1 x2 y2 = do
+showAnimation pd w s@Square{sPos = p} x1 y1 x2 y2 = do
 --	(x1, y1) <- readIORef p
 	size <- readIORef (sSize s)
 	d <- readIORef (sDir s)
 	shape <- readIORef (sShape s)
-	setPolygonCharacterAndLine w (sChar s) (getShape shape size d x2 y2)
---		[(x2, y2), (x2 + 10, y2), (x2 + 10, y2 + 10), (x2, y2 + 10)]
-		(x1, y1) (x2, y2)
+	if pd then setPolygonCharacterAndLine w (sChar s)
+				(getShape shape size d x2 y2) (x1, y1) (x2, y2)
+		else setPolygonCharacter w (sChar s) (getShape shape size d x2 y2)
 	bufToWin w
 	flushWin w
 
@@ -222,10 +235,11 @@ moveSquare w s@Square{sPos = p} x2 y2 = do
 	writeIORef (sIsRotated s) False
 	(x1, y1) <- readIORef p
 	modifyIORef (sHistory s) ((x1, y1) :)
-	mapM_ (\(x, y) -> showAnimation w s x1 y1 x y >> threadDelay stepTime) $
+	pd <- readIORef $ sPenDown s
+	mapM_ (\(x, y) -> showAnimation pd w s x1 y1 x y >> threadDelay stepTime) $
 		getPoints x1 y1 x2 y2
 	writeIORef p (x2, y2)
-	line w (sLayer s) x1 y1 x2 y2
+	when pd $ line w (sLayer s) x1 y1 x2 y2
 {-
 	setPolygonCharacter w (sChar s)
 		[(x2, y2), (x2 + 10, y2), (x2 + 10, y2 + 10), (x2, y2 + 10)]
@@ -272,7 +286,7 @@ undoSquare w s@Square{sLayer = l} = do
 	p@(x2, y2) : ps <- readIORef $ sHistory s
 --	moveSquare w s x y
 --	showAnimation w s x1 y1 x y
-	mapM_ (\(x, y) -> showAnimation w s x2 y2 x y >> threadDelay 50000) $
+	mapM_ (\(x, y) -> showAnimation True w s x2 y2 x y >> threadDelay 50000) $
 		getPoints x1 y1 x2 y2
 	writeIORef (sPos s) p
 	writeIORef (sHistory s) ps
