@@ -15,7 +15,8 @@ module Graphics.X11.Turtle (
 	pendown,
 	penup,
 	isdown,
-	distance
+	distance,
+	goto
 ) where
 
 import Graphics.X11.CharAndBG
