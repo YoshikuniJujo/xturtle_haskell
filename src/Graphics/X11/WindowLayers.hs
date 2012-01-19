@@ -7,7 +7,6 @@ module Graphics.X11.WindowLayers (
 	clearUndoBuf,
 --	lineUndoBuf,
 	clearBG,
---	lineBG,
 	fillPolygonBuf,
 
 --	lineWin,
@@ -37,7 +36,7 @@ module Graphics.X11.WindowLayers (
 ) where
 
 import Graphics.X11(
-	Display, Window, Pixmap, GC, Atom, Point(..), Dimension,
+	Window, Pixmap, Atom,
 
 	openDisplay, closeDisplay, flush, defaultScreen, rootWindow,
 	whitePixel, blackPixel,	defaultDepth,
@@ -53,7 +52,6 @@ import Graphics.X11(
  )
 import Graphics.X11.Xlib.Extras(Event(..), getEvent)
 import Graphics.X11.Xlib.Types
-import Control.Monad(join)
 import Control.Monad.Tools(doWhile_)
 import Control.Arrow((***))
 import Control.Concurrent(forkIO)
@@ -82,7 +80,7 @@ data Character = Character Int
 
 openWin :: IO Win
 openWin = do
-	initThreads
+	_ <- initThreads
 	dpy <- openDisplay ""
 	del <- internAtom dpy "WM_DELETE_WINDOW" True
 	let	scr = defaultScreen dpy
@@ -194,19 +192,19 @@ setCharacter w c act = do
 --	flushWin w
 
 setCharacterAction :: Win -> Character -> IO () -> IO ()
-setCharacterAction w@Win{wChars = wc} (Character cid) act = do
+setCharacterAction Win{wChars = wc} (Character cid) act = do
 	cs <- readIORef wc
 	writeIORef wc $ take cid cs ++ [act] ++ drop (cid + 1) cs
 
 addLayer :: Win -> IO Layer
-addLayer w@Win{wExpose = we, wBuffed = wb} = do
+addLayer Win{wExpose = we, wBuffed = wb} = do
 	ls <- readIORef we
 	modifyIORef we (++ [[]])
 	modifyIORef wb (++ [return ()])
 	return $ Layer $ length ls
 
 addCharacter :: Win -> IO Character
-addCharacter w@Win{wChars = wc} = do
+addCharacter Win{wChars = wc} = do
 	cs <- readIORef wc
 	modifyIORef wc (++ [return ()])
 	return $ Character $ length cs
@@ -281,10 +279,6 @@ lineWin w x1_ y1_ x2_ y2_ = do
 --	bufToWin w
 	where	[x1, y1, x2, y2] = map round [x1_, y1_, x2_, y2_]
 
-lineBG :: Win -> Double -> Double -> Double -> Double -> IO ()
-lineBG w x1_ y1_ x2_ y2_ = drawLine (wDisplay w) (wBG w) (wGC w) x1 y1 x2 y2
-	where	[x1, y1, x2, y2] = map round [x1_, y1_, x2_, y2_]
-
 lineUndoBuf :: Win -> Double -> Double -> Double -> Double -> IO ()
 lineUndoBuf w x1_ y1_ x2_ y2_ =
 	drawLine (wDisplay w) (wUndoBuf w) (wGC w) x1 y1 x2 y2
@@ -302,10 +296,6 @@ clearBG w = winSizeRaw w >>=
 clearUndoBuf :: Win -> IO ()
 clearUndoBuf w = winSizeRaw w >>=
 	uncurry (fillRectangle (wDisplay w) (wUndoBuf w) (wGCWhite w) 0 0)
-
-clearWin :: Win -> IO ()
-clearWin w = winSizeRaw w >>=
-	uncurry (fillRectangle (wDisplay w) (wWindow w) (wGCWhite w) 0 0)
 
 flushWin :: Win -> IO ()
 flushWin = flush . wDisplay

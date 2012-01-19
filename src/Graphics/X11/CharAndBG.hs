@@ -16,11 +16,12 @@ module Graphics.X11.CharAndBG (
 	windowHeight,
 	penup,
 	pendown,
-	isdown
+	isdown,
+
+	testModuleCharAndBG
 ) where
 
 import Graphics.X11.WindowLayers
-import Control.Monad.Tools
 import Control.Concurrent
 import Data.IORef
 import Control.Arrow
@@ -64,7 +65,7 @@ undoGen t = do
 	writeIORef (sRotHist t) rots
 	d <- readIORef $ sDir t
 	case rot of
-		Just rot -> rotateGen t (d - rot) >> return ()
+		Just r -> rotateGen t (d - r) >> return ()
 		Nothing -> undoSquare (sWin t) t
 
 undo t = do
@@ -73,7 +74,7 @@ undo t = do
 	case ns of
 		n' : ns' -> do
 			writeIORef (sUndoN t) n'
-			writeIORef (sUndoNs t) ns
+			writeIORef (sUndoNs t) ns'
 		_ -> writeIORef (sUndoN t) 1
 	print n
 	replicateM_ n $ undoGen t
@@ -113,6 +114,9 @@ data Square = Square{
 	sPenDown :: IORef Bool,
 	sWin :: Win
  }
+
+testModuleCharAndBG :: IO ()
+testModuleCharAndBG = main
 
 main :: IO ()
 main = do
@@ -197,9 +201,9 @@ stepDirTime = 10000
 
 getPoints :: Double -> Double -> Double -> Double -> [(Double, Double)]
 getPoints x1 y1 x2 y2 = let
-	len = ((x2 - x1) ^ 2 + (y2 - y1) ^ 2) ** (1/2)
-	dx = (x2 - x1) * 10 / len
-	dy = (y2 - y1) * 10 / len in
+	len = ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** (1/2)
+	dx = (x2 - x1) * step / len
+	dy = (y2 - y1) * step / len in
 	zip (takeWhile (before dx x2) [x1, x1 + dx ..])
 		(takeWhile (before dy y2) [y1, y1 + dy ..]) ++
 			[(x2, y2)]
@@ -207,15 +211,14 @@ getPoints x1 y1 x2 y2 = let
 before :: (Num a, Ord a) => a -> a -> a -> Bool
 before d t x = signum d * t >= signum d * x
 
--- showAnimation :: Win -> Square -> Double -> Double -> IO ()
-showAnimation pd w s@Square{sPos = p} x1 y1 x2 y2 = do
---	(x1, y1) <- readIORef p
+showAnimation :: Bool -> Win -> Square -> Double -> Double -> Double -> Double -> IO ()
+showAnimation pd w s x1 y1 x2 y2 = do
 	size <- readIORef (sSize s)
 	d <- readIORef (sDir s)
-	shape <- readIORef (sShape s)
+	sh <- readIORef (sShape s)
 	if pd then setPolygonCharacterAndLine w (sChar s)
-				(getShape shape size d x2 y2) (x1, y1) (x2, y2)
-		else setPolygonCharacter w (sChar s) (getShape shape size d x2 y2)
+				(getShape sh size d x2 y2) (x1, y1) (x2, y2)
+		else setPolygonCharacter w (sChar s) (getShape sh size d x2 y2)
 	bufToWin w
 	flushWin w
 
@@ -224,8 +227,8 @@ showSquare s@Square{sWin = w} = do
 	(x, y) <- readIORef $ sPos s
 	size <- readIORef (sSize s)
 	d <- readIORef (sDir s)
-	shape <- readIORef (sShape s)
-	setPolygonCharacter w (sChar s) (getShape shape size d x y)
+	sh <- readIORef (sShape s)
+	setPolygonCharacter w (sChar s) (getShape sh size d x y)
 	bufToWin w
 	flushWin w
 
@@ -246,11 +249,11 @@ moveSquare w s@Square{sPos = p} x2 y2 = do
 -}
 
 getDirections :: Double -> Double -> [Double]
-getDirections ds de = takeWhile before [ds, ds + dd ..] ++ [de]
+getDirections ds de = takeWhile beforeDir [ds, ds + dd ..] ++ [de]
 	where
 	sig = signum (de - ds)
 	dd = sig * stepDir
-	before x = sig * x < sig * de
+	beforeDir x = sig * x < sig * de
 
 setDirSquare :: Square -> Double -> IO ()
 setDirSquare s@Square{sDir = dr} d = do
@@ -258,12 +261,7 @@ setDirSquare s@Square{sDir = dr} d = do
 	showSquare s
 
 rotateSquare :: Square -> Double -> IO ()
-rotateSquare s@Square{sDir = dr} d = do
-{-
-	d0 <- readIORef dr
-	mapM_ ((>> threadDelay stepDirTime) . setDirSquare s) $ getDirections d0 d
-	writeIORef dr (d `modd` 360)
--}
+rotateSquare s d = do
 	d0 <- rotateGen s d
 	modifyIORef (sRotHist s) (Just (d - d0) :)
 rotateGen :: Square -> Double -> IO Double
@@ -293,12 +291,8 @@ undoSquare w s@Square{sLayer = l} = do
 
 getShape ::
 	[(Double, Double)] -> Double -> Double -> Double -> Double -> [(Double, Double)]
-getShape shape s d x y =
-	map (uncurry (addDoubles (x, y)) . rotatePointD d . mulPoint s) shape
-
-getTurtle :: Double -> Double -> Double -> Double -> [(Double, Double)]
-getTurtle s d x y =
-	map (uncurry (addDoubles (x, y)) . rotatePointD d . mulPoint s) turtle
+getShape sh s d x y =
+	map (uncurry (addDoubles (x, y)) . rotatePointD d . mulPoint s) sh
 
 classic :: [(Double, Double)]
 classic = clssc ++ reverse (map (second negate) clssc)
