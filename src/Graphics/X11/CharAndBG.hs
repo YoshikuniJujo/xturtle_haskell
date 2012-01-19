@@ -57,7 +57,7 @@ position :: Turtle -> IO (Double, Double)
 position t = do
 	(x_, y_) <- readIORef $ sPos t
 	(width, height) <- winSize (sWin t)
-	return $ (x_ - width / 2, - y_ + height / 2)
+	return (x_ - width / 2, - y_ + height / 2)
 
 undo, undoGen :: Turtle -> IO ()
 undoGen t = do
@@ -156,7 +156,7 @@ newSquare w = do
 	isr <- newIORef False
 	srh <- newIORef []
 	rpd <- newIORef True
-	return $ Square{
+	return Square{
 		sLayer = l,
 		sChar = c,
 		sPos = p,
@@ -173,7 +173,7 @@ newSquare w = do
 	 }
 
 shape :: Square -> String -> IO ()
-shape s@Square{sShape = rsh} name = do
+shape s@Square{sShape = rsh} name =
 	case name of
 		"turtle" -> do
 			writeIORef rsh turtle
@@ -213,21 +213,24 @@ before d t x = signum d * t >= signum d * x
 
 showAnimation :: Bool -> Win -> Square -> Double -> Double -> Double -> Double -> IO ()
 showAnimation pd w s x1 y1 x2 y2 = do
-	size <- readIORef (sSize s)
-	d <- readIORef (sDir s)
-	sh <- readIORef (sShape s)
+	(size, d, sh) <- getSizeDirShape s
 	if pd then setPolygonCharacterAndLine w (sChar s)
 				(getShape sh size d x2 y2) (x1, y1) (x2, y2)
 		else setPolygonCharacter w (sChar s) (getShape sh size d x2 y2)
 	bufToWin w
 	flushWin w
 
-showSquare :: Square -> IO ()
-showSquare s@Square{sWin = w} = do
-	(x, y) <- readIORef $ sPos s
+getSizeDirShape :: Square -> IO (Double, Double, [(Double, Double)])
+getSizeDirShape s = do
 	size <- readIORef (sSize s)
 	d <- readIORef (sDir s)
 	sh <- readIORef (sShape s)
+	return (size, d, sh)
+
+showSquare :: Square -> IO ()
+showSquare s@Square{sWin = w} = do
+	(x, y) <- readIORef $ sPos s
+	(size, d, sh) <- getSizeDirShape s
 	setPolygonCharacter w (sChar s) (getShape sh size d x y)
 	bufToWin w
 	flushWin w

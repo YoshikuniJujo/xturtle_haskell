@@ -116,7 +116,7 @@ openWin = do
 					getGeometry (wDisplay w) (wWindow w)
 				writeIORef (wWidth w) width
 				writeIORef (wHeight w) height
-				readIORef exposeAction >>= sequence_ . map ($ False) . concat
+				readIORef exposeAction >>= mapM_ ($ False) . concat
 				readIORef charActions >>= sequence_
 				bufToWin w
 				flushWin w
@@ -147,7 +147,7 @@ clearLayer w l@(Layer lid) = do
 	clearUndoBuf w
 	sequence_ nBuffed
 	undoBufToBG w
-	readIORef (wExpose w) >>= sequence_ . map ($ False) . concat
+	readIORef (wExpose w) >>= mapM_ ($ False) . concat
 	bgToBuf w
 	readIORef (wChars w) >>= sequence_
 	bufToWin w
@@ -177,7 +177,7 @@ undoLayer w@Win{wExpose = we} (Layer lid) = do
 	ls <- readIORef we
 	writeIORef we $ take lid ls ++ [init (ls !! lid)] ++ drop (lid + 1) ls
 	undoBufToBG w
-	readIORef we >>= sequence_ . map ($ False) . concat
+	readIORef we >>= mapM_ ($ False) . concat
 	bgToBuf w
 	readIORef (wChars w) >>= sequence_
 --	bufToWin w
@@ -301,4 +301,4 @@ flushWin :: Win -> IO ()
 flushWin = flush . wDisplay
 
 changeColor :: Win -> Pixel -> IO ()
-changeColor w c = setForeground (wDisplay w) (wGC w) c
+changeColor w = setForeground (wDisplay w) (wGC w)
