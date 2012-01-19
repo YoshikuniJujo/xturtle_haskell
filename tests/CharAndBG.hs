@@ -5,9 +5,12 @@ module CharAndBG (
 	newTurtle,
 	goto,
 	rotate,
-	getDirection,
+	direction,
+	position,
 	shape,
-	shapesize
+	shapesize,
+	undo,
+	setUndoN
 ) where
 
 import WindowLayers
@@ -15,12 +18,16 @@ import Control.Monad.Tools
 import Control.Concurrent
 import Data.IORef
 import Control.Arrow
+import Control.Monad
 
 type Field = Win
 type Turtle = Square
 
 openField :: IO Field
-openField = openWin
+openField = do
+	w <- openWin
+	flushWin w
+	return w
 
 newTurtle :: Field -> IO Turtle
 newTurtle f = do
@@ -34,10 +41,42 @@ goto t x y = do
 	moveSquare (sWin t) t (x + width / 2) (- y + height / 2)
 
 rotate :: Turtle -> Double -> IO ()
-rotate = rotateSquare
+rotate t = rotateSquare t . negate
 
-getDirection :: Turtle -> IO Double
-getDirection = readIORef . sDir
+direction :: Turtle -> IO Double
+direction = fmap negate . readIORef . sDir
+
+position :: Turtle -> IO (Double, Double)
+position t = do
+	(x_, y_) <- readIORef $ sPos t
+	(width, height) <- winSize (sWin t)
+	return $ (x_ - width / 2, - y_ + height / 2)
+
+undo, undoGen :: Turtle -> IO ()
+undoGen t = do
+	rot : rots <- readIORef $ sRotHist t
+	writeIORef (sRotHist t) rots
+	d <- readIORef $ sDir t
+	case rot of
+		Just rot -> rotateGen t (d - rot) >> return ()
+		Nothing -> undoSquare (sWin t) t
+
+undo t = do
+	n <- readIORef $ sUndoN t
+	ns <- readIORef $ sUndoNs t
+	case ns of
+		n' : ns' -> do
+			writeIORef (sUndoN t) n'
+			writeIORef (sUndoNs t) ns
+		_ -> writeIORef (sUndoN t) 1
+	print n
+	replicateM_ n $ undoGen t
+
+setUndoN :: Turtle -> Int -> IO ()
+setUndoN t n = do
+	n0 <- readIORef $ sUndoN t
+	writeIORef (sUndoN t) n
+	modifyIORef (sUndoNs t) (n0 :)
 
 data Square = Square{
 	sLayer :: Layer,
@@ -47,6 +86,10 @@ data Square = Square{
 	sSize :: IORef Double,
 	sDir :: IORef Double,
 	sShape :: IORef [(Double, Double)],
+	sUndoN :: IORef Int,
+	sUndoNs :: IORef [Int],
+	sIsRotated :: IORef Bool,
+	sRotHist :: IORef [Maybe Double],
 	sWin :: Win
  }
 
@@ -83,6 +126,10 @@ newSquare w = do
 	sr <- newIORef 1
 	dr <- newIORef 0
 	rsh <- newIORef classic
+	run <- newIORef 1
+	runs <- newIORef []
+	isr <- newIORef False
+	srh <- newIORef []
 	return $ Square{
 		sLayer = l,
 		sChar = c,
@@ -91,7 +138,11 @@ newSquare w = do
 		sSize = sr,
 		sWin = w,
 		sShape = rsh,
-		sDir = dr
+		sDir = dr,
+		sUndoN = run,
+		sUndoNs = runs,
+		sIsRotated = isr,
+		sRotHist = srh
 	 }
 
 shape :: Square -> String -> IO ()
@@ -157,6 +208,8 @@ showSquare s@Square{sWin = w} = do
 
 moveSquare :: Win -> Square -> Double -> Double -> IO ()
 moveSquare w s@Square{sPos = p} x2 y2 = do
+	modifyIORef (sRotHist s) (Nothing :)
+	writeIORef (sIsRotated s) False
 	(x1, y1) <- readIORef p
 	modifyIORef (sHistory s) ((x1, y1) :)
 	mapM_ (\(x, y) -> showAnimation w s x1 y1 x y >> threadDelay stepTime) $
@@ -182,9 +235,19 @@ setDirSquare s@Square{sDir = dr} d = do
 
 rotateSquare :: Square -> Double -> IO ()
 rotateSquare s@Square{sDir = dr} d = do
+{-
 	d0 <- readIORef dr
 	mapM_ ((>> threadDelay stepDirTime) . setDirSquare s) $ getDirections d0 d
 	writeIORef dr (d `modd` 360)
+-}
+	d0 <- rotateGen s d
+	modifyIORef (sRotHist s) (Just (d - d0) :)
+rotateGen :: Square -> Double -> IO Double
+rotateGen s@Square{sDir = dr} d = do
+	d0 <- readIORef dr
+	mapM_ ((>> threadDelay stepDirTime) . setDirSquare s) $ getDirections d0 d
+	writeIORef dr (d `modd` 360)
+	return d0
 
 modd :: (Num a, Ord a) => a -> a -> a
 modd x y
