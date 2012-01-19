@@ -11,19 +11,22 @@ data Square = Square{
 	sChar :: Character,
 	sPos :: IORef (Double, Double),
 	sHistory :: IORef [(Double, Double)],
-	sSize :: Double
+	sSize :: IORef Double,
+	sWin :: Win
  }
 
 main :: IO ()
 main = do
 	w <- openWin
 	s <- newSquare w 2
-	s1 <- newSquare w 1
+	s1 <- newSquare w 2
+	shapesize s1 1
 	moveSquare w s 100 105
 	moveSquare w s1 200 30
 	moveSquare w s 50 300
 	moveSquare w s1 20 30
 	moveSquare w s 300 300
+	shapesize s1 2
 	undoSquare w s
 	moveSquare w s 300 400
 	undoSquare w s
@@ -39,13 +42,21 @@ newSquare w s = do
 	c <- addCharacter w
 	p <- newIORef (0, 0)
 	h <- newIORef []
+	sr <- newIORef s
 	return $ Square{
 		sLayer = l,
 		sChar = c,
 		sPos = p,
 		sHistory = h,
-		sSize = s
+		sSize = sr,
+		sWin = w
 	 }
+
+shapesize :: Square -> Double -> IO ()
+shapesize s size = do
+	writeIORef (sSize s) size
+	p <- readIORef $ sPos s
+	uncurry (moveSquare (sWin s) s) p
 
 step :: Double
 step = 10
@@ -65,7 +76,8 @@ before d t x = signum d * t >= signum d * x
 -- showAnimation :: Win -> Square -> Double -> Double -> IO ()
 showAnimation w s@Square{sPos = p} x1 y1 x2 y2 = do
 --	(x1, y1) <- readIORef p
-	setPolygonCharacterAndLine w (sChar s) (getTurtle (sSize s) 0 x2 y2)
+	size <- readIORef (sSize s)
+	setPolygonCharacterAndLine w (sChar s) (getTurtle size 0 x2 y2)
 --		[(x2, y2), (x2 + 10, y2), (x2 + 10, y2 + 10), (x2, y2 + 10)]
 		(x1, y1) (x2, y2)
 	bufToWin w
