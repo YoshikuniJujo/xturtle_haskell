@@ -1,10 +1,41 @@
-module CharAndBG where
+module CharAndBG (
+	Field,
+	Turtle,
+	openField,
+	newTurtle,
+	goto,
+	rotate,
+	getDirection
+) where
 
 import WindowLayers
 import Control.Monad.Tools
 import Control.Concurrent
 import Data.IORef
 import Control.Arrow
+
+type Field = Win
+type Turtle = Square
+
+openField :: IO Field
+openField = openWin
+
+newTurtle :: Field -> IO Turtle
+newTurtle f = do
+	s <- newSquare f
+	showSquare s
+	return s
+
+goto :: Turtle -> Double -> Double -> IO ()
+goto t x y = do
+	(width, height) <- winSize (sWin t)
+	moveSquare (sWin t) t (x + width / 2) (- y + height / 2)
+
+rotate :: Turtle -> Double -> IO ()
+rotate = rotateSquare
+
+getDirection :: Turtle -> IO Double
+getDirection = readIORef . sDir
 
 data Square = Square{
 	sLayer :: Layer,
@@ -30,7 +61,7 @@ main = do
 	shapesize s1 2
 	undoSquare w s
 	moveSquare w s 300 400
-	setDirSquare s1 0
+	rotateSquare s1 0
 	undoSquare w s
 	moveSquare w s 300 200
 	undoSquare w s
@@ -42,10 +73,11 @@ newSquare :: Win -> IO Square
 newSquare w = do
 	l <- addLayer w
 	c <- addCharacter w
-	p <- newIORef (0, 0)
+	(width, height) <- winSize w
+	p <- newIORef (width / 2, height / 2)
 	h <- newIORef []
 	sr <- newIORef 2
-	dr <- newIORef 90
+	dr <- newIORef 0
 	return $ Square{
 		sLayer = l,
 		sChar = c,
@@ -64,6 +96,13 @@ shapesize s size = do
 
 step :: Double
 step = 10
+stepTime :: Int
+stepTime = 30000
+
+stepDir :: Double
+stepDir = 5
+stepDirTime :: Int
+stepDirTime = 30000
 
 getPoints :: Double -> Double -> Double -> Double -> [(Double, Double)]
 getPoints x1 y1 x2 y2 = let
@@ -94,12 +133,14 @@ showSquare s@Square{sWin = w} = do
 	size <- readIORef (sSize s)
 	d <- readIORef (sDir s)
 	setPolygonCharacter w (sChar s) (getTurtle size d x y)
+	bufToWin w
+	flushWin w
 
 moveSquare :: Win -> Square -> Double -> Double -> IO ()
 moveSquare w s@Square{sPos = p} x2 y2 = do
 	(x1, y1) <- readIORef p
 	modifyIORef (sHistory s) ((x1, y1) :)
-	mapM_ (\(x, y) -> showAnimation w s x1 y1 x y >> threadDelay 50000) $
+	mapM_ (\(x, y) -> showAnimation w s x1 y1 x y >> threadDelay stepTime) $
 		getPoints x1 y1 x2 y2
 	writeIORef p (x2, y2)
 	line w (sLayer s) x1 y1 x2 y2
@@ -108,10 +149,29 @@ moveSquare w s@Square{sPos = p} x2 y2 = do
 		[(x2, y2), (x2 + 10, y2), (x2 + 10, y2 + 10), (x2, y2 + 10)]
 -}
 
+getDirections :: Double -> Double -> [Double]
+getDirections ds de = takeWhile before [ds, ds + dd ..] ++ [de]
+	where
+	sig = signum (de - ds)
+	dd = sig * stepDir
+	before x = sig * x < sig * de
+
 setDirSquare :: Square -> Double -> IO ()
 setDirSquare s@Square{sDir = dr} d = do
 	writeIORef dr d
 	showSquare s
+
+rotateSquare :: Square -> Double -> IO ()
+rotateSquare s@Square{sDir = dr} d = do
+	d0 <- readIORef dr
+	mapM_ ((>> threadDelay stepDirTime) . setDirSquare s) $ getDirections d0 d
+	writeIORef dr (d `modd` 360)
+
+modd :: (Num a, Ord a) => a -> a -> a
+modd x y
+	| x < 0 = modd (x + y) y
+	| x < y = x
+	| otherwise = modd (x - y) y
 
 undoSquare :: Win -> Square -> IO ()
 undoSquare w s@Square{sLayer = l} = do

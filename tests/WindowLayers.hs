@@ -116,6 +116,8 @@ openWin = do
 				writeIORef (wHeight w) height
 				readIORef exposeAction >>= sequence_ . concat
 				readIORef charActions >>= sequence_
+				bufToWin w
+				flushWin w
 				return True
 			KeyEvent{} -> return True
 			ClientMessageEvent{} ->
