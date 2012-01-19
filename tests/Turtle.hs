@@ -13,6 +13,28 @@ main :: IO ()
 main = do
 	putStrLn "module Turtle"
 
+testClear :: IO (Turtle, Turtle, Turtle, Turtle)
+testClear = do
+	f <- openField
+	threadDelay 1000000
+	t1 <- newTurtle f
+	t2 <- newTurtle f
+	t3 <- newTurtle f
+	t4 <- newTurtle f
+	forward t1 150
+	left t1 90
+	circle t1 150
+	right t2 90
+	forward t2 170
+	right t2 90
+	forward t2 200
+	left t2 180
+	circle t2 50
+	circle t3 30
+	left t4 180
+	circle t4 50
+	return (t1, t2, t3, t4)
+
 initForTest :: IO Turtle
 initForTest = do
 	f <- openField

@@ -30,6 +30,7 @@ module WindowLayers (
 	addCharacter,
 
 	undoLayer,
+	clearLayer,
 
 	Layer,
 	Character,
@@ -72,6 +73,7 @@ data Win = Win{
 	wWidth :: IORef Dimension,
 	wHeight :: IORef Dimension,
 	wExpose :: IORef [[Bool -> IO ()]],
+	wBuffed :: IORef [IO ()],
 	wChars :: IORef [IO ()]
  }
 
@@ -104,9 +106,10 @@ openWin = do
 	widthRef <- newIORef rWidth
 	heightRef <- newIORef rHeight
 	exposeAction <- newIORef []
+	buffedAction <- newIORef []
 	charActions <- newIORef []
 	let w = Win dpy win gc gcWhite del undoBuf bg buf widthRef heightRef
-		exposeAction charActions
+		exposeAction buffedAction charActions
 	_ <- forkIO $ (>> closeDisplay dpy) $ (initThreads >>) $ withEvent w $ \ev ->
 		case ev of
 			ExposeEvent{} -> do
@@ -135,6 +138,22 @@ openWin = do
 undoN :: Int
 undoN = 300
 
+clearLayer :: Win -> Layer -> IO ()
+clearLayer w l@(Layer lid) = do
+	setExposeAction w l (const $ const $ return ())
+	buffed <- readIORef $ wBuffed w
+	writeIORef (wBuffed w) $
+		take lid buffed ++ [return ()] ++ drop (lid + 1) buffed
+	nBuffed <- readIORef $ wBuffed w
+	clearUndoBuf w
+	sequence_ nBuffed
+	undoBufToBG w
+	readIORef (wExpose w) >>= sequence_ . map ($ False) . concat
+	bgToBuf w
+	readIORef (wChars w) >>= sequence_
+	bufToWin w
+	flushWin w
+
 addExposeAction :: Win -> Layer -> (Win -> Bool -> IO ()) -> IO ()
 addExposeAction w@Win{wExpose = we} (Layer lid) act = do
 	ls <- readIORef we
@@ -142,6 +161,10 @@ addExposeAction w@Win{wExpose = we} (Layer lid) act = do
 		newLayer = theLayer ++ [act w]
 	if length newLayer > undoN
 		then do	head newLayer True
+			buffed <- readIORef $ wBuffed w
+			writeIORef (wBuffed w) $ take lid buffed ++
+				[buffed !! lid >> head newLayer True] ++
+				drop (lid + 1) buffed
 			writeIORef we $ take lid ls ++ [tail newLayer] ++ drop (lid + 1) ls
 		else writeIORef we $ take lid ls ++ [newLayer] ++ drop (lid + 1) ls
 
@@ -175,9 +198,10 @@ setCharacterAction w@Win{wChars = wc} (Character cid) act = do
 	writeIORef wc $ take cid cs ++ [act] ++ drop (cid + 1) cs
 
 addLayer :: Win -> IO Layer
-addLayer w@Win{wExpose = we} = do
+addLayer w@Win{wExpose = we, wBuffed = wb} = do
 	ls <- readIORef we
 	modifyIORef we (++ [[]])
+	modifyIORef wb (++ [return ()])
 	return $ Layer $ length ls
 
 addCharacter :: Win -> IO Character

@@ -10,6 +10,7 @@ module CharAndBG (
 	shape,
 	shapesize,
 	undo,
+	clear,
 	setUndoN
 ) where
 
@@ -77,6 +78,9 @@ setUndoN t n = do
 	n0 <- readIORef $ sUndoN t
 	writeIORef (sUndoN t) n
 	modifyIORef (sUndoNs t) (n0 :)
+
+clear :: Turtle -> IO ()
+clear Square{sWin = w, sLayer = l} = clearLayer w l
 
 data Square = Square{
 	sLayer :: Layer,
