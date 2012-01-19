@@ -1,4 +1,4 @@
-module WindowLayers (
+module Graphics.X11.WindowLayers (
 	Win,
 	openWin,
 	flushWin,

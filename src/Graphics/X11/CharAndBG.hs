@@ -1,4 +1,4 @@
-module CharAndBG (
+module Graphics.X11.CharAndBG (
 	Field,
 	Turtle,
 	openField,
@@ -19,7 +19,7 @@ module CharAndBG (
 	isdown
 ) where
 
-import WindowLayers
+import Graphics.X11.WindowLayers
 import Control.Monad.Tools
 import Control.Concurrent
 import Data.IORef

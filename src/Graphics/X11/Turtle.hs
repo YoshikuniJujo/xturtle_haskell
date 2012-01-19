@@ -1,242 +1,108 @@
 module Graphics.X11.Turtle (
-	initTurtle,
-
+	openField,
+	newTurtle,
+	shape,
+	shapesize,
 	forward,
 	backward,
+	circle,
+	undo,
 	left,
 	right,
-	circle,
-
-	penup,
-	pendown,
-	isdown,
-
-	shapesize,
-	goto,
-	home,
 	clear,
-
-	windowWidth,
-	windowHeight,
-	position,
-	distance,
-
-	undo,
-	getHistory
+	home,
+	pendown,
+	penup,
+	isdown,
+	distance
 ) where
 
-import qualified Graphics.X11.TurtleBase as Base
-import Data.IORef
-import Data.List
-import System.IO.Unsafe
-import Control.Monad
+import Graphics.X11.CharAndBG
 import Control.Concurrent
-import Data.Maybe
+import Control.Monad
 
-turtle :: IORef Base.Turtle
-turtle = unsafePerformIO $ newIORef undefined
+main :: IO ()
+main = do
+	putStrLn "module Turtle"
 
-initTurtle :: IO ()
-initTurtle = Base.openWorld >>= Base.initTurtle >>= writeIORef turtle
+testClear :: IO (Turtle, Turtle, Turtle, Turtle)
+testClear = do
+	f <- openField
+	threadDelay 1000000
+	t1 <- newTurtle f
+	t2 <- newTurtle f
+	t3 <- newTurtle f
+	t4 <- newTurtle f
+	forward t1 150
+	left t1 90
+	circle t1 150
+	right t2 90
+	forward t2 170
+	right t2 90
+	forward t2 200
+	left t2 180
+	circle t2 50
+	circle t3 30
+	left t4 180
+	circle t4 50
+	return (t1, t2, t3, t4)
 
-shapesize :: Double -> IO ()
-shapesize s = readIORef turtle >>= flip Base.shapesize s
+initForTest :: IO Turtle
+initForTest = do
+	f <- openField
+	threadDelay 1000000
+	t <- newTurtle f
+	shape t "turtle"
+	shapesize t 3
+	forward t 150
+	forward t 500
+	backward t 500
+	right t 90
+	left t 180
+	circle t 150
+	undo t
+	return t
 
-windowWidth :: IO Double
-windowWidth = readIORef turtle >>= Base.windowWidth
+forward, backward :: Turtle -> Double -> IO ()
+forward t dist = do
+	setUndoN t 1
+	forwardNotSetUndo t dist
 
-windowHeight :: IO Double
-windowHeight = readIORef turtle >>= Base.windowHeight
+forwardNotSetUndo t dist = do
+	dir <- direction t
+	(x0, y0) <- position t
+	let	xd = dist * cos (dir * pi / 180)
+		yd = dist * sin (dir * pi / 180)
+	goto t (x0 + xd) (y0 + yd)
 
-position :: IO (Double, Double)
-position = readIORef turtle >>= Base.position
 
-distance :: Double -> Double -> IO Double
-distance x0 y0 = do
-	(x, y) <- position
-	return $ ((x - x0) ** 2 + (y - y0) ** 2) ** (1 / 2)
+backward t = forward t . negate
 
-penup :: IO ()
-penup = readIORef turtle >>= Base.penup >> pushTurtleEvent Penup
+left, right :: Turtle -> Double -> IO ()
+left t dd = do
+--	setUndoN t 0
+	leftNotSetUndo t dd
+leftNotSetUndo t dd = do
+	dir <- direction t
+	rotate t (dir + dd)
 
-pendown :: IO ()
-pendown = readIORef turtle >>= Base.pendown >> pushTurtleEvent Pendown
+right t = left t . negate
 
-isdown :: IO Bool
-isdown = readIORef turtle >>= Base.isdown
+circle :: Turtle -> Double -> IO ()
+circle t r = do
+	setUndoN t 73
+	forwardNotSetUndo t (r * pi / 36)
+	leftNotSetUndo t 10
+	replicateM_ 35 $ forwardNotSetUndo t (2 * r * pi / 36) >>
+		leftNotSetUndo t 10
+	forwardNotSetUndo t (r * pi / 36)
 
-goto, goto' :: Double -> Double -> IO ()
-rawGoto :: Base.Turtle -> Double -> Double -> IO ()
-goto x y = goto' x y >> setUndoPoint >> pushTurtleEvent (Goto x y)
-goto' x y = do
-	width <- windowWidth
-	height <- windowHeight
-	t <- readIORef turtle
-	rawGoto t (x + width / 2) (- y + height / 2)
+home :: Turtle -> IO ()
+home t = do
+	goto t 0 0
+	rotate t 0
 
-rawGoto t xTo yTo = do
-	(act, past) <- rawGotoGen t xTo yTo
-	act
-	dir <- Base.getDirection t
-	forM_ past $ \(pos, act') -> putToPastDrawLines pos dir act'
-
-rawGotoGen :: Base.Turtle -> Double -> Double ->
-	IO (IO (), [((Double, Double), Base.Buf -> IO ())])
-rawGotoGen t xTo yTo = do
-	(act, past) <- gotoGen t xTo yTo
-	return (act, map (uncurry $ mkAction t) $ zip past $ tail past)
-
-getSteps :: Double -> Double -> Double -> Double -> [(Double, Double)]
-getSteps x0 y0 x y = let
-	dist = ((x - x0) ** 2 + (y - y0) ** 2) ** (1 / 2)
-	dx = step * (x - x0) / dist
-	dy = step * (y - y0) / dist
-	xs = takeWhile (aida x0 x) (map ((x0 +) . (* dx)) [0 ..]) ++ [x]
-	ys = takeWhile (aida y0 y) (map ((y0 +) . (* dy)) [0 ..]) ++ [y] in
-	zip xs ys
-
-aida :: Ord a => a -> a -> a -> Bool
-aida xs xe x = xs <= x && x <= xe || xs >= x && x >= xe
-
-step :: Double
-step = 10
-
-gotoGen :: Base.Turtle -> Double -> Double -> IO (IO (), [(Double, Double)])
-gotoGen t x y = do
-	(x0, y0) <- Base.getPosition t
-	let	poss = getSteps x0 y0 x y
-		actss = mapM_ (uncurry $ Base.moveTurtle t) $ tail poss
-	return (actss, poss)
-
-mkAction :: Base.Turtle -> (Double, Double) -> (Double, Double) ->
-	((Double, Double), Base.Buf -> IO ())
-mkAction t (x0, y0) (x1, y1) = ((x1, y1), Base.drawLine t x0 y0 x1 y1)
-
-forward, rawForward :: Double -> IO ()
-forward len = rawForward len >> setUndoPoint >> pushTurtleEvent (Forward len)
-rawForward len = do
-	t <- readIORef turtle
-	(x0, y0) <- Base.getPosition t
-	d <- Base.getDirection t
-	let	rad = d * pi / 180
-		nx' = x0 + len * cos rad
-		ny' = y0 + len * sin rad
-	rawGoto t nx' ny'
-
-backward :: Double -> IO ()
-backward = forward . negate
-
-rotateBy :: Double -> IO ()
-rotateBy dd = do
-	t <- readIORef turtle
-	nd <- Base.rotateBy t dd
-	pos <- Base.getPosition t
-	putToPastDrawLines pos nd $ const (return ())
-
-rotateTo :: Double -> IO ()
-rotateTo d = do
-	t <- readIORef turtle
-	d0 <- Base.getDirection t
-	let	st = 5
-		dd = d - d0
-	replicateM_ (abs dd `gDiv` st) $
-		rotateBy (signum dd * st) >> threadDelay 10000
-	Base.setDirection t d
-	Base.flushW t
-
-rotate, rawRotate :: Double -> IO ()
-rotate d = rawRotate d >> setUndoPoint >> pushTurtleEvent (Rotate d)
-rawRotate d = do
-	d0 <- readIORef turtle >>= Base.getDirection
-	rotateTo $ d0 + d
-
-gDiv :: (Num a, Ord a, Integral b) => a -> a -> b
-x `gDiv` y
-	| x >= y = 1 + (x - y) `gDiv` y
-	| otherwise = 0
-
-right :: Double -> IO ()
-right = rotate
-
-left :: Double -> IO ()
-left = rotate . negate
-
-circle :: Double -> IO ()
-circle r = replicateM_ 36 $ do
-	rawForward (2 * r * pi / 36 :: Double)
-	rawRotate (- 10)
-
-home :: IO ()
-home = goto' 0 0 >> rotateTo 0 >> pushTurtleEvent Home
-
-clear :: IO ()
-clear = do
-	t <- readIORef turtle
-	(retAct, (pos, dir, pastAct)) <- Base.clear t
-	retAct
-	putToPastDrawLines pos dir pastAct
-	pushTurtleEvent Clear
-
---------------------------------------------------------------------------------
-
-undo :: IO ()
-undo = do
-	t <- readIORef turtle
-	dls <- fmap init $ readIORef pastDrawLines
-	let	draw = map catMaybes
-			$ takeWhile (isJust . last) $ reverse $ inits dls
-		draw1 = map fromJust $ filter isJust $ head
-			$ dropWhile (isJust . last) $ reverse $ inits dls
-		draw' = draw ++ [draw1]
-	forM_ (zip (reverse $ map (fst . fromJust) $ filter isJust dls )
-		$ map (mapM_ (($ Base.BG) . snd)) draw') $ \((pos, dir), dl) -> do
-		Base.initUndo t
-		dl
-		uncurry (Base.setPosition t) pos
-		Base.setDirection t dir
-		Base.flushW t
-		threadDelay 20000
-	modifyIORef pastDrawLines $ reverse . dropWhile isJust . tail . reverse
-	pushTurtleEvent Undo
-
-data TurtleEvent = Forward Double | Rotate Double | Undo | Home | Clear
-	| Penup | Pendown | Goto Double Double
-	deriving Show
-
-getHistory :: IO [TurtleEvent]
-getHistory = liftM (`take` turtleEvents) $ readIORef eventPoint 
-
-eventChan :: Chan TurtleEvent
-eventChan = unsafePerformIO newChan
-
-turtleEvents :: [TurtleEvent]
-turtleEvents = unsafePerformIO getTurtleEvents
-
-getTurtleEvents :: IO [TurtleEvent]
-getTurtleEvents = unsafeInterleaveIO $ do
-	ev <- readChan eventChan
-	evs <- getTurtleEvents
-	return $ ev : evs
-
-eventPoint :: IORef Int
-eventPoint = unsafePerformIO $ newIORef 0
-
-pushTurtleEvent :: TurtleEvent -> IO ()
-pushTurtleEvent te = do
-	writeChan eventChan te
-	modifyIORef eventPoint (+ 1)
-
-pastDrawLines :: IORef [Maybe (((Double, Double), Double), Base.Buf -> IO ())]
-pastDrawLines = unsafePerformIO $ newIORef []
-
-putToPastDrawLines :: (Double, Double) -> Double -> (Base.Buf -> IO ()) -> IO ()
-putToPastDrawLines tpos tdir dl = do
-	pdls <- readIORef pastDrawLines
-	if length pdls < 300
-		then writeIORef pastDrawLines $ pdls ++ [Just ((tpos, tdir), dl)]
-		else do
-			maybe (return ()) (($ Base.UndoBuf) . snd) $ head pdls
-			writeIORef pastDrawLines $ tail pdls ++ [Just ((tpos, tdir), dl)]
-
-setUndoPoint :: IO ()
-setUndoPoint = modifyIORef pastDrawLines (++ [Nothing])
+distance :: Turtle -> Double -> Double -> IO Double
+distance t x0 y0 = do
+	(x, y) <- position t
+	return $ ((x - x0) ^ 2 + (y - y0) ^ 2) ** (1 / 2)
