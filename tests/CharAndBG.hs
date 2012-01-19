@@ -5,7 +5,9 @@ module CharAndBG (
 	newTurtle,
 	goto,
 	rotate,
-	getDirection
+	getDirection,
+	shape,
+	shapesize
 ) where
 
 import WindowLayers
@@ -44,6 +46,7 @@ data Square = Square{
 	sHistory :: IORef [(Double, Double)],
 	sSize :: IORef Double,
 	sDir :: IORef Double,
+	sShape :: IORef [(Double, Double)],
 	sWin :: Win
  }
 
@@ -52,6 +55,7 @@ main = do
 	w <- openWin
 	s <- newSquare w
 	s1 <- newSquare w
+	shape s1 "turtle"
 	shapesize s1 1
 	moveSquare w s 100 105
 	moveSquare w s1 200 30
@@ -76,8 +80,9 @@ newSquare w = do
 	(width, height) <- winSize w
 	p <- newIORef (width / 2, height / 2)
 	h <- newIORef []
-	sr <- newIORef 2
+	sr <- newIORef 1
 	dr <- newIORef 0
+	rsh <- newIORef classic
 	return $ Square{
 		sLayer = l,
 		sChar = c,
@@ -85,8 +90,20 @@ newSquare w = do
 		sHistory = h,
 		sSize = sr,
 		sWin = w,
+		sShape = rsh,
 		sDir = dr
 	 }
+
+shape :: Square -> String -> IO ()
+shape s@Square{sShape = rsh} name = do
+	case name of
+		"turtle" -> do
+			writeIORef rsh turtle
+			showSquare s
+		"clasic" -> do
+			writeIORef rsh classic
+			showSquare s
+		_ -> return ()
 
 shapesize :: Square -> Double -> IO ()
 shapesize s size = do
@@ -121,7 +138,8 @@ showAnimation w s@Square{sPos = p} x1 y1 x2 y2 = do
 --	(x1, y1) <- readIORef p
 	size <- readIORef (sSize s)
 	d <- readIORef (sDir s)
-	setPolygonCharacterAndLine w (sChar s) (getTurtle size d x2 y2)
+	shape <- readIORef (sShape s)
+	setPolygonCharacterAndLine w (sChar s) (getShape shape size d x2 y2)
 --		[(x2, y2), (x2 + 10, y2), (x2 + 10, y2 + 10), (x2, y2 + 10)]
 		(x1, y1) (x2, y2)
 	bufToWin w
@@ -132,7 +150,8 @@ showSquare s@Square{sWin = w} = do
 	(x, y) <- readIORef $ sPos s
 	size <- readIORef (sSize s)
 	d <- readIORef (sDir s)
-	setPolygonCharacter w (sChar s) (getTurtle size d x y)
+	shape <- readIORef (sShape s)
+	setPolygonCharacter w (sChar s) (getShape shape size d x y)
 	bufToWin w
 	flushWin w
 
@@ -185,9 +204,23 @@ undoSquare w s@Square{sLayer = l} = do
 	writeIORef (sPos s) p
 	writeIORef (sHistory s) ps
 
+getShape ::
+	[(Double, Double)] -> Double -> Double -> Double -> Double -> [(Double, Double)]
+getShape shape s d x y =
+	map (uncurry (addDoubles (x, y)) . rotatePointD d . mulPoint s) shape
+
 getTurtle :: Double -> Double -> Double -> Double -> [(Double, Double)]
 getTurtle s d x y =
 	map (uncurry (addDoubles (x, y)) . rotatePointD d . mulPoint s) turtle
+
+classic :: [(Double, Double)]
+classic = clssc ++ reverse (map (second negate) clssc)
+	where
+	clssc = [
+		(- 10, 0),
+		(- 16, 6),
+		(0, 0)
+	 ]
 
 turtle :: [(Double, Double)]
 turtle = ttl ++ reverse (map (second negate) ttl)
