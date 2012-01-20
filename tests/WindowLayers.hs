@@ -4,6 +4,7 @@ module WindowLayers (
 	Character,
 
 	openField,
+	closeField,
 	bufToWin,
 	flushWin,
 	winSize,
@@ -66,6 +67,9 @@ type Field = Win
 
 openField :: IO Field
 openField = openWin
+
+closeField :: Field -> IO ()
+closeField = closeDisplay . wDisplay
 
 openWin :: IO Win
 openWin = do
