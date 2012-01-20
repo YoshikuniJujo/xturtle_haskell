@@ -41,7 +41,7 @@ newTurtle f = do
 	stat <- getSquareState
 	let	s =  Turtle{sLayer = l, sChar = c, sWin = f, sStat = stat}
 	(width, height) <- windowSize s
-	setPosition stat (width / 2) (height / 2)
+	setPos stat (width / 2) (height / 2)
 	showSquare s
 	return s
 
@@ -53,16 +53,16 @@ shapesize s = (>> showSquare s) . setSize (sStat s)
 
 goto :: Turtle -> Double -> Double -> IO ()
 goto s xTo_ yTo_ = do
+	(xTo, yTo) <- convertPosition xTo_ yTo_
 	pushRotHist (sStat s) Nothing
 	(x0, y0) <- getPos s
-	pushHistory (sStat s) x0 y0
-	(xTo, yTo) <- convertPosition xTo_ yTo_
+	setPos (sStat s) xTo yTo
 	pd <- isdown s
+	let pos0 = if pd then Just (x0, y0) else Nothing
 	forM_ (getPoints x0 y0 xTo yTo) $ \(x, y) -> do
-		showAnimation pd s x0 y0 x y
+		drawTurtle s (x, y) pos0
 		threadDelay stepTime
 	when pd $ line (sWin s) (sLayer s) x0 y0 xTo yTo
-	setPosition (sStat s) xTo yTo
 	where
 	convertPosition x y = do
 		(width, height) <- windowSize s
@@ -101,11 +101,10 @@ undoGen t = do
 undoSquare :: Field -> Turtle -> IO ()
 undoSquare w s@Turtle{sLayer = l} = do
 	undoLayer w l
-	(x1, y1) <- getPosition $ sStat s
-	p@(x2, y2) <- popHistory $ sStat s
+	(x1, y1) <- popPos $ sStat s
+	(x2, y2) <- getPosition $ sStat s
 	mapM_ (\(x, y) -> showAnimation True s x2 y2 x y >> threadDelay 50000) $
 		getPoints x1 y1 x2 y2
-	uncurry (setPosition $ sStat s) p
 
 setUndoN :: Turtle -> Int -> IO ()
 setUndoN t n = do

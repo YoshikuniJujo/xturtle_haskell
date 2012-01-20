@@ -2,9 +2,8 @@ module Graphics.X11.SquareState (
 	SquareState(SquareState),
 	getSquareState,
 	getPosition,
-	setPosition,
-	popHistory,
-	pushHistory,
+	setPos,
+	popPos,
 	setSize,
 	getDirection,
 	setDirection,
@@ -27,6 +26,19 @@ import Control.Arrow
 
 getPosition :: SquareState -> IO (Double, Double)
 getPosition = readIORef . sPos
+
+setPos :: SquareState -> Double -> Double -> IO ()
+setPos s nx ny = do
+	(x0, y0) <- getPosition s
+	pushHistory s x0 y0
+	setPosition s nx ny
+
+popPos :: SquareState -> IO (Double, Double)
+popPos s = do
+	(x0, y0) <- getPosition s
+	(nx, ny) <- popHistory s
+	setPosition s nx ny
+	return (x0, y0)
 
 setPosition :: SquareState -> Double -> Double -> IO ()
 setPosition = curry . writeIORef . sPos
@@ -112,7 +124,7 @@ data SquareState = SquareState {
 
 getSquareState :: IO SquareState
 getSquareState = do
-	p <- newIORef undefined
+	p <- newIORef (0, 0)
 	h <- newIORef []
 	sr <- newIORef 1
 	dr <- newIORef 0
