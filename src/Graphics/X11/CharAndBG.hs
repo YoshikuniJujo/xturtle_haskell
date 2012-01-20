@@ -38,17 +38,38 @@ newTurtle :: Field -> IO Turtle
 newTurtle f = do
 	l <- addLayer f
 	c <- addCharacter f
-	(width, height) <- winSize f
 	stat <- getSquareState
-	setPosition stat (width / 2) (height / 2)
 	let	s =  Turtle{sLayer = l, sChar = c, sWin = f, sStat = stat}
+	(width, height) <- windowSize s
+	setPosition stat (width / 2) (height / 2)
 	showSquare s
 	return s
 
+shape :: Turtle -> String -> IO ()
+shape s = (>> showSquare s) . selectShape (sStat s)
+
+shapesize :: Turtle -> Double -> IO ()
+shapesize s = (>> showSquare s) . setSize (sStat s)
+
 goto :: Turtle -> Double -> Double -> IO ()
-goto t x y = do
-	(width, height) <- winSize (sWin t)
-	moveSquare (sWin t) t (x + width / 2) (- y + height / 2)
+goto s xTo_ yTo_ = do
+	pushRotHist (sStat s) Nothing
+	(x0, y0) <- getPos s
+	pushHistory (sStat s) x0 y0
+	(xTo, yTo) <- convertPosition xTo_ yTo_
+	pd <- isdown s
+	forM_ (getPoints x0 y0 xTo yTo) $ \(x, y) -> do
+		showAnimation pd s x0 y0 x y
+		threadDelay stepTime
+	when pd $ line (sWin s) (sLayer s) x0 y0 xTo yTo
+	setPosition (sStat s) xTo yTo
+	where
+	convertPosition x y = do
+		(width, height) <- windowSize s
+		return (x + width / 2, -y + height / 2)
+
+getPos :: Turtle -> IO (Double, Double)
+getPos = getPosition . sStat
 
 rotate :: Turtle -> Double -> IO ()
 rotate t = rotateSquare t . negate
@@ -59,7 +80,7 @@ direction = fmap negate . getDirection . sStat
 position :: Turtle -> IO (Double, Double)
 position t = do
 	(x_, y_) <- getPosition $ sStat t
-	(width, height) <- winSize (sWin t)
+	(width, height) <- windowSize t
 	return (x_ - width / 2, - y_ + height / 2)
 
 undo, undoGen :: Turtle -> IO ()
@@ -82,7 +103,7 @@ undoSquare w s@Turtle{sLayer = l} = do
 	undoLayer w l
 	(x1, y1) <- getPosition $ sStat s
 	p@(x2, y2) <- popHistory $ sStat s
-	mapM_ (\(x, y) -> showAnimation True w s x2 y2 x y >> threadDelay 50000) $
+	mapM_ (\(x, y) -> showAnimation True s x2 y2 x y >> threadDelay 50000) $
 		getPoints x1 y1 x2 y2
 	uncurry (setPosition $ sStat s) p
 
@@ -95,9 +116,12 @@ setUndoN t n = do
 clear :: Turtle -> IO ()
 clear Turtle{sWin = w, sLayer = l} = clearLayer w l
 
+windowSize :: Turtle -> IO (Double, Double)
+windowSize = winSize . sWin
+
 windowWidth, windowHeight :: Turtle -> IO Double
-windowWidth = fmap fst . winSize . sWin
-windowHeight = fmap snd . winSize . sWin
+windowWidth = fmap fst . windowSize
+windowHeight = fmap snd . windowSize
 
 penup, pendown :: Turtle -> IO ()
 penup = penUp . sStat
@@ -105,12 +129,6 @@ pendown = penDown . sStat
 
 isdown :: Turtle -> IO Bool
 isdown = isPenDown . sStat
-
-shape :: Turtle -> String -> IO ()
-shape s name = selectShape (sStat s) name >> showSquare s
-
-shapesize :: Turtle -> Double -> IO ()
-shapesize s size = setSize (sStat s) size >> showSquare s
 
 step :: Double
 step = 10
@@ -134,34 +152,23 @@ getPoints x1 y1 x2 y2 = let
 before :: (Num a, Ord a) => a -> a -> a -> Bool
 before d t x = signum d * t >= signum d * x
 
-showAnimation :: Bool -> Field -> Turtle -> Double -> Double -> Double -> Double -> IO ()
-showAnimation pd w s x1 y1 x2 y2 = do
-	sp <- createShape (sStat s) x2 y2
-	if pd then setPolygonCharacterAndLine w (sChar s)
-				sp
-				(x1, y1) (x2, y2)
-		else setPolygonCharacter w (sChar s) sp
-	bufToWin w
-	flushWin w
+showAnimation :: Bool -> Turtle -> Double -> Double -> Double -> Double -> IO ()
+showAnimation pd s x1 y1 x2 y2 =
+	if pd then drawTurtle s (x2, y2) $ Just (x1, y1)
+		else drawTurtle s (x2, y2) Nothing
 
 showSquare :: Turtle -> IO ()
-showSquare s@Turtle{sWin = w} = do
-	(x, y) <- getPosition $ sStat s
-	sp <- createShape (sStat s) x y
-	setPolygonCharacter w (sChar s) sp
+showSquare s = do
+	p <- getPosition $ sStat s
+	drawTurtle s p Nothing
+
+drawTurtle :: Turtle -> (Double, Double) -> Maybe (Double, Double) -> IO ()
+drawTurtle t@Turtle{sWin = w, sChar = c} (x, y) org = do
+	sp <- createShape (sStat t) x y
+	maybe (setPolygonCharacter w c sp)
+		(flip (setPolygonCharacterAndLine w c sp) (x, y)) org
 	bufToWin w
 	flushWin w
-
-moveSquare :: Field -> Turtle -> Double -> Double -> IO ()
-moveSquare w s x2 y2 = do
-	pushRotHist (sStat s) Nothing
-	(x1, y1) <- getPosition $ sStat s
-	pushHistory (sStat s) x1 y1
-	pd <- isPenDown $ sStat s
-	mapM_ (\(x, y) -> showAnimation pd w s x1 y1 x y >> threadDelay stepTime) $
-		getPoints x1 y1 x2 y2
-	setPosition (sStat s) x2 y2
-	when pd $ line w (sLayer s) x1 y1 x2 y2
 
 getDirections :: Double -> Double -> [Double]
 getDirections ds de = takeWhile beforeDir [ds, ds + dd ..] ++ [de]

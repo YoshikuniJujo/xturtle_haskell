@@ -1,37 +1,22 @@
 module Graphics.X11.WindowLayers (
---	Win,
 	Field,
+	Layer,
+	Character,
+
 	openField,
+	bufToWin,
 	flushWin,
 	winSize,
 
-	clearUndoBuf,
-	clearBG,
-	fillPolygonBuf,
-
-	changeColor,
-	putSome,
-	line,
-
-	undoBufToBG,
-	bgToBuf,
-	bufToWin,
-
-	addExposeAction,
-	setExposeAction,
-	setCharacterAction,
-	setCharacter,
-	setPolygonCharacter,
-	setPolygonCharacterAndLine,
---	undoAction,
 	addLayer,
 	addCharacter,
 
+	line,
+	setPolygonCharacter,
+	setPolygonCharacterAndLine,
+
 	undoLayer,
 	clearLayer,
-
-	Layer,
-	Character,
 ) where
 
 import Graphics.X11(
@@ -214,15 +199,6 @@ addCharacter Win{wChars = wc} = do
 	modifyIORef wc (++ [return ()])
 	return $ Character $ length cs
 
-{-
-undoAction :: Win -> Layer -> IO ()
-undoAction w@Win{wExpose = we} (Layer lid) = do
-	clearWin w
-	modifyIORef we init
-	readIORef we >>= sequence_
-	flushWin w
--}
-
 winSize :: Win -> IO (Double, Double)
 winSize w = fmap (fromIntegral *** fromIntegral) $ winSizeRaw w
 
@@ -262,13 +238,6 @@ setPolygonCharacterAndLine ::
 setPolygonCharacterAndLine w c ps (x1, y1) (x2, y2) =
 	setCharacter w c (fillPolygonBuf w ps >> lineBuf w x1 y1 x2 y2)
 
-putSome :: Win -> (Double, Double) -> IO ()
-putSome w (x, y) = do
-	bgToBuf w
-	fillPolygonBuf w [(x, y), (x + 10, y), (x + 10, y + 10), (x, y + 10)]
-	bufToWin w
-	flushWin w
-
 line :: Win -> Layer -> Double -> Double -> Double -> Double -> IO ()
 line w l x1 y1 x2 y2 = do
 	lineWin w x1 y1 x2 y2
@@ -294,10 +263,6 @@ lineBuf w x1_ y1_ x2_ y2_ =
 	drawLine (wDisplay w) (wBuf w) (wGC w) x1 y1 x2 y2
 	where	[x1, y1, x2, y2] = map round [x1_, y1_, x2_, y2_]
 
-clearBG :: Win -> IO ()
-clearBG w = winSizeRaw w >>=
-	uncurry (fillRectangle (wDisplay w) (wBG w) (wGCWhite w) 0 0)
-
 clearUndoBuf :: Win -> IO ()
 clearUndoBuf w = winSizeRaw w >>=
 	uncurry (fillRectangle (wDisplay w) (wUndoBuf w) (wGCWhite w) 0 0)
@@ -305,5 +270,11 @@ clearUndoBuf w = winSizeRaw w >>=
 flushWin :: Win -> IO ()
 flushWin = flush . wDisplay
 
+{-
 changeColor :: Win -> Pixel -> IO ()
 changeColor w = setForeground (wDisplay w) (wGC w)
+
+clearBG :: Win -> IO ()
+clearBG w = winSizeRaw w >>=
+	uncurry (fillRectangle (wDisplay w) (wBG w) (wGCWhite w) 0 0)
+-}
