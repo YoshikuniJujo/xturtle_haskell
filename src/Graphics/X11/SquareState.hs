@@ -25,23 +25,15 @@ import Data.IORef
 import Control.Arrow
 
 getPosition :: SquareState -> IO (Double, Double)
-getPosition = readIORef . sPos
+getPosition = fmap head . readIORef . sHistory
 
 setPos :: SquareState -> Double -> Double -> IO ()
 setPos s nx ny = do
-	(x0, y0) <- getPosition s
-	pushHistory s x0 y0
-	setPosition s nx ny
+	pushHistory s nx ny
 
 popPos :: SquareState -> IO (Double, Double)
 popPos s = do
-	(x0, y0) <- getPosition s
-	(nx, ny) <- popHistory s
-	setPosition s nx ny
-	return (x0, y0)
-
-setPosition :: SquareState -> Double -> Double -> IO ()
-setPosition = curry . writeIORef . sPos
+	popHistory s
 
 popHistory :: SquareState -> IO (Double, Double)
 popHistory s = do
@@ -110,39 +102,33 @@ penUp :: SquareState -> IO ()
 penUp = flip writeIORef False . sPenDown
 
 data SquareState = SquareState {
-	sPos :: IORef (Double, Double),
 	sHistory :: IORef [(Double, Double)],
 	sSize :: IORef Double,
 	sDir :: IORef Double,
+	sRotHist :: IORef [Maybe Double],
 	sShape :: IORef [(Double, Double)],
 	sUndoN :: IORef Int,
 	sUndoNs :: IORef [Int],
-	sIsRotated :: IORef Bool,
-	sRotHist :: IORef [Maybe Double],
 	sPenDown :: IORef Bool
  }
 
 getSquareState :: IO SquareState
 getSquareState = do
-	p <- newIORef (0, 0)
-	h <- newIORef []
+	h <- newIORef [(0, 0)]
 	sr <- newIORef 1
 	dr <- newIORef 0
 	rsh <- newIORef classic
 	run <- newIORef 1
 	runs <- newIORef []
-	isr <- newIORef False
 	srh <- newIORef []
 	rpd <- newIORef True
 	return SquareState {
-		sPos = p,
 		sHistory = h,
 		sSize = sr,
 		sShape = rsh,
 		sDir = dr,
 		sUndoN = run,
 		sUndoNs = runs,
-		sIsRotated = isr,
 		sRotHist = srh,
 		sPenDown = rpd
 	 }
