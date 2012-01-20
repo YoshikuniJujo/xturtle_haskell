@@ -1,15 +1,14 @@
 module Graphics.X11.WindowLayers (
-	Win,
-	openWin,
+--	Win,
+	Field,
+	openField,
 	flushWin,
 	winSize,
 
 	clearUndoBuf,
---	lineUndoBuf,
 	clearBG,
 	fillPolygonBuf,
 
---	lineWin,
 	changeColor,
 	putSome,
 	line,
@@ -78,6 +77,11 @@ data Win = Win{
 data Layer = Layer Int
 data Character = Character Int
 
+type Field = Win
+
+openField :: IO Field
+openField = openWin
+
 openWin :: IO Win
 openWin = do
 	_ <- initThreads
@@ -125,6 +129,7 @@ openWin = do
 			ClientMessageEvent{} ->
 				return $ not $ isDeleteEvent w ev
 			_ -> return True
+	flushWin w
 	return w
 	where
 	withEvent w act = doWhile_ $ allocaXEvent $ \e -> do

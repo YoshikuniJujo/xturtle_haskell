@@ -96,3 +96,26 @@ initForTest = do
 	circle t 150
 	undo t
 	return t
+
+testModuleCharAndBG :: IO ()
+testModuleCharAndBG = do
+	w <- openField
+	threadDelay 1000000
+	s <- newTurtle w
+	s1 <- newTurtle w
+	shape s1 "turtle"
+	shapesize s1 1
+	goto s 50 105
+	goto s1 100 30
+	goto s 25 100
+	goto s1 10 30
+	goto s 150 100
+	shapesize s1 2
+	undo s
+	goto s 150 150
+	left s1 90
+	undo s
+	goto s 150 50
+	undo s
+	undo s1
+	undo s
