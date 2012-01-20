@@ -22,8 +22,8 @@ module Graphics.X11.CharAndBG (
 ) where
 
 import Graphics.X11.WindowLayers
+import Graphics.X11.SquareState
 import Control.Concurrent
-import Data.IORef
 import Control.Arrow
 import Control.Monad
 
@@ -51,39 +51,50 @@ rotate :: Turtle -> Double -> IO ()
 rotate t = rotateSquare t . negate
 
 direction :: Turtle -> IO Double
-direction = fmap negate . readIORef . sDir
+direction = fmap negate . getDirection . sStat -- readIORef . sDir . sStat
 
 position :: Turtle -> IO (Double, Double)
 position t = do
-	(x_, y_) <- readIORef $ sPos t
+	(x_, y_) <- getPosition $ sStat t
 	(width, height) <- winSize (sWin t)
 	return (x_ - width / 2, - y_ + height / 2)
 
 undo, undoGen :: Turtle -> IO ()
 undoGen t = do
-	rot : rots <- readIORef $ sRotHist t
-	writeIORef (sRotHist t) rots
-	d <- readIORef $ sDir t
+{-
+	rot : rots <- readIORef $ sRotHist $ sStat t
+	writeIORef (sRotHist $ sStat t) rots
+-}
+	rot <- popRotHist $ sStat t
+--	d <- readIORef $ sDir $ sStat t
+	d <- getDirection $ sStat t
 	case rot of
 		Just r -> rotateGen t (d - r) >> return ()
 		Nothing -> undoSquare (sWin t) t
 
 undo t = do
-	n <- readIORef $ sUndoN t
-	ns <- readIORef $ sUndoNs t
+	n <- getUndoNum $ sStat t
+	n' <- popUndoNum $ sStat t
+	setUndoNum (sStat t) n'
+{-
+	ns <- readIORef $ sUndoNs $ sStat t
 	case ns of
 		n' : ns' -> do
-			writeIORef (sUndoN t) n'
-			writeIORef (sUndoNs t) ns'
-		_ -> writeIORef (sUndoN t) 1
+			setUndoNum (sStat t) n'
+			writeIORef (sUndoNs $ sStat t) ns'
+		_ -> setUndoNum (sStat t) 1 -- writeIORef (sUndoN $ sStat t) 1
+-}
 	print n
 	replicateM_ n $ undoGen t
 
 setUndoN :: Turtle -> Int -> IO ()
 setUndoN t n = do
-	n0 <- readIORef $ sUndoN t
-	writeIORef (sUndoN t) n
-	modifyIORef (sUndoNs t) (n0 :)
+--	n0 <- readIORef $ sUndoN $ sStat t
+	n0 <- getUndoNum $ sStat t
+--	writeIORef (sUndoN $ sStat t) n
+	setUndoNum (sStat t) n
+--	modifyIORef (sUndoNs $ sStat t) (n0 :)
+	pushUndoNum (sStat t) n0
 
 clear :: Turtle -> IO ()
 clear Square{sWin = w, sLayer = l} = clearLayer w l
@@ -93,26 +104,17 @@ windowWidth = fmap fst . winSize . sWin
 windowHeight = fmap snd . winSize . sWin
 
 penup, pendown :: Turtle -> IO ()
-penup = flip writeIORef False . sPenDown
-pendown = flip writeIORef True . sPenDown
+penup = penUp . sStat -- flip writeIORef False . sPenDown . sStat
+pendown = penDown . sStat -- flip writeIORef True . sPenDown . sStat
 
 isdown :: Turtle -> IO Bool
-isdown = readIORef . sPenDown
+isdown = isPenDown . sStat -- readIORef . sPenDown . sStat
 
 data Square = Square{
+	sWin :: Win,
 	sLayer :: Layer,
 	sChar :: Character,
-	sPos :: IORef (Double, Double),
-	sHistory :: IORef [(Double, Double)],
-	sSize :: IORef Double,
-	sDir :: IORef Double,
-	sShape :: IORef [(Double, Double)],
-	sUndoN :: IORef Int,
-	sUndoNs :: IORef [Int],
-	sIsRotated :: IORef Bool,
-	sRotHist :: IORef [Maybe Double],
-	sPenDown :: IORef Bool,
-	sWin :: Win
+	sStat :: SquareState
  }
 
 testModuleCharAndBG :: IO ()
@@ -146,47 +148,39 @@ newSquare w = do
 	l <- addLayer w
 	c <- addCharacter w
 	(width, height) <- winSize w
-	p <- newIORef (width / 2, height / 2)
-	h <- newIORef []
-	sr <- newIORef 1
-	dr <- newIORef 0
-	rsh <- newIORef classic
-	run <- newIORef 1
-	runs <- newIORef []
-	isr <- newIORef False
-	srh <- newIORef []
-	rpd <- newIORef True
+	stat <- getSquareState
+	setPosition stat (width / 2) (height / 2)
+	setShape stat classic
 	return Square{
 		sLayer = l,
 		sChar = c,
-		sPos = p,
-		sHistory = h,
-		sSize = sr,
 		sWin = w,
-		sShape = rsh,
-		sDir = dr,
-		sUndoN = run,
-		sUndoNs = runs,
-		sIsRotated = isr,
-		sRotHist = srh,
-		sPenDown = rpd
+		sStat = stat-- {
+--			sShape = rsh,
+--			sUndoN = run,
+--			sUndoNs = runs,
+--			sRotHist = srh,
+--			sPenDown = rpd
+--		 }
 	 }
 
 shape :: Square -> String -> IO ()
-shape s@Square{sShape = rsh} name =
+shape s name =
 	case name of
 		"turtle" -> do
-			writeIORef rsh turtle
+			setShape (sStat s) turtle
+--			writeIORef (sShape $ sStat s) turtle
 			showSquare s
 		"clasic" -> do
-			writeIORef rsh classic
+			setShape (sStat s) classic
+--			writeIORef (sShape $ sStat s) classic
 			showSquare s
 		_ -> return ()
 
 shapesize :: Square -> Double -> IO ()
 shapesize s size = do
-	writeIORef (sSize s) size
-	p <- readIORef $ sPos s
+	setSize (sStat s) size
+	p <- getPosition $ sStat s
 	uncurry (moveSquare (sWin s) s) p
 
 step :: Double
@@ -215,36 +209,41 @@ showAnimation :: Bool -> Win -> Square -> Double -> Double -> Double -> Double -
 showAnimation pd w s x1 y1 x2 y2 = do
 	(size, d, sh) <- getSizeDirShape s
 	if pd then setPolygonCharacterAndLine w (sChar s)
-				(getShape sh size d x2 y2) (x1, y1) (x2, y2)
-		else setPolygonCharacter w (sChar s) (getShape sh size d x2 y2)
+				(mkShape sh size d x2 y2) (x1, y1) (x2, y2)
+		else setPolygonCharacter w (sChar s) (mkShape sh size d x2 y2)
 	bufToWin w
 	flushWin w
 
 getSizeDirShape :: Square -> IO (Double, Double, [(Double, Double)])
 getSizeDirShape s = do
-	size <- readIORef (sSize s)
-	d <- readIORef (sDir s)
-	sh <- readIORef (sShape s)
+	size <- getSize $ sStat s
+--	d <- readIORef (sDir $ sStat s)
+	d <- getDirection $ sStat s
+--	sh <- readIORef (sShape $ sStat s)
+	sh <- getShape $ sStat s
 	return (size, d, sh)
 
 showSquare :: Square -> IO ()
 showSquare s@Square{sWin = w} = do
-	(x, y) <- readIORef $ sPos s
+	(x, y) <- getPosition $ sStat s
 	(size, d, sh) <- getSizeDirShape s
-	setPolygonCharacter w (sChar s) (getShape sh size d x y)
+	setPolygonCharacter w (sChar s) (mkShape sh size d x y)
 	bufToWin w
 	flushWin w
 
 moveSquare :: Win -> Square -> Double -> Double -> IO ()
-moveSquare w s@Square{sPos = p} x2 y2 = do
-	modifyIORef (sRotHist s) (Nothing :)
-	writeIORef (sIsRotated s) False
-	(x1, y1) <- readIORef p
-	modifyIORef (sHistory s) ((x1, y1) :)
-	pd <- readIORef $ sPenDown s
+moveSquare w s x2 y2 = do
+--	modifyIORef (sRotHist $ sStat s) (Nothing :)
+	pushRotHist (sStat s) Nothing
+--	writeIORef (sIsRotated $ sStat s) False
+	(x1, y1) <- getPosition $ sStat s
+--	modifyIORef (sHistory $ sStat s) ((x1, y1) :)
+	pushHistory (sStat s) x1 y1
+--	pd <- readIORef $ sPenDown $ sStat s
+	pd <- isPenDown $ sStat s
 	mapM_ (\(x, y) -> showAnimation pd w s x1 y1 x y >> threadDelay stepTime) $
 		getPoints x1 y1 x2 y2
-	writeIORef p (x2, y2)
+	setPosition (sStat s) x2 y2
 	when pd $ line w (sLayer s) x1 y1 x2 y2
 {-
 	setPolygonCharacter w (sChar s)
@@ -259,19 +258,23 @@ getDirections ds de = takeWhile beforeDir [ds, ds + dd ..] ++ [de]
 	beforeDir x = sig * x < sig * de
 
 setDirSquare :: Square -> Double -> IO ()
-setDirSquare s@Square{sDir = dr} d = do
-	writeIORef dr d
+setDirSquare s d = do
+--	writeIORef (sDir $ sStat s) d
+	setDirection (sStat s) d
 	showSquare s
 
 rotateSquare :: Square -> Double -> IO ()
 rotateSquare s d = do
 	d0 <- rotateGen s d
-	modifyIORef (sRotHist s) (Just (d - d0) :)
+	pushRotHist (sStat s) $ Just $ d - d0
+--	modifyIORef (sRotHist $ sStat s) (Just (d - d0) :)
 rotateGen :: Square -> Double -> IO Double
-rotateGen s@Square{sDir = dr} d = do
-	d0 <- readIORef dr
+rotateGen s d = do
+--	d0 <- readIORef $ sDir $ sStat s
+	d0 <- getDirection $ sStat s
 	mapM_ ((>> threadDelay stepDirTime) . setDirSquare s) $ getDirections d0 d
-	writeIORef dr (d `modd` 360)
+--	writeIORef (sDir $ sStat s) (d `modd` 360)
+	setDirection (sStat s) (d `modd` 360)
 	return d0
 
 modd :: (Num a, Ord a) => a -> a -> a
@@ -283,18 +286,21 @@ modd x y
 undoSquare :: Win -> Square -> IO ()
 undoSquare w s@Square{sLayer = l} = do
 	undoLayer w l
-	(x1, y1) <- readIORef $ sPos s
-	p@(x2, y2) : ps <- readIORef $ sHistory s
+	(x1, y1) <- getPosition $ sStat s
+--	(x1, y1) <- readIORef $ sPos $ sStat s
+--	p@(x2, y2) : ps <- readIORef $ sHistory $ sStat s
+	p@(x2, y2) <- popHistory $ sStat s
 --	moveSquare w s x y
 --	showAnimation w s x1 y1 x y
 	mapM_ (\(x, y) -> showAnimation True w s x2 y2 x y >> threadDelay 50000) $
 		getPoints x1 y1 x2 y2
-	writeIORef (sPos s) p
-	writeIORef (sHistory s) ps
+	uncurry (setPosition $ sStat s) p
+--	writeIORef (sPos $ sStat s) p
+--	writeIORef (sHistory $ sStat s) ps
 
-getShape ::
+mkShape ::
 	[(Double, Double)] -> Double -> Double -> Double -> Double -> [(Double, Double)]
-getShape sh s d x y =
+mkShape sh s d x y =
 	map (uncurry (addDoubles (x, y)) . rotatePointD d . mulPoint s) sh
 
 classic :: [(Double, Double)]

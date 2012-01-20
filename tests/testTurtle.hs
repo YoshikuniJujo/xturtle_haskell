@@ -11,7 +11,7 @@ qcircle t s = replicateM_ 9 $ forward t s >> right t 10
 leaf :: Turtle -> Double -> IO ()
 leaf t s = qcircle t s >> right t 90 >> qcircle t s
 
-twoFlowers :: IO ()
+twoFlowers :: IO (Turtle, Turtle)
 twoFlowers = do
 	f <- openField
 	threadDelay 1000000
@@ -24,7 +24,7 @@ twoFlowers = do
 	shape t2 "turtle"
 	forkIO $ flower t1 10
 	forkIO $ flower t2 5
-	return ()
+	return (t1, t2)
 
 flower :: Turtle -> Double -> IO ()
 flower t s = do
