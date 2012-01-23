@@ -49,15 +49,25 @@ getInput c = unsafeInterleaveIO $ do
 	return $ ti : tis
 
 inputToTurtle :: [TurtleState] -> TurtleState -> [TurtleInput] -> [TurtleState]
-inputToTurtle tsbs ts0 (Shape sh : ti) =
-	ts0{turtleShape = sh} : inputToTurtle (ts0 : tsbs) ts0{turtleShape = sh} ti
-inputToTurtle tsbs ts0 (ShapeSize ss : ti) =
-	ts0{turtleSize = ss} : inputToTurtle (ts0 : tsbs) ts0{turtleSize = ss} ti
+inputToTurtle tsbs ts0 (Shape sh : ti) = let
+	nts = ts0{turtleShape = sh, turtleLineDone = False} in
+	nts : inputToTurtle (ts0 : tsbs) nts ti
+inputToTurtle tsbs ts0 (ShapeSize ss : ti) = let
+	nts = ts0{turtleSize = ss, turtleLineDone = False} in
+	nts : inputToTurtle (ts0 : tsbs) nts ti
+{-
+	ts0{turtleSize = ss} :
+		inputToTurtle (ts0 : tsbs) ts0{turtleSize = ss} ti
+-}
 inputToTurtle tsbs ts0 (Goto x y : ti) =
-	ts0{turtlePos = (x, y)} : inputToTurtle (ts0 : tsbs) ts0{turtlePos = (x, y)} ti
-inputToTurtle tsbs ts0 (RotateTo d : ti) =
-	ts0{turtleDir = d} : inputToTurtle (ts0 : tsbs) ts0{turtleDir = d} ti
+	ts0{turtlePos = (x, y), turtleLineDone = True} :
+		inputToTurtle (ts0 : tsbs) ts0{turtlePos = (x, y), turtleLineDone = True} ti
+inputToTurtle tsbs ts0 (RotateTo d : ti) = let
+	nts = ts0{turtleDir = d, turtleLineDone = False} in
+	nts : inputToTurtle (ts0 : tsbs) nts ti
+--	ts0{turtleDir = d} : inputToTurtle (ts0 : tsbs) ts0{turtleDir = d} ti
 inputToTurtle tsbs ts0 (PenDown : ti) =
 	ts0{turtlePenDown = True} : inputToTurtle (ts0 : tsbs) ts0{turtlePenDown = True} ti
 inputToTurtle (tsb : tsbs) ts0 (Undo : ti) =
-	tsb{turtleUndo = True} : inputToTurtle tsbs tsb{turtleUndo = True} ti
+	tsb{turtleUndo = True } :
+		inputToTurtle tsbs tsb{turtleUndo = True} ti

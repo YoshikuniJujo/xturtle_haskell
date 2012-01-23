@@ -14,14 +14,36 @@ import DrawTurtle
 import Control.Concurrent
 import Control.Monad
 
-turtleDraw :: Field -> Character -> Layer -> TurtleState -> TurtleState -> IO ()
+turtleDraw, turtleDrawNotUndo ::
+	Field -> Character -> Layer -> TurtleState -> TurtleState -> IO ()
 turtleDraw f c l t0 t1 = do
+	let	isUndo = turtleUndo t1
+	if isUndo then turtleDrawUndo f c l t0 t1
+		else turtleDrawNotUndo f c l t0 t1
+turtleDrawUndo f c l t0 t1 = do
 	let	shape = turtleShape t1
 		size = turtleSize t1
 		prePos@(px, py) = turtlePos t0
 		preDir = turtleDir t0
 		pos@(nx, ny) = turtlePos t1
 		dir = turtleDir t1
+		doneLine = turtleLineDone t0
+--	when doneLine $ undoLayer f l
+	undoLayer f l
+	forM_ (getDirections preDir dir) $ \d -> do
+		drawTurtle f c shape size d prePos Nothing
+	forM_ (getPoints px py nx ny) $ \p -> do
+		drawTurtle f c shape size dir p $ Just pos
+		threadDelay 50000
+turtleDrawNotUndo f c l t0 t1 = do
+	let	shape = turtleShape t1
+		size = turtleSize t1
+		prePos@(px, py) = turtlePos t0
+		preDir = turtleDir t0
+		pos@(nx, ny) = turtlePos t1
+		dir = turtleDir t1
+	forM_ (getDirections preDir dir) $ \d -> do
+		drawTurtle f c shape size d prePos Nothing
 	forM_ (getPoints px py nx ny) $ \p -> do
 		drawTurtle f c shape size dir p $ Just prePos
 		threadDelay 50000
@@ -29,6 +51,8 @@ turtleDraw f c l t0 t1 = do
 
 step :: Double
 step = 10
+stepDir :: Double
+stepDir = 5
 
 getPoints :: Double -> Double -> Double -> Double -> [(Double, Double)]
 getPoints x1 y1 x2 y2 = let
@@ -41,3 +65,10 @@ getPoints x1 y1 x2 y2 = let
 
 before :: (Num a, Ord a) => a -> a -> a -> Bool
 before d t x = signum d * t >= signum d * x
+
+getDirections :: Double -> Double -> [Double]
+getDirections ds de = takeWhile beforeDir [ds, ds + dd ..] ++ [de]
+        where
+        sig = signum (de - ds)
+        dd = sig * stepDir
+        beforeDir x = sig * x < sig * de
