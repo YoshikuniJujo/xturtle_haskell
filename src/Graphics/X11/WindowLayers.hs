@@ -4,6 +4,7 @@ module Graphics.X11.WindowLayers (
 	Character,
 
 	openField,
+	closeField,
 	bufToWin,
 	flushWin,
 	winSize,
@@ -67,6 +68,9 @@ type Field = Win
 openField :: IO Field
 openField = openWin
 
+closeField :: Field -> IO ()
+closeField = closeDisplay . wDisplay
+
 openWin :: IO Win
 openWin = do
 	_ <- initThreads
@@ -105,6 +109,9 @@ openWin = do
 					getGeometry (wDisplay w) (wWindow w)
 				writeIORef (wWidth w) width
 				writeIORef (wHeight w) height
+				clearBG w
+				readIORef buffedAction >>= sequence_
+				undoBufToBG w
 				readIORef exposeAction >>= mapM_ ($ False) . concat
 				readIORef charActions >>= sequence_
 				bufToWin w
@@ -125,7 +132,7 @@ openWin = do
 	isDeleteEvent _ _ = False
 
 undoN :: Int
-undoN = 300
+undoN = 100
 
 clearLayer :: Win -> Layer -> IO ()
 clearLayer w l@(Layer lid) = do
@@ -224,10 +231,10 @@ bufToWin w = do
 	copyArea (wDisplay w) (wBuf w) (wWindow w) (wGC w) 0 0 width height 0 0
 
 fillPolygonBuf :: Win -> [(Double, Double)] -> IO ()
-fillPolygonBuf w ps = fillPolygon (wDisplay w) (wBuf w) (wGC w) (map dtp ps)
-						nonconvex coordModeOrigin
-	where
-	dtp (x, y) = Point (round x) (round y)
+fillPolygonBuf w ps = do
+	(width, height) <- winSize w
+	let	dtp (x, y) = Point (round $ x + width / 2) (round $ - y + height / 2)
+	fillPolygon (wDisplay w) (wBuf w) (wGC w) (map dtp ps) nonconvex coordModeOrigin
 
 setPolygonCharacter :: Win -> Character -> [(Double, Double)] -> IO ()
 setPolygonCharacter w c ps = setCharacter w c (fillPolygonBuf w ps)
@@ -235,15 +242,32 @@ setPolygonCharacter w c ps = setCharacter w c (fillPolygonBuf w ps)
 setPolygonCharacterAndLine ::
 	Win -> Character -> [(Double, Double)] -> (Double, Double) ->
 		(Double, Double) -> IO ()
-setPolygonCharacterAndLine w c ps (x1, y1) (x2, y2) =
-	setCharacter w c (fillPolygonBuf w ps >> lineBuf w x1 y1 x2 y2)
+setPolygonCharacterAndLine w c ps (x1_, y1_) (x2_, y2_) = do
+	(width, height) <- winSize w
+	let	x1 = x1_ + (width / 2)
+		x2 = x2_ + (width / 2)
+		y1 = - y1_ + (height / 2)
+		y2 = - y2_ + (height / 2)
+	setCharacter w c (fillPolygonBuf w ps >> lineBuf w x1_ y1_ x2_ y2_)
 
 line :: Win -> Layer -> Double -> Double -> Double -> Double -> IO ()
-line w l x1 y1 x2 y2 = do
+line w l x1_ y1_ x2_ y2_ = do
+	(width, height) <- winSize w
+	let	x1 = x1_ + (width / 2)
+		x2 = x2_ + (width / 2)
+		y1 = - y1_ + (height / 2)
+		y2 = - y2_ + (height / 2)
 	lineWin w x1 y1 x2 y2
-	addExposeAction w l $ \w' buf -> if buf
-		then lineUndoBuf w' x1 y1 x2 y2
-		else lineWin w' x1 y1 x2 y2
+	addExposeAction w l $ \w' buf -> do
+		(x1', y1') <- convertPos w' x1_ y1_
+		(x2', y2') <- convertPos w' x2_ y2_
+		if buf	then lineUndoBuf w' x1' y1' x2' y2'
+			else lineWin w' x1' y1' x2' y2'
+
+convertPos :: Win -> Double -> Double -> IO (Double, Double)
+convertPos w x y = do
+	(width, height) <- winSize w
+	return (x + width / 2, - y + height / 2)
 
 lineWin :: Win -> Double -> Double -> Double -> Double -> IO ()
 lineWin w x1_ y1_ x2_ y2_ = do
@@ -259,9 +283,11 @@ lineUndoBuf w x1_ y1_ x2_ y2_ =
 	where	[x1, y1, x2, y2] = map round [x1_, y1_, x2_, y2_]
 
 lineBuf :: Win -> Double -> Double -> Double -> Double -> IO ()
-lineBuf w x1_ y1_ x2_ y2_ =
+lineBuf w x1__ y1__ x2__ y2__ = do
+	(x1_, y1_) <- convertPos w x1__ y1__
+	(x2_, y2_) <- convertPos w x2__ y2__
+	let	[x1, y1, x2, y2] = map round [x1_, y1_, x2_, y2_]
 	drawLine (wDisplay w) (wBuf w) (wGC w) x1 y1 x2 y2
-	where	[x1, y1, x2, y2] = map round [x1_, y1_, x2_, y2_]
 
 clearUndoBuf :: Win -> IO ()
 clearUndoBuf w = winSizeRaw w >>=
@@ -273,8 +299,8 @@ flushWin = flush . wDisplay
 {-
 changeColor :: Win -> Pixel -> IO ()
 changeColor w = setForeground (wDisplay w) (wGC w)
+-}
 
 clearBG :: Win -> IO ()
 clearBG w = winSizeRaw w >>=
 	uncurry (fillRectangle (wDisplay w) (wBG w) (wGCWhite w) 0 0)
--}

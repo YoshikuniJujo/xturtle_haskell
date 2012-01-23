@@ -1,4 +1,4 @@
-module DrawTurtle (
+module Graphics.X11.DrawTurtle (
 	Field,
 	Layer,
 	Character,
@@ -14,8 +14,8 @@ module DrawTurtle (
 	turtle
 ) where
 
-import WindowLayers
-import MakeTurtle
+import Graphics.X11.WindowLayers
+import Graphics.X11.MakeTurtle
 import Control.Monad
 import Control.Concurrent
 

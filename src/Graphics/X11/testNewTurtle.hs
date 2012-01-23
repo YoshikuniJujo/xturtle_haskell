@@ -1,6 +1,6 @@
 module Main where
 
-import Graphics.X11.Turtle
+import NewTurtle
 import System.Random
 import Control.Monad
 import Control.Concurrent
