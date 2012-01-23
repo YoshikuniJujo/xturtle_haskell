@@ -14,7 +14,8 @@ data TurtleState = TurtleState {
 	turtleDir :: Double,
 	turtlePenDown :: Bool,
 	turtleUndo :: Bool,
-	turtleLineDone :: Bool
+	turtleLineDone :: Bool,
+	turtleUndoNum :: Int
  } deriving Show
 
 initialTurtleState :: TurtleState
@@ -25,7 +26,8 @@ initialTurtleState = TurtleState {
 	turtleDir = isUndefined "turtleDir",
 	turtlePenDown = isUndefined "turtlePenDown",
 	turtleUndo = False,
-	turtleLineDone = False
+	turtleLineDone = False,
+	turtleUndoNum = 1
  }
 
 isUndefined :: String -> a

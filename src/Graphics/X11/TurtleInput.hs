@@ -1,5 +1,5 @@
 module Graphics.X11.TurtleInput (
-	TurtleState(turtlePos),
+	TurtleState(turtlePos, turtleUndoNum),
 
 	makeInput,
 	inputToTurtle,
@@ -24,6 +24,7 @@ data TurtleInput
 	| Undo
 	| Forward Double
 	| Left Double
+	| SetUndoNum Int
 	deriving Show
 
 makeInput :: IO (Chan TurtleInput, [TurtleInput])
@@ -51,11 +52,13 @@ inputToTurtle tsbs ts0 (ShapeSize ss : ti) = let
 -}
 inputToTurtle tsbs ts0 (Goto x y : ti) = let
 --	tsbs' = if length tsbs > 10 then take 10 tsbs else tsbs in
-	tsbs' = tsbs in
-	ts0{turtlePos = (x, y), turtleLineDone = True, turtleUndo = False} :
-		inputToTurtle (ts0 : tsbs') ts0{turtlePos = (x, y), turtleLineDone = True} ti
+--	tsbs' = tsbs in
+	nts = ts0{turtlePos = (x, y), turtleLineDone = True, turtleUndo = False,
+		turtleUndoNum = 1} in
+	nts : inputToTurtle (ts0 : tsbs) nts ti
 inputToTurtle tsbs ts0 (RotateTo d : ti) = let
-	nts = ts0{turtleDir = d, turtleLineDone = False, turtleUndo = False} in
+	nts = ts0{turtleDir = d, turtleLineDone = False, turtleUndo = False,
+		turtleUndoNum = 1} in
 	nts : inputToTurtle (ts0 : tsbs) nts ti
 --	ts0{turtleDir = d} : inputToTurtle (ts0 : tsbs) ts0{turtleDir = d} ti
 inputToTurtle tsbs ts0 (PenDown : ti) =
@@ -74,4 +77,7 @@ inputToTurtle tsbs ts0 (Forward len : ti) = let
 inputToTurtle tsbs ts0 (Left dd : ti) = let
 	dir = turtleDir ts0 + dd in
 	inputToTurtle tsbs ts0 (RotateTo dir : ti)
+inputToTurtle tsbs ts0 (SetUndoNum un : ti) = let
+	nts = ts0{turtleUndoNum = un} in
+	nts : inputToTurtle (ts0 : tsbs) nts ti
 inputToTurtle _ _ _ = error "bad condition in inputToTurtle"

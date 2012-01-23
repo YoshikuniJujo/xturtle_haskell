@@ -9,9 +9,12 @@ module Graphics.X11.DrawTurtle (
 	drawTurtle,
 	line,
 	undoLayer,
+	clearLayer,
 
 	classic,
-	turtle
+	turtle,
+
+	winSize
 ) where
 
 import Graphics.X11.WindowLayers

@@ -6,7 +6,10 @@ module Graphics.X11.TurtleDraw (
 	openField,
 	addLayer,
 	addCharacter,
-	turtleDraw
+	clearLayer,
+	turtleDraw,
+
+	winSize
 ) where
 
 import Graphics.X11.TurtleState
