@@ -24,8 +24,9 @@ import Graphics.X11.TurtleDraw
 import Graphics.X11.TurtleInput
 import Control.Concurrent
 import Control.Monad
-import Prelude hiding (Left)
+import Prelude hiding(Left)
 import Data.IORef
+import Control.Arrow(second)
 
 data Turtle = Turtle {
 	inputChan :: Chan TurtleInput,
@@ -141,3 +142,31 @@ getUndoNum Turtle{states = s, stateNow = sn} =
 
 for2M_ :: [a] -> (a -> a -> IO b) -> IO ()
 for2M_ xs f = zipWithM_ f xs $ tail xs
+
+classic :: [(Double, Double)]
+classic = clssc ++ reverse (map (second negate) clssc)
+	where
+	clssc = [
+		(- 10, 0),
+		(- 16, 6),
+		(0, 0)
+	 ]
+
+turtle :: [(Double, Double)]
+turtle = ttl ++ reverse (map (second negate) ttl)
+	where
+	ttl = [
+		(- 10, 0),
+		(- 8, - 3),
+		(- 10, - 5),
+		(- 7, - 9),
+		(- 5, - 6),
+		(0, - 8),
+		(4, - 7),
+		(6, - 10),
+		(8, - 7),
+		(7, - 5),
+		(10, - 2),
+		(13, - 3),
+		(16, 0)
+	 ]

@@ -4,9 +4,7 @@ module Graphics.X11.TurtleInput (
 	makeInput,
 	inputToTurtle,
 	TurtleInput(..),
-	initialTurtleState,
-	classic,
-	turtle
+	initialTurtleState
 ) where
 
 import Control.Concurrent
