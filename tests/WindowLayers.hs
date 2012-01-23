@@ -130,7 +130,7 @@ openWin = do
 	isDeleteEvent _ _ = False
 
 undoN :: Int
-undoN = 300
+undoN = 10
 
 clearLayer :: Win -> Layer -> IO ()
 clearLayer w l@(Layer lid) = do

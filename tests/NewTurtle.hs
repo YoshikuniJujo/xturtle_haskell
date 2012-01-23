@@ -1,10 +1,19 @@
 module NewTurtle (
+	openField,
+	newTurtle,
+	Turtle,
+	shape,
+	shapesize,
+	forward,
+	left,
+	undo
 ) where
 
 import TurtleDraw
 import TurtleInput
 import Control.Concurrent
 import Control.Monad
+import Prelude hiding (Left)
 
 data Turtle = Turtle {
 	inputChan :: Chan TurtleInput,
@@ -45,8 +54,23 @@ shape Turtle{inputChan = c} "classic" = writeChan c $ Shape classic
 shapesize :: Turtle -> Double -> IO ()
 shapesize Turtle{inputChan = c} = writeChan c . ShapeSize
 
-forward :: Turtle -> Double -> IO ()
+forward, backward :: Turtle -> Double -> IO ()
 forward Turtle{inputChan = c} = writeChan c . Forward
+backward t = forward t . negate
+
+left, right :: Turtle -> Double -> IO ()
+left Turtle{inputChan = c} = writeChan c . Left
+right t = left t . negate
+
+circle :: Turtle -> Double -> IO ()
+circle t r = do
+	forward t (r * pi / 36)
+	left t 10
+	replicateM_ 35 $ forward t (2 * r * pi / 36) >> left t 10
+	forward t (r * pi / 36)
+
+home :: Turtle -> IO ()
+home t = goto t 0 0 >> rotateTo t 0
 
 goto :: Turtle -> Double -> Double -> IO ()
 goto Turtle{inputChan = c} x y = writeChan c $ Goto x y
