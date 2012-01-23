@@ -13,9 +13,10 @@ module Graphics.X11.TurtleDraw (
 ) where
 
 import Graphics.X11.TurtleState
-import Graphics.X11.DrawTurtle
 import Control.Concurrent
 import Control.Monad
+
+import Graphics.X11.WindowLayers
 
 turtleDraw, turtleDrawNotUndo, turtleDrawUndo ::
 	Field -> Character -> Layer -> TurtleState -> TurtleState -> IO ()
@@ -75,3 +76,30 @@ getDirections ds de = takeWhile beforeDir [ds, ds + dd ..] ++ [de]
         sig = signum (de - ds)
         dd = sig * stepDir
         beforeDir x = sig * x < sig * de
+
+drawTurtle :: Field -> Character -> [(Double, Double)] -> Double -> Double ->
+	(Double, Double) -> Maybe (Double, Double) -> IO ()
+drawTurtle w c sh s d (x, y) org = do
+	let sp = mkShape sh s d x y
+	maybe (setPolygonCharacter w c sp)
+		(flip (setPolygonCharacterAndLine w c sp) (x, y)) org
+	bufToWin w
+	flushWin w
+
+mkShape ::
+	[(Double, Double)] -> Double -> Double -> Double -> Double -> [(Double, Double)]
+mkShape sh s d x y =
+	map (uncurry (addDoubles (x, y)) . rotatePointD d . mulPoint s) sh
+
+addDoubles :: (Double, Double) -> Double -> Double -> (Double, Double)
+addDoubles (x, y) dx dy = (x + dx, y + dy)
+
+rotatePointD :: Double -> (Double, Double) -> (Double, Double)
+rotatePointD = rotatePointR . (* pi) . (/ 180)
+
+rotatePointR :: Double -> (Double, Double) -> (Double, Double)
+rotatePointR rad (x, y) =
+	(x * cos rad - y * sin rad, x * sin rad + y * cos rad)
+
+mulPoint :: Double -> (Double, Double) -> (Double, Double)
+mulPoint s (x, y) = (x * s, y * s)
