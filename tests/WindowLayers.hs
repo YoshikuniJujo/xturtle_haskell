@@ -110,6 +110,8 @@ openWin = do
 				writeIORef (wWidth w) width
 				writeIORef (wHeight w) height
 				clearBG w
+				readIORef buffedAction >>= sequence_
+				undoBufToBG w
 				readIORef exposeAction >>= mapM_ ($ False) . concat
 				readIORef charActions >>= sequence_
 				bufToWin w
