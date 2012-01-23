@@ -17,6 +17,7 @@ data TurtleState = TurtleState {
 	turtleLineDone :: Bool
  } deriving Show
 
+initialTurtleState :: TurtleState
 initialTurtleState = TurtleState {
 	turtleShape = isUndefined "turtleShape",
 	turtleSize = isUndefined "turtleSize",

@@ -243,11 +243,6 @@ setPolygonCharacterAndLine ::
 	Win -> Character -> [(Double, Double)] -> (Double, Double) ->
 		(Double, Double) -> IO ()
 setPolygonCharacterAndLine w c ps (x1_, y1_) (x2_, y2_) = do
-	(width, height) <- winSize w
-	let	x1 = x1_ + (width / 2)
-		x2 = x2_ + (width / 2)
-		y1 = - y1_ + (height / 2)
-		y2 = - y2_ + (height / 2)
 	setCharacter w c (fillPolygonBuf w ps >> lineBuf w x1_ y1_ x2_ y2_)
 
 line :: Win -> Layer -> Double -> Double -> Double -> Double -> IO ()

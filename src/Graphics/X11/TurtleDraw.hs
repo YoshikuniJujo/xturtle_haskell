@@ -14,7 +14,7 @@ import Graphics.X11.DrawTurtle
 import Control.Concurrent
 import Control.Monad
 
-turtleDraw, turtleDrawNotUndo ::
+turtleDraw, turtleDrawNotUndo, turtleDrawUndo ::
 	Field -> Character -> Layer -> TurtleState -> TurtleState -> IO ()
 turtleDraw f c l t0 t1 = do
 	let	isUndo = turtleUndo t1
@@ -27,7 +27,7 @@ turtleDrawUndo f c l t0 t1 = do
 		preDir = turtleDir t0
 		pos@(nx, ny) = turtlePos t1
 		dir = turtleDir t1
-		doneLine = turtleLineDone t0
+--		doneLine = turtleLineDone t0
 --	when doneLine $ undoLayer f l
 	undoLayer f l
 	forM_ (getDirections preDir dir) $ \d -> do
@@ -40,7 +40,7 @@ turtleDrawNotUndo f c l t0 t1 = do
 		size = turtleSize t1
 		prePos@(px, py) = turtlePos t0
 		preDir = turtleDir t0
-		pos@(nx, ny) = turtlePos t1
+		(nx, ny) = turtlePos t1
 		dir = turtleDir t1
 	forM_ (getDirections preDir dir) $ \d -> do
 		drawTurtle f c shape size d prePos Nothing

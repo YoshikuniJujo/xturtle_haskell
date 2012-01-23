@@ -14,20 +14,6 @@ import System.IO.Unsafe
 import Graphics.X11.TurtleState
 import Prelude hiding (Left)
 
-main :: IO ()
-main = do
-	putStrLn "module TurtleInput"
-	(c, ret) <- makeInput
-	writeChan c $ Shape classic
-	writeChan c $ ShapeSize 1
-	writeChan c PenDown
-	writeChan c $ Goto 0 0
-	writeChan c $ RotateTo 0
-	writeChan c $ RotateTo 180
-	writeChan c Undo
-	print $ take 6 ret
-	print $ drop 5 $ take 6 $ inputToTurtle [] initialTurtleState ret
-
 data TurtleInput
 	= Shape [(Double, Double)]
 	| ShapeSize Double
@@ -74,7 +60,7 @@ inputToTurtle tsbs ts0 (RotateTo d : ti) = let
 --	ts0{turtleDir = d} : inputToTurtle (ts0 : tsbs) ts0{turtleDir = d} ti
 inputToTurtle tsbs ts0 (PenDown : ti) =
 	ts0{turtlePenDown = True} : inputToTurtle (ts0 : tsbs) ts0{turtlePenDown = True} ti
-inputToTurtle (tsb : tsbs) ts0 (Undo : ti) =
+inputToTurtle (tsb : tsbs) _ (Undo : ti) =
 	tsb{turtleUndo = True } :
 		inputToTurtle tsbs tsb{turtleUndo = True} ti
 inputToTurtle tsbs ts0 (Forward len : ti) = let
@@ -88,3 +74,4 @@ inputToTurtle tsbs ts0 (Forward len : ti) = let
 inputToTurtle tsbs ts0 (Left dd : ti) = let
 	dir = turtleDir ts0 + dd in
 	inputToTurtle tsbs ts0 (RotateTo dir : ti)
+inputToTurtle _ _ _ = error "bad condition in inputToTurtle"

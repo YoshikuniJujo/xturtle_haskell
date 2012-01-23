@@ -5,7 +5,9 @@ module Graphics.X11.Turtle (
 	shape,
 	shapesize,
 	forward,
+	backward,
 	left,
+	right,
 	undo,
 	position,
 	distance,
@@ -17,7 +19,6 @@ import Graphics.X11.TurtleDraw
 import Graphics.X11.TurtleInput
 import Control.Concurrent
 import Control.Monad
-import Control.Monad.Tools
 import Prelude hiding (Left)
 import Data.IORef
 
@@ -51,7 +52,7 @@ newTurtle f = do
 	writeChan c $ Goto 0 0
 	writeChan c $ RotateTo 0
 	writeChan c $ Goto 0 0
-	forkIO $ do
+	_ <- forkIO $ do
 --		initialThread
 		for2M_ sts $ turtleDraw f ch l
 	return t
@@ -59,6 +60,7 @@ newTurtle f = do
 shape :: Turtle -> String -> IO ()
 shape Turtle{inputChan = c} "turtle" = writeChan c $ Shape turtle
 shape Turtle{inputChan = c} "classic" = writeChan c $ Shape classic
+shape _ name = error $ "There is no shape named " ++ name
 
 shapesize :: Turtle -> Double -> IO ()
 shapesize Turtle{inputChan = c} = writeChan c . ShapeSize
@@ -86,7 +88,7 @@ home :: Turtle -> IO ()
 home t = modifyIORef (stateNow t) (+ 1) >> goto t 0 0 >> rotateTo t 0
 
 position :: Turtle -> IO (Double, Double)
-position t@Turtle{stateNow = sn, states = s} =
+position Turtle{stateNow = sn, states = s} =
 	fmap (turtlePos . (s !!)) $ readIORef sn
 
 distance :: Turtle -> Double -> Double -> IO Double
@@ -107,48 +109,3 @@ undo Turtle{inputChan = c, stateNow = sn} = do
 
 for2M_ :: [a] -> (a -> a -> IO b) -> IO ()
 for2M_ xs f = zipWithM_ f xs $ tail xs
-
-main :: IO ()
-main = do
-	putStrLn "module NewTurtle"
-
-	f <- openField
-	ch <- addCharacter f
-	l <- addLayer f
-
-	(c, ret) <- makeInput
-	writeChan c $ Shape classic
-	writeChan c $ ShapeSize 1
-	writeChan c $ PenDown
-	writeChan c $ Goto 0 0
-	writeChan c $ RotateTo 0
-	writeChan c $ RotateTo 180
-	writeChan c $ Goto 50 100
-	writeChan c $ Goto 100 50
-	writeChan c $ Goto 100 100
-	writeChan c $ RotateTo (- 180)
-	writeChan c Undo
-	writeChan c Undo
-	writeChan c Undo
-	print $ take 12 ret
-	let turtles = inputToTurtle [] initialTurtleState ret
-	print $ drop 4 $ take 12 turtles
-	turtleDraw f ch l (turtles !! 4) (turtles !! 5)
-	turtleDraw f ch l (turtles !! 5) (turtles !! 6)
-	turtleDraw f ch l (turtles !! 6) (turtles !! 7)
-	turtleDraw f ch l (turtles !! 7) (turtles !! 8)
-	turtleDraw f ch l (turtles !! 8) (turtles !! 9)
-	turtleDraw f ch l (turtles !! 9) (turtles !! 10)
-	turtleDraw f ch l (turtles !! 10) (turtles !! 11)
-	turtleDraw f ch l (turtles !! 11) (turtles !! 12)
-
-testUndo :: IO ()
-testUndo = do
-	f <- openField
-	t <- newTurtle f
-	goto t 100 100
-	goto t 100 200
-	rotateTo t 180
-	undo t
-	undo t
-	mapM_ print $ take 6 $ states t
