@@ -22,7 +22,8 @@ module SquareState (
 	createShape,
 
 	mkShape,
-	turtle
+	turtle,
+	classic
 ) where
 
 import Data.IORef
@@ -117,8 +118,8 @@ data SquareState = SquareState {
 	sShape :: IORef [(Double, Double)],
 	sUndoN :: IORef Int,
 	sUndoNs :: IORef [Int],
-	sPenDown :: IORef Bool,
-	sLineDone :: IORef [Bool]
+	sPenDown :: IORef Bool
+--	sLineDone :: IORef [Bool]
  }
 
 data State = State{

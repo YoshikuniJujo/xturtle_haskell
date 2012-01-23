@@ -1,4 +1,17 @@
 module DrawTurtle (
+	Field,
+	Layer,
+	Character,
+
+	openField,
+	addCharacter,
+	addLayer,
+	drawTurtle,
+	line,
+	undoLayer,
+
+	classic,
+	turtle
 ) where
 
 import WindowLayers
@@ -20,6 +33,11 @@ main = do
 		drawTurtle f c turtle 3 d (100, 100) Nothing
 		threadDelay 50000
 	forM_ movement2 $ \(x, y) -> do
+		drawTurtle f c turtle 3 180 (x, y) $ Just (100, 100)
+		threadDelay 50000
+	line f l 100 100 200 100
+	undoLayer f l
+	forM_ (reverse movement2) $ \(x, y) -> do
 		drawTurtle f c turtle 3 180 (x, y) $ Just (100, 100)
 		threadDelay 50000
 	getLine >> return ()

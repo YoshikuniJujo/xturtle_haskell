@@ -102,3 +102,15 @@ layer は Pixmap -> IO () という形かまたは Bool -> IO () という形に
 
 亀の移動のアニメーションと背景への描画。
 背景の undo と clear の関数を export する module が必要だ。
+
+2012.01.23 Mon.
+
+入力を無限リストとして集める。
+その無限リストを [Turtle] に写像する。
+その Turtle 列から描画する。
+
+入力は、
+Goto Double Double | RotateTo Double | Undo | Shape [(Double, Double)] |
+ShapeSize Double
+で良いかと思う。
+将来的には、Color や線の太さ等を変えられるようにする。
