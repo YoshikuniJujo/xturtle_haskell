@@ -5,12 +5,14 @@ module TurtleInput (
 	inputToTurtle,
 	TurtleInput(..),
 	initialTurtleState,
-	classic
+	classic,
+	turtle
 ) where
 
 import Control.Concurrent
 import System.IO.Unsafe
 import TurtleState
+import Prelude hiding (Left)
 
 main :: IO ()
 main = do
@@ -34,6 +36,8 @@ data TurtleInput
 	| PenUp
 	| PenDown
 	| Undo
+	| Forward Double
+	| Left Double
 	deriving Show
 
 makeInput :: IO (Chan TurtleInput, [TurtleInput])
@@ -71,3 +75,12 @@ inputToTurtle tsbs ts0 (PenDown : ti) =
 inputToTurtle (tsb : tsbs) ts0 (Undo : ti) =
 	tsb{turtleUndo = True } :
 		inputToTurtle tsbs tsb{turtleUndo = True} ti
+inputToTurtle tsbs ts0 (Forward len : ti) = let
+	dir = turtleDir ts0
+	(x0, y0) = turtlePos ts0
+	x = x0 + len * cos (dir * pi / 180)
+	y = y0 + len * sin (dir * pi / 180) in
+	inputToTurtle tsbs ts0 (Goto x y : ti)
+inputToTurtle tsbs ts0 (Left dd : ti) = let
+	dir = turtleDir ts0 + dd in
+	inputToTurtle tsbs ts0 (RotateTo dir : ti)

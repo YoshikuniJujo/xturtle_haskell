@@ -32,10 +32,21 @@ newTurtle f = do
 	writeChan c $ PenDown
 	writeChan c $ Goto 0 0
 	writeChan c $ RotateTo 0
+	writeChan c $ Goto 0 0
 	forkIO $ do
 --		initialThread
 		for2M_ sts $ turtleDraw f ch l
 	return t
+
+shape :: Turtle -> String -> IO ()
+shape Turtle{inputChan = c} "turtle" = writeChan c $ Shape turtle
+shape Turtle{inputChan = c} "classic" = writeChan c $ Shape classic
+
+shapesize :: Turtle -> Double -> IO ()
+shapesize Turtle{inputChan = c} = writeChan c . ShapeSize
+
+forward :: Turtle -> Double -> IO ()
+forward Turtle{inputChan = c} = writeChan c . Forward
 
 goto :: Turtle -> Double -> Double -> IO ()
 goto Turtle{inputChan = c} x y = writeChan c $ Goto x y
@@ -61,12 +72,12 @@ main = do
 	writeChan c $ Shape classic
 	writeChan c $ ShapeSize 1
 	writeChan c $ PenDown
-	writeChan c $ Goto 30 100
+	writeChan c $ Goto 0 0
 	writeChan c $ RotateTo 0
 	writeChan c $ RotateTo 180
-	writeChan c $ Goto 100 200
-	writeChan c $ Goto 200 100
-	writeChan c $ Goto 200 200
+	writeChan c $ Goto 50 100
+	writeChan c $ Goto 100 50
+	writeChan c $ Goto 100 100
 	writeChan c $ RotateTo (- 180)
 	writeChan c Undo
 	writeChan c Undo
