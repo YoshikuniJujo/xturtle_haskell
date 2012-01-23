@@ -30,7 +30,7 @@ turtleDrawUndo f c l t0 t1 = do
 --		doneLine = turtleLineDone t0
 --	when doneLine $ undoLayer f l
 	undoLayer f l
-	forM_ (getDirections preDir dir) $ \d -> do
+	forM_ (getDirections preDir dir) $ \d ->
 		drawTurtle f c shape size d prePos Nothing
 	forM_ (getPoints px py nx ny) $ \p -> do
 		drawTurtle f c shape size dir p $ Just pos
@@ -42,7 +42,7 @@ turtleDrawNotUndo f c l t0 t1 = do
 		preDir = turtleDir t0
 		(nx, ny) = turtlePos t1
 		dir = turtleDir t1
-	forM_ (getDirections preDir dir) $ \d -> do
+	forM_ (getDirections preDir dir) $ \d ->
 		drawTurtle f c shape size d prePos Nothing
 	forM_ (getPoints px py nx ny) $ \p -> do
 		drawTurtle f c shape size dir p $ Just prePos

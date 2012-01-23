@@ -48,11 +48,11 @@ newTurtle f = do
 		 }
 	writeChan c $ Shape classic
 	writeChan c $ ShapeSize 1
-	writeChan c $ PenDown
+	writeChan c PenDown
 	writeChan c $ Goto 0 0
 	writeChan c $ RotateTo 0
 	writeChan c $ Goto 0 0
-	_ <- forkIO $ do
+	_ <- forkIO $
 --		initialThread
 		for2M_ sts $ turtleDraw f ch l
 	return t

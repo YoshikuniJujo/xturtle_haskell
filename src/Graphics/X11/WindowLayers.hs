@@ -242,7 +242,7 @@ setPolygonCharacter w c ps = setCharacter w c (fillPolygonBuf w ps)
 setPolygonCharacterAndLine ::
 	Win -> Character -> [(Double, Double)] -> (Double, Double) ->
 		(Double, Double) -> IO ()
-setPolygonCharacterAndLine w c ps (x1_, y1_) (x2_, y2_) = do
+setPolygonCharacterAndLine w c ps (x1_, y1_) (x2_, y2_) =
 	setCharacter w c (fillPolygonBuf w ps >> lineBuf w x1_ y1_ x2_ y2_)
 
 line :: Win -> Layer -> Double -> Double -> Double -> Double -> IO ()
