@@ -109,7 +109,8 @@ openWin = do
 					getGeometry (wDisplay w) (wWindow w)
 				writeIORef (wWidth w) width
 				writeIORef (wHeight w) height
-				clearBG w
+--				clearBG w
+				clearUndoBuf w
 				readIORef buffedAction >>= sequence_
 				undoBufToBG w
 				readIORef exposeAction >>= mapM_ ($ False) . concat

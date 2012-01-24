@@ -14,7 +14,7 @@ randomTurtle t = do
 	forward t 100
 	left t 90
 	circle t 100
---	home t
+	home t
 	position t >>= print
 	sequence_ $ repeat $ do
 		d <- randomRIO (- 180, 180)

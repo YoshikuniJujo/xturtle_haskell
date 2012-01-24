@@ -29,16 +29,21 @@ turtleDrawUndo f c l t0 t1 = do
 		size = turtleSize t1
 		prePos@(px, py) = turtlePos t0
 		preDir = turtleDir t0
+		prePen = turtlePenDown t0
 		pos@(nx, ny) = turtlePos t1
 		dir = turtleDir t1
 --		doneLine = turtleLineDone t0
 --	when doneLine $ undoLayer f l
-	undoLayer f l
-	forM_ (getDirections preDir dir) $ \d ->
+	when prePen $ undoLayer f l
+	forM_ (getDirections preDir dir) $ \d -> do
 		drawTurtle f c shape size d prePos Nothing
-	forM_ (getPoints px py nx ny) $ \p -> do
-		drawTurtle f c shape size dir p $ Just pos
-		threadDelay 50000
+		threadDelay 10000
+	if prePen then forM_ (getPoints px py nx ny) $ \p -> do
+			drawTurtle f c shape size dir p $ Just pos
+			threadDelay 50000
+		else forM_ (getPoints px py nx ny) $ \p -> do
+			drawTurtle f c shape size dir p Nothing
+			threadDelay 50000
 turtleDrawNotUndo f c l t0 t1 = do
 	let	shape = turtleShape t1
 		size = turtleSize t1
