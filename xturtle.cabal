@@ -18,8 +18,8 @@ description:
   > :m Graphics.X11.Turtle
   > f <- openField
   > t <- newTurtle f
-  > forward f 100
-  > left f 50
+  > forward t 100
+  > left t 50
   .
   etc
 
