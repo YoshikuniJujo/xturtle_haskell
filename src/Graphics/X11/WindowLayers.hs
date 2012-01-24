@@ -295,8 +295,8 @@ flushWin = flush . wDisplay
 {-
 changeColor :: Win -> Pixel -> IO ()
 changeColor w = setForeground (wDisplay w) (wGC w)
--}
 
 clearBG :: Win -> IO ()
 clearBG w = winSizeRaw w >>=
 	uncurry (fillRectangle (wDisplay w) (wBG w) (wGCWhite w) 0 0)
+-}
