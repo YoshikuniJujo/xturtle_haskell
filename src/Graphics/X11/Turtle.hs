@@ -17,7 +17,9 @@ module Graphics.X11.Turtle (
 	distance,
 	windowWidth,
 	windowHeight,
-	goto
+	goto,
+	penup,
+	pendown
 ) where
 
 import Graphics.X11.TurtleDraw
@@ -120,6 +122,14 @@ distance t x0 y0 = do
 windowWidth, windowHeight :: Turtle -> IO Double
 windowWidth = fmap fst . winSize . field
 windowHeight = fmap snd . winSize . field
+
+pendown, penup :: Turtle -> IO ()
+pendown Turtle{inputChan = c, stateNow = sn} = do
+	modifyIORef sn (+ 1)
+	writeChan c PenDown
+penup Turtle{inputChan = c, stateNow = sn} = do
+	modifyIORef sn (+ 1)
+	writeChan c PenUp
 
 goto :: Turtle -> Double -> Double -> IO ()
 goto Turtle{inputChan = c, stateNow = sn} x y = do
