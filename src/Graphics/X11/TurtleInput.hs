@@ -1,5 +1,5 @@
 module Graphics.X11.TurtleInput (
-	TurtleState(turtlePos, turtleUndoNum),
+	TurtleState(turtlePos, turtleUndoNum, turtlePenDown),
 
 	makeInput,
 	inputToTurtle,

@@ -19,7 +19,8 @@ module Graphics.X11.Turtle (
 	windowHeight,
 	goto,
 	penup,
-	pendown
+	pendown,
+	isdown
 ) where
 
 import Graphics.X11.TurtleDraw
@@ -130,6 +131,10 @@ pendown Turtle{inputChan = c, stateNow = sn} = do
 penup Turtle{inputChan = c, stateNow = sn} = do
 	modifyIORef sn (+ 1)
 	writeChan c PenUp
+
+isdown :: Turtle -> IO Bool
+isdown Turtle{states = s, stateNow = sn} =
+	fmap (turtlePenDown . (s !!)) $ readIORef sn
 
 goto :: Turtle -> Double -> Double -> IO ()
 goto Turtle{inputChan = c, stateNow = sn} x y = do
