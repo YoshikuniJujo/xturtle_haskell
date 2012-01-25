@@ -9,7 +9,8 @@ module Graphics.X11.TurtleDraw (
 	clearLayer,
 	turtleDraw,
 
-	winSize
+	winSize,
+	forkIOX
 ) where
 
 import Graphics.X11.TurtleState

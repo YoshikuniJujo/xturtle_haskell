@@ -18,6 +18,8 @@ module Graphics.X11.WindowLayers (
 
 	undoLayer,
 	clearLayer,
+
+	forkIOX
 ) where
 
 import Graphics.X11(
@@ -39,7 +41,7 @@ import Graphics.X11.Xlib.Extras(Event(..), getEvent)
 import Graphics.X11.Xlib.Types
 import Control.Monad.Tools(doWhile_)
 import Control.Arrow((***))
-import Control.Concurrent(forkIO)
+import Control.Concurrent(forkIO, ThreadId)
 import Data.IORef(IORef, newIORef, readIORef, writeIORef, modifyIORef)
 import Data.Bits((.|.))
 import Data.Convertible(convert)
@@ -70,6 +72,9 @@ openField = openWin
 
 closeField :: Field -> IO ()
 closeField = closeDisplay . wDisplay
+
+forkIOX :: IO () -> IO ThreadId
+forkIOX io = initThreads >> forkIO io
 
 openWin :: IO Win
 openWin = do

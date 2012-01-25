@@ -3,23 +3,25 @@ module Graphics.X11.Turtle (
 
 	openField,
 	newTurtle,
+
 	shape,
 	shapesize,
 	forward,
 	backward,
 	left,
 	right,
+	goto,
 	home,
 	clear,
 	circle,
-	undo,
-	position,
-	distance,
-	windowWidth,
-	windowHeight,
-	goto,
 	penup,
 	pendown,
+	undo,
+
+	windowWidth,
+	windowHeight,
+	position,
+	distance,
 	isdown,
 
 	xturtleVersion
@@ -33,17 +35,17 @@ import Prelude hiding(Left)
 import Data.IORef
 import Control.Arrow(second)
 
-data Turtle = Turtle {
-	inputChan :: Chan TurtleInput,
-	field :: Field,
-	layer :: Layer,
-	character :: Character,
-	states :: [TurtleState],
-	stateNow :: IORef Int
- }
-
 xturtleVersion :: (Int, String)
 xturtleVersion = (1, "0.0.5a")
+
+data Turtle = Turtle {
+	inputChan :: Chan TurtleInput,
+	states :: [TurtleState],
+	stateNow :: IORef Int,
+	field :: Field,
+	layer :: Layer,
+	character :: Character
+ }
 
 newTurtle :: Field -> IO Turtle
 newTurtle f = do
@@ -66,9 +68,7 @@ newTurtle f = do
 	writeChan c $ Goto 0 0
 	writeChan c $ RotateTo 0
 	writeChan c $ Goto 0 0
-	_ <- forkIO $
---		initialThread
-		for2M_ sts $ turtleDraw f ch l
+	_ <- forkIOX $ for2M_ sts $ turtleDraw f ch l
 	return t
 
 shape :: Turtle -> String -> IO ()
