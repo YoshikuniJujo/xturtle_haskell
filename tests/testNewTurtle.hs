@@ -11,10 +11,16 @@ main = do
 
 randomTurtle :: Turtle -> IO ()
 randomTurtle t = do
+	shape t "turtle"
+	shapesize t 2
+	penup t
 	forward t 100
+	pendown t
 	left t 90
 	circle t 100
+	penup t
 	home t
+	pendown t
 	position t >>= print
 	sequence_ $ repeat $ do
 		d <- randomRIO (- 180, 180)

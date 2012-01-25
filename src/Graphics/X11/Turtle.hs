@@ -20,7 +20,9 @@ module Graphics.X11.Turtle (
 	goto,
 	penup,
 	pendown,
-	isdown
+	isdown,
+
+	xturtleVersion
 ) where
 
 import Graphics.X11.TurtleDraw
@@ -39,6 +41,9 @@ data Turtle = Turtle {
 	states :: [TurtleState],
 	stateNow :: IORef Int
  }
+
+xturtleVersion :: (Int, String)
+xturtleVersion = (1, "0.0.5a")
 
 newTurtle :: Field -> IO Turtle
 newTurtle f = do
