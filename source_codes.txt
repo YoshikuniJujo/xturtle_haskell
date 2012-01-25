@@ -1,0 +1,50 @@
+Turtle:		src/Graphics/X11/Turtle.hs
+TurtleInput:	src/Graphics/X11/TurtleInput.hs
+TurtleState:	src/Graphics/X11/TurtleState.hs
+TurtleDraw:	src/Graphics/X11/TurtleDraw.hs
+WindowLayers:	src/Graphics/X11/WindowLayers.hs
+
+* Structure
+Turtle
+  +- TurtleInput
+  |    +- TurtleState
+  |
+  +- TurtleDraw
+       +- WindowLayers
+       +- TurtleState
+
+* TurtleInput
+makeInput :: IO (Chan TurtleInput, [TurtleInput])
+(inputChannel, inputList) <- makeInput
+
+makeInput make lazy and infinite list.
+The list is input command list sent from inputChannel.
+
+inputToTurtle :: [TurtleState] -> TurtleState -> [TurtleInput] -> [TurtleState]
+inputToTurtle stateListForUndo state0 inputList
+
+inputToTurtle convert from TurtleInput list to TurtleState list.
+
+You can get channel for sending command to turtle and get turtle state list.
+
+* TurtleDraw
+turtleDraw :: Field -> Character -> Layer -> TurtleState -> TurtleState -> IO ()
+turtleDraw filed charLayer layer state1 state2
+
+turtleDraw make animation and draw line from state1 and state2.
+If turtle position in state1 is (x1, y1) and that in state2 is (x2, y2),
+turtle move from (x1, y1) to (x2, y2) and draw line.
+And Character is layer for moving character.
+And Layer is layer for background.
+
+* Turtle
+newTurtle :: Field -> IO Turtle
+
+Field is data for access Xlib.
+Turtle is data which contain channel for input and turtle states list.
+
+newTurtle make two layer, layer for character and layer for background.
+And make input channel and turtle states list.
+And begin new thread which run turtleDraw (states !! n) (states !! (n + 1)).
+
+Other functions are send input to input channel.
