@@ -46,7 +46,7 @@ import Data.IORef(IORef, newIORef, readIORef, writeIORef, modifyIORef)
 import Data.Bits((.|.))
 import Data.Convertible(convert)
 
-data Win = Win{
+data Field = Field{
 	wDisplay :: Display,
 	wWindow :: Window,
 	wGC :: GC,
@@ -65,8 +65,6 @@ data Win = Win{
 data Layer = Layer Int
 data Character = Character Int
 
-type Field = Win
-
 openField :: IO Field
 openField = openWin
 
@@ -76,7 +74,7 @@ closeField = closeDisplay . wDisplay
 forkIOX :: IO () -> IO ThreadId
 forkIOX io = initThreads >> forkIO io
 
-openWin :: IO Win
+openWin :: IO Field
 openWin = do
 	_ <- initThreads
 	dpy <- openDisplay ""
@@ -105,7 +103,7 @@ openWin = do
 	exposeAction <- newIORef []
 	buffedAction <- newIORef []
 	charActions <- newIORef []
-	let w = Win dpy win gc gcWhite del undoBuf bg buf widthRef heightRef
+	let w = Field dpy win gc gcWhite del undoBuf bg buf widthRef heightRef
 		exposeAction buffedAction charActions
 	_ <- forkIO $ (>> closeDisplay dpy) $ (initThreads >>) $ withEvent w $ \ev ->
 		case ev of
@@ -140,7 +138,7 @@ openWin = do
 undoN :: Int
 undoN = 100
 
-clearLayer :: Win -> Layer -> IO ()
+clearLayer :: Field -> Layer -> IO ()
 clearLayer w l@(Layer lid) = do
 	setExposeAction w l (const $ const $ return ())
 	buffed <- readIORef $ wBuffed w
@@ -156,8 +154,8 @@ clearLayer w l@(Layer lid) = do
 	bufToWin w
 	flushWin w
 
-addExposeAction :: Win -> Layer -> (Win -> Bool -> IO ()) -> IO ()
-addExposeAction w@Win{wExpose = we} (Layer lid) act = do
+addExposeAction :: Field -> Layer -> (Field -> Bool -> IO ()) -> IO ()
+addExposeAction w@Field{wExpose = we} (Layer lid) act = do
 	ls <- readIORef we
 	let	theLayer = ls !! lid
 		newLayer = theLayer ++ [act w]
@@ -170,13 +168,13 @@ addExposeAction w@Win{wExpose = we} (Layer lid) act = do
 			writeIORef we $ take lid ls ++ [tail newLayer] ++ drop (lid + 1) ls
 		else writeIORef we $ take lid ls ++ [newLayer] ++ drop (lid + 1) ls
 
-setExposeAction :: Win -> Layer -> (Win -> Bool -> IO ()) -> IO ()
-setExposeAction w@Win{wExpose = we} (Layer lid) act = do
+setExposeAction :: Field -> Layer -> (Field -> Bool -> IO ()) -> IO ()
+setExposeAction w@Field{wExpose = we} (Layer lid) act = do
 	ls <- readIORef we
 	writeIORef we $ take lid ls ++ [[act w]] ++ drop (lid + 1) ls
 
-undoLayer :: Win -> Layer -> IO ()
-undoLayer w@Win{wExpose = we} (Layer lid) = do
+undoLayer :: Field -> Layer -> IO ()
+undoLayer w@Field{wExpose = we} (Layer lid) = do
 	ls <- readIORef we
 	writeIORef we $ take lid ls ++ [init (ls !! lid)] ++ drop (lid + 1) ls
 	undoBufToBG w
@@ -186,7 +184,7 @@ undoLayer w@Win{wExpose = we} (Layer lid) = do
 --	bufToWin w
 --	flushWin w
 
-setCharacter :: Win -> Character -> IO () -> IO ()
+setCharacter :: Field -> Character -> IO () -> IO ()
 setCharacter w c act = do
 	bgToBuf w
 	setCharacterAction w c act
@@ -194,64 +192,64 @@ setCharacter w c act = do
 --	bufToWin w
 --	flushWin w
 
-setCharacterAction :: Win -> Character -> IO () -> IO ()
-setCharacterAction Win{wChars = wc} (Character cid) act = do
+setCharacterAction :: Field -> Character -> IO () -> IO ()
+setCharacterAction Field{wChars = wc} (Character cid) act = do
 	cs <- readIORef wc
 	writeIORef wc $ take cid cs ++ [act] ++ drop (cid + 1) cs
 
-addLayer :: Win -> IO Layer
-addLayer Win{wExpose = we, wBuffed = wb} = do
+addLayer :: Field -> IO Layer
+addLayer Field{wExpose = we, wBuffed = wb} = do
 	ls <- readIORef we
 	modifyIORef we (++ [[]])
 	modifyIORef wb (++ [return ()])
 	return $ Layer $ length ls
 
-addCharacter :: Win -> IO Character
-addCharacter Win{wChars = wc} = do
+addCharacter :: Field -> IO Character
+addCharacter Field{wChars = wc} = do
 	cs <- readIORef wc
 	modifyIORef wc (++ [return ()])
 	return $ Character $ length cs
 
-winSize :: Win -> IO (Double, Double)
+winSize :: Field -> IO (Double, Double)
 winSize w = fmap (fromIntegral *** fromIntegral) $ winSizeRaw w
 
-winSizeRaw :: Win -> IO (Dimension, Dimension)
+winSizeRaw :: Field -> IO (Dimension, Dimension)
 winSizeRaw w = do
 	width <- readIORef $ wWidth w
 	height <- readIORef $ wHeight w
 	return (width, height)
 
-undoBufToBG :: Win -> IO ()
+undoBufToBG :: Field -> IO ()
 undoBufToBG w = do
 	(width, height) <- winSizeRaw w
 	copyArea (wDisplay w) (wUndoBuf w) (wBG w) (wGC w) 0 0 width height 0 0
 
-bgToBuf :: Win -> IO ()
+bgToBuf :: Field -> IO ()
 bgToBuf w = do
 	(width, height) <- winSizeRaw w
 	copyArea (wDisplay w) (wBG w) (wBuf w) (wGC w) 0 0 width height 0 0
 
-bufToWin :: Win -> IO ()
+bufToWin :: Field -> IO ()
 bufToWin w = do
 	(width, height) <- winSizeRaw w
 	copyArea (wDisplay w) (wBuf w) (wWindow w) (wGC w) 0 0 width height 0 0
 
-fillPolygonBuf :: Win -> [(Double, Double)] -> IO ()
+fillPolygonBuf :: Field -> [(Double, Double)] -> IO ()
 fillPolygonBuf w ps = do
 	(width, height) <- winSize w
 	let	dtp (x, y) = Point (round $ x + width / 2) (round $ - y + height / 2)
 	fillPolygon (wDisplay w) (wBuf w) (wGC w) (map dtp ps) nonconvex coordModeOrigin
 
-setPolygonCharacter :: Win -> Character -> [(Double, Double)] -> IO ()
+setPolygonCharacter :: Field -> Character -> [(Double, Double)] -> IO ()
 setPolygonCharacter w c ps = setCharacter w c (fillPolygonBuf w ps)
 
 setPolygonCharacterAndLine ::
-	Win -> Character -> [(Double, Double)] -> (Double, Double) ->
+	Field -> Character -> [(Double, Double)] -> (Double, Double) ->
 		(Double, Double) -> IO ()
 setPolygonCharacterAndLine w c ps (x1_, y1_) (x2_, y2_) =
 	setCharacter w c (fillPolygonBuf w ps >> lineBuf w x1_ y1_ x2_ y2_)
 
-line :: Win -> Layer -> Double -> Double -> Double -> Double -> IO ()
+line :: Field -> Layer -> Double -> Double -> Double -> Double -> IO ()
 line w l x1_ y1_ x2_ y2_ = do
 	(width, height) <- winSize w
 	let	x1 = x1_ + (width / 2)
@@ -265,12 +263,12 @@ line w l x1_ y1_ x2_ y2_ = do
 		if buf	then lineUndoBuf w' x1' y1' x2' y2'
 			else lineWin w' x1' y1' x2' y2'
 
-convertPos :: Win -> Double -> Double -> IO (Double, Double)
+convertPos :: Field -> Double -> Double -> IO (Double, Double)
 convertPos w x y = do
 	(width, height) <- winSize w
 	return (x + width / 2, - y + height / 2)
 
-lineWin :: Win -> Double -> Double -> Double -> Double -> IO ()
+lineWin :: Field -> Double -> Double -> Double -> Double -> IO ()
 lineWin w x1_ y1_ x2_ y2_ = do
 	drawLine (wDisplay w) (wBG w) (wGC w) x1 y1 x2 y2
 	bgToBuf w
@@ -278,23 +276,23 @@ lineWin w x1_ y1_ x2_ y2_ = do
 --	bufToWin w
 	where	[x1, y1, x2, y2] = map round [x1_, y1_, x2_, y2_]
 
-lineUndoBuf :: Win -> Double -> Double -> Double -> Double -> IO ()
+lineUndoBuf :: Field -> Double -> Double -> Double -> Double -> IO ()
 lineUndoBuf w x1_ y1_ x2_ y2_ =
 	drawLine (wDisplay w) (wUndoBuf w) (wGC w) x1 y1 x2 y2
 	where	[x1, y1, x2, y2] = map round [x1_, y1_, x2_, y2_]
 
-lineBuf :: Win -> Double -> Double -> Double -> Double -> IO ()
+lineBuf :: Field -> Double -> Double -> Double -> Double -> IO ()
 lineBuf w x1__ y1__ x2__ y2__ = do
 	(x1_, y1_) <- convertPos w x1__ y1__
 	(x2_, y2_) <- convertPos w x2__ y2__
 	let	[x1, y1, x2, y2] = map round [x1_, y1_, x2_, y2_]
 	drawLine (wDisplay w) (wBuf w) (wGC w) x1 y1 x2 y2
 
-clearUndoBuf :: Win -> IO ()
+clearUndoBuf :: Field -> IO ()
 clearUndoBuf w = winSizeRaw w >>=
 	uncurry (fillRectangle (wDisplay w) (wUndoBuf w) (wGCWhite w) 0 0)
 
-flushWin :: Win -> IO ()
+flushWin :: Field -> IO ()
 flushWin = flush . wDisplay
 
 {-
