@@ -1,1 +1,18 @@
 You can run turtle in Haskell X11.
+
+Install this package by cabal.
+And you can try this package by ghci.
+
+% ghci
+> :m Graphics.X11.Turtle
+> f <- openField
+> t <- newTurtle f
+> shape t "turtle"
+> shapesize t 2
+> forward t 100
+> left t 90
+> circle t 100
+> undo t
+> home t
+> clear t
+etc ...
