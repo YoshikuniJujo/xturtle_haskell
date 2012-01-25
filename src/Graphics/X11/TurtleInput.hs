@@ -8,7 +8,6 @@ module Graphics.X11.TurtleInput (
 ) where
 
 import Control.Concurrent
-import System.IO.Unsafe
 import Graphics.X11.TurtleState
 import Prelude hiding (Left)
 
@@ -28,14 +27,8 @@ data TurtleInput
 makeInput :: IO (Chan TurtleInput, [TurtleInput])
 makeInput = do
 	c <- newChan
-	ret <- getInput c
+	ret <- getChanContents c
 	return (c, ret)
-
-getInput :: Chan TurtleInput -> IO [TurtleInput]
-getInput c = unsafeInterleaveIO $ do
-	ti <- readChan c
-	tis <- getInput c
-	return $ ti : tis
 
 nextTurtle :: TurtleState -> TurtleState
 nextTurtle t = TurtleState{
