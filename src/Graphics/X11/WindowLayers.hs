@@ -5,8 +5,6 @@ module Graphics.X11.WindowLayers (
 
 	openField,
 	closeField,
-	bufToWin,
-	flushWin,
 	winSize,
 
 	addLayer,
@@ -241,13 +239,18 @@ fillPolygonBuf w ps = do
 	fillPolygon (wDisplay w) (wBuf w) (wGC w) (map dtp ps) nonconvex coordModeOrigin
 
 setPolygonCharacter :: Field -> Character -> [(Double, Double)] -> IO ()
-setPolygonCharacter w c ps = setCharacter w c (fillPolygonBuf w ps)
+setPolygonCharacter w c ps = do
+	setCharacter w c (fillPolygonBuf w ps)
+	bufToWin w
+	flushWin w
 
 setPolygonCharacterAndLine ::
 	Field -> Character -> [(Double, Double)] -> (Double, Double) ->
 		(Double, Double) -> IO ()
-setPolygonCharacterAndLine w c ps (x1_, y1_) (x2_, y2_) =
+setPolygonCharacterAndLine w c ps (x1_, y1_) (x2_, y2_) = do
 	setCharacter w c (fillPolygonBuf w ps >> lineBuf w x1_ y1_ x2_ y2_)
+	bufToWin w
+	flushWin w
 
 line :: Field -> Layer -> Double -> Double -> Double -> Double -> IO ()
 line w l x1_ y1_ x2_ y2_ = do

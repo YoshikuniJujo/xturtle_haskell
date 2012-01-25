@@ -94,8 +94,8 @@ drawTurtle w c sh s d (x, y) org = do
 	let sp = mkShape sh s d x y
 	maybe (setPolygonCharacter w c sp)
 		(flip (setPolygonCharacterAndLine w c sp) (x, y)) org
-	bufToWin w
-	flushWin w
+--	bufToWin w
+--	flushWin w
 
 mkShape ::
 	[(Double, Double)] -> Double -> Double -> Double -> Double -> [(Double, Double)]
