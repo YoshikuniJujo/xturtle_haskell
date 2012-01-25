@@ -1,2 +1,6 @@
 /dist/
 /*.ebuild
+/src/*.html
+/src/*.js
+/src/*.css
+/src/*.gif
