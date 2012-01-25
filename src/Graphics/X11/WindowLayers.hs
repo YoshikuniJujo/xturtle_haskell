@@ -63,17 +63,14 @@ data Field = Field{
 data Layer = Layer Int
 data Character = Character Int
 
-openField :: IO Field
-openField = openWin
-
 closeField :: Field -> IO ()
 closeField = closeDisplay . wDisplay
 
 forkIOX :: IO () -> IO ThreadId
 forkIOX io = initThreads >> forkIO io
 
-openWin :: IO Field
-openWin = do
+openField :: IO Field
+openField = do
 	_ <- initThreads
 	dpy <- openDisplay ""
 	del <- internAtom dpy "WM_DELETE_WINDOW" True
@@ -110,7 +107,6 @@ openWin = do
 					getGeometry (wDisplay w) (wWindow w)
 				writeIORef (wWidth w) width
 				writeIORef (wHeight w) height
---				clearBG w
 				clearUndoBuf w
 				readIORef buffedAction >>= sequence_
 				undoBufToBG w
@@ -179,16 +175,12 @@ undoLayer w@Field{wExpose = we} (Layer lid) = do
 	readIORef we >>= mapM_ ($ False) . concat
 	bgToBuf w
 	readIORef (wChars w) >>= sequence_
---	bufToWin w
---	flushWin w
 
 setCharacter :: Field -> Character -> IO () -> IO ()
 setCharacter w c act = do
 	bgToBuf w
 	setCharacterAction w c act
 	readIORef (wChars w) >>= sequence_
---	bufToWin w
---	flushWin w
 
 setCharacterAction :: Field -> Character -> IO () -> IO ()
 setCharacterAction Field{wChars = wc} (Character cid) act = do
@@ -276,7 +268,6 @@ lineWin w x1_ y1_ x2_ y2_ = do
 	drawLine (wDisplay w) (wBG w) (wGC w) x1 y1 x2 y2
 	bgToBuf w
 	readIORef (wChars w) >>= sequence_
---	bufToWin w
 	where	[x1, y1, x2, y2] = map round [x1_, y1_, x2_, y2_]
 
 lineUndoBuf :: Field -> Double -> Double -> Double -> Double -> IO ()
