@@ -46,26 +46,26 @@ import Data.Bits((.|.))
 import Data.Convertible(convert)
 
 data Field = Field{
-	wDisplay :: Display,
-	wWindow :: Window,
-	wGC :: GC,
-	wGCWhite :: GC,
-	wDel :: Atom,
-	wUndoBuf :: Pixmap,
-	wBG :: Pixmap,
-	wBuf :: Pixmap,
-	wWidth :: IORef Dimension,
-	wHeight :: IORef Dimension,
-	wExpose :: IORef [[Bool -> IO ()]],
-	wBuffed :: IORef [IO ()],
-	wChars :: IORef [IO ()]
+	fDisplay :: Display,
+	fWindow :: Window,
+	fGC :: GC,
+	fGCWhite :: GC,
+	fDel :: Atom,
+	fUndoBuf :: Pixmap,
+	fBG :: Pixmap,
+	fBuf :: Pixmap,
+	fWidth :: IORef Dimension,
+	fHeight :: IORef Dimension,
+	fExpose :: IORef [[Bool -> IO ()]],
+	fBuffed :: IORef [IO ()],
+	fChars :: IORef [IO ()]
  }
 
 data Layer = Layer Int
 data Character = Character Int
 
 closeField :: Field -> IO ()
-closeField = closeDisplay . wDisplay
+closeField = closeDisplay . fDisplay
 
 forkIOX :: IO () -> IO ThreadId
 forkIOX io = initThreads >> forkIO io
@@ -105,9 +105,9 @@ openField = do
 		case ev of
 			ExposeEvent{} -> do
 				(_, _, _, width, height, _, _) <-
-					getGeometry (wDisplay w) (wWindow w)
-				writeIORef (wWidth w) width
-				writeIORef (wHeight w) height
+					getGeometry (fDisplay w) (fWindow w)
+				writeIORef (fWidth w) width
+				writeIORef (fHeight w) height
 				clearUndoBuf w
 				readIORef buffedAction >>= sequence_
 				undoBufToBG w
@@ -124,10 +124,10 @@ openField = do
 	return w
 	where
 	withEvent w act = doWhile_ $ allocaXEvent $ \e -> do
-		nextEvent (wDisplay w) e
+		nextEvent (fDisplay w) e
 		getEvent e >>= act
 	isDeleteEvent w ev@ClientMessageEvent{} =
-		convert (head $ ev_data ev) == wDel w
+		convert (head $ ev_data ev) == fDel w
 	isDeleteEvent _ _ = False
 
 undoN :: Int
@@ -136,100 +136,100 @@ undoN = 100
 clearLayer :: Field -> Layer -> IO ()
 clearLayer w l@(Layer lid) = do
 	setExposeAction w l (const $ const $ return ())
-	buffed <- readIORef $ wBuffed w
-	writeIORef (wBuffed w) $
+	buffed <- readIORef $ fBuffed w
+	writeIORef (fBuffed w) $
 		take lid buffed ++ [return ()] ++ drop (lid + 1) buffed
-	nBuffed <- readIORef $ wBuffed w
+	nBuffed <- readIORef $ fBuffed w
 	clearUndoBuf w
 	sequence_ nBuffed
 	undoBufToBG w
-	readIORef (wExpose w) >>= mapM_ ($ False) . concat
+	readIORef (fExpose w) >>= mapM_ ($ False) . concat
 	bgToBuf w
-	readIORef (wChars w) >>= sequence_
+	readIORef (fChars w) >>= sequence_
 	bufToWin w
 	flushWin w
 
 addExposeAction :: Field -> Layer -> (Field -> Bool -> IO ()) -> IO ()
-addExposeAction w@Field{wExpose = we} (Layer lid) act = do
+addExposeAction w@Field{fExpose = we} (Layer lid) act = do
 	ls <- readIORef we
 	let	theLayer = ls !! lid
 		newLayer = theLayer ++ [act w]
 	if length newLayer > undoN
 		then do	head newLayer True
-			buffed <- readIORef $ wBuffed w
-			writeIORef (wBuffed w) $ take lid buffed ++
+			buffed <- readIORef $ fBuffed w
+			writeIORef (fBuffed w) $ take lid buffed ++
 				[buffed !! lid >> head newLayer True] ++
 				drop (lid + 1) buffed
 			writeIORef we $ take lid ls ++ [tail newLayer] ++ drop (lid + 1) ls
 		else writeIORef we $ take lid ls ++ [newLayer] ++ drop (lid + 1) ls
 
 setExposeAction :: Field -> Layer -> (Field -> Bool -> IO ()) -> IO ()
-setExposeAction w@Field{wExpose = we} (Layer lid) act = do
+setExposeAction w@Field{fExpose = we} (Layer lid) act = do
 	ls <- readIORef we
 	writeIORef we $ take lid ls ++ [[act w]] ++ drop (lid + 1) ls
 
 undoLayer :: Field -> Layer -> IO ()
-undoLayer w@Field{wExpose = we} (Layer lid) = do
+undoLayer w@Field{fExpose = we} (Layer lid) = do
 	ls <- readIORef we
 	writeIORef we $ take lid ls ++ [init (ls !! lid)] ++ drop (lid + 1) ls
 	undoBufToBG w
 	readIORef we >>= mapM_ ($ False) . concat
 	bgToBuf w
-	readIORef (wChars w) >>= sequence_
+	readIORef (fChars w) >>= sequence_
 
 setCharacter :: Field -> Character -> IO () -> IO ()
 setCharacter w c act = do
 	bgToBuf w
 	setCharacterAction w c act
-	readIORef (wChars w) >>= sequence_
+	readIORef (fChars w) >>= sequence_
 
 setCharacterAction :: Field -> Character -> IO () -> IO ()
-setCharacterAction Field{wChars = wc} (Character cid) act = do
+setCharacterAction Field{fChars = wc} (Character cid) act = do
 	cs <- readIORef wc
 	writeIORef wc $ take cid cs ++ [act] ++ drop (cid + 1) cs
 
 addLayer :: Field -> IO Layer
-addLayer Field{wExpose = we, wBuffed = wb} = do
+addLayer Field{fExpose = we, fBuffed = wb} = do
 	ls <- readIORef we
 	modifyIORef we (++ [[]])
 	modifyIORef wb (++ [return ()])
 	return $ Layer $ length ls
 
 addCharacter :: Field -> IO Character
-addCharacter Field{wChars = wc} = do
+addCharacter Field{fChars = wc} = do
 	cs <- readIORef wc
 	modifyIORef wc (++ [return ()])
 	return $ Character $ length cs
 
 fieldSize :: Field -> IO (Double, Double)
-fieldSize w = fmap (fromIntegral *** fromIntegral) $ winSizeRaw w
+fieldSize w = fmap (fromIntegral *** fromIntegral) $ fieldSizeRaw w
 
-winSizeRaw :: Field -> IO (Dimension, Dimension)
-winSizeRaw w = do
-	width <- readIORef $ wWidth w
-	height <- readIORef $ wHeight w
+fieldSizeRaw :: Field -> IO (Dimension, Dimension)
+fieldSizeRaw w = do
+	width <- readIORef $ fWidth w
+	height <- readIORef $ fHeight w
 	return (width, height)
 
 undoBufToBG :: Field -> IO ()
 undoBufToBG w = do
-	(width, height) <- winSizeRaw w
-	copyArea (wDisplay w) (wUndoBuf w) (wBG w) (wGC w) 0 0 width height 0 0
+	(width, height) <- fieldSizeRaw w
+	copyArea (fDisplay w) (fUndoBuf w) (fBG w) (fGC w) 0 0 width height 0 0
 
 bgToBuf :: Field -> IO ()
 bgToBuf w = do
-	(width, height) <- winSizeRaw w
-	copyArea (wDisplay w) (wBG w) (wBuf w) (wGC w) 0 0 width height 0 0
+	(width, height) <- fieldSizeRaw w
+	copyArea (fDisplay w) (fBG w) (fBuf w) (fGC w) 0 0 width height 0 0
 
 bufToWin :: Field -> IO ()
 bufToWin w = do
-	(width, height) <- winSizeRaw w
-	copyArea (wDisplay w) (wBuf w) (wWindow w) (wGC w) 0 0 width height 0 0
+	(width, height) <- fieldSizeRaw w
+	copyArea (fDisplay w) (fBuf w) (fWindow w) (fGC w) 0 0 width height 0 0
 
 fillPolygonBuf :: Field -> [(Double, Double)] -> IO ()
 fillPolygonBuf w ps = do
 	(width, height) <- fieldSize w
 	let	dtp (x, y) = Point (round $ x + width / 2) (round $ - y + height / 2)
-	fillPolygon (wDisplay w) (wBuf w) (wGC w) (map dtp ps) nonconvex coordModeOrigin
+	fillPolygon (fDisplay w) (fBuf w) (fGC w) (map dtp ps) nonconvex coordModeOrigin
 
 drawCharacter :: Field -> Character -> [(Double, Double)] -> IO ()
 drawCharacter w c ps = do
@@ -266,14 +266,14 @@ convertPos w x y = do
 
 lineWin :: Field -> Double -> Double -> Double -> Double -> IO ()
 lineWin w x1_ y1_ x2_ y2_ = do
-	X.drawLine (wDisplay w) (wBG w) (wGC w) x1 y1 x2 y2
+	X.drawLine (fDisplay w) (fBG w) (fGC w) x1 y1 x2 y2
 	bgToBuf w
-	readIORef (wChars w) >>= sequence_
+	readIORef (fChars w) >>= sequence_
 	where	[x1, y1, x2, y2] = map round [x1_, y1_, x2_, y2_]
 
 lineUndoBuf :: Field -> Double -> Double -> Double -> Double -> IO ()
 lineUndoBuf w x1_ y1_ x2_ y2_ =
-	X.drawLine (wDisplay w) (wUndoBuf w) (wGC w) x1 y1 x2 y2
+	X.drawLine (fDisplay w) (fUndoBuf w) (fGC w) x1 y1 x2 y2
 	where	[x1, y1, x2, y2] = map round [x1_, y1_, x2_, y2_]
 
 lineBuf :: Field -> Double -> Double -> Double -> Double -> IO ()
@@ -281,20 +281,20 @@ lineBuf w x1__ y1__ x2__ y2__ = do
 	(x1_, y1_) <- convertPos w x1__ y1__
 	(x2_, y2_) <- convertPos w x2__ y2__
 	let	[x1, y1, x2, y2] = map round [x1_, y1_, x2_, y2_]
-	X.drawLine (wDisplay w) (wBuf w) (wGC w) x1 y1 x2 y2
+	X.drawLine (fDisplay w) (fBuf w) (fGC w) x1 y1 x2 y2
 
 clearUndoBuf :: Field -> IO ()
-clearUndoBuf w = winSizeRaw w >>=
-	uncurry (fillRectangle (wDisplay w) (wUndoBuf w) (wGCWhite w) 0 0)
+clearUndoBuf w = fieldSizeRaw w >>=
+	uncurry (fillRectangle (fDisplay w) (fUndoBuf w) (fGCWhite w) 0 0)
 
 flushWin :: Field -> IO ()
-flushWin = flush . wDisplay
+flushWin = flush . fDisplay
 
 {-
 changeColor :: Win -> Pixel -> IO ()
-changeColor w = setForeground (wDisplay w) (wGC w)
+changeColor w = setForeground (fDisplay w) (fGC w)
 
 clearBG :: Win -> IO ()
-clearBG w = winSizeRaw w >>=
-	uncurry (fillRectangle (wDisplay w) (wBG w) (wGCWhite w) 0 0)
+clearBG w = fieldSizeRaw w >>=
+	uncurry (fillRectangle (fDisplay w) (fBG w) (fGCWhite w) 0 0)
 -}
