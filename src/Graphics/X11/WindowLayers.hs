@@ -127,9 +127,7 @@ runLoop w = (>> closeField w) $	doWhile_ $ allocaXEvent $ \e -> do
 				getGeometry (fDisplay w) (fWindow w)
 			writeIORef (fWidth w) width
 			writeIORef (fHeight w) height
-			redrawBuf w
-			redraw w
-			flushWin w
+			redrawAll w
 			return True
 		KeyEvent{} -> return True
 		ClientMessageEvent{} ->
@@ -139,8 +137,67 @@ runLoop w = (>> closeField w) $	doWhile_ $ allocaXEvent $ \e -> do
 closeField :: Field -> IO ()
 closeField = closeDisplay . fDisplay
 
+layerSize :: Layer -> IO (Double, Double)
+layerSize = fieldSize . layerField
+
+fieldSize :: Field -> IO (Double, Double)
+fieldSize w = fmap (fromIntegral *** fromIntegral) $ fieldSizeRaw w
+
+fieldSizeRaw :: Field -> IO (Dimension, Dimension)
+fieldSizeRaw w = do
+	width <- readIORef $ fWidth w
+	height <- readIORef $ fHeight w
+	return (width, height)
+
+addLayer :: Field -> IO Layer
+addLayer f = do
+	ls <- readIORef $ fLayers f
+	writeIORef (fLayers f) (ls ++ [[]])
+	modifyIORef (fBuffed f) (++ [return ()])
+	return Layer{layerField = f, layerId = length ls}
+
+addCharacter :: Field -> IO Character
+addCharacter f = do
+	cs <- readIORef $ fCharacters f
+	writeIORef (fCharacters f) (cs ++ [return ()])
+	return Character{characterField = f, characterId = length cs}
+
+drawLine :: Layer -> Double -> Double -> Double -> Double -> IO ()
+drawLine l@Layer{layerField = w} x1_ y1_ x2_ y2_ = do
+	(x1, y1) <- convertPos w x1_ y1_
+	(x2, y2) <- convertPos w x2_ y2_
+	lineWin w x1 y1 x2 y2
+	addLayerAction l $ \buf -> do
+		(x1', y1') <- convertPos w x1_ y1_
+		(x2', y2') <- convertPos w x2_ y2_
+		if buf	then lineUndoBuf w x1' y1' x2' y2'
+			else lineWin w x1' y1' x2' y2'
+
 undoN :: Int
 undoN = 100
+
+addLayerAction :: Layer -> (Bool -> IO ()) -> IO ()
+addLayerAction Layer{layerField = w, layerId = lid} act = do
+	ls <- readIORef $ fLayers w
+	if length (ls !! lid) > undoN
+		then do	head (ls !! lid) True
+			buffed <- readIORef $ fBuffed w
+			writeIORef (fBuffed w) $ 
+				modifyAt buffed lid (>> head (ls !! lid) True)
+			writeIORef (fLayers w) $
+				modifyAt ls lid $ (++ [act]) . tail
+		else writeIORef (fLayers w) $ modifyAt ls lid (++ [act])
+
+setAt :: [a] -> Int -> a -> [a]
+setAt xs i x = take i xs ++ [x] ++ drop (i + 1) xs
+
+modifyAt :: [a] -> Int -> (a -> a) -> [a]
+modifyAt xs i f = take i xs ++ [f $ xs !! i] ++ drop (i + 1) xs
+
+convertPos :: Field -> Double -> Double -> IO (Double, Double)
+convertPos w x y = do
+	(width, height) <- fieldSize w
+	return (x + width / 2, - y + height / 2)
 
 clearLayer :: Layer -> IO ()
 clearLayer l@Layer{layerField = w, layerId = lid} = do
@@ -148,28 +205,18 @@ clearLayer l@Layer{layerField = w, layerId = lid} = do
 	buffed <- readIORef $ fBuffed w
 	writeIORef (fBuffed w) $
 		take lid buffed ++ [return ()] ++ drop (lid + 1) buffed
-	redrawBuf w
-	redraw w
-	flushWin w
+	redrawAll w
+
+redrawAll :: Field -> IO ()
+redrawAll f = do
+	redrawBuf f
+	redraw f
+	flushWin f
 
 redrawBuf :: Field -> IO ()
 redrawBuf f = do
 	clearUndoBuf f
 	readIORef (fBuffed f) >>= sequence_
-
-addExposeAction :: Field -> Layer -> (Field -> Bool -> IO ()) -> IO ()
-addExposeAction w@Field{fLayers = we} Layer{layerId = lid} act = do
-	ls <- readIORef we
-	let	theLayer = ls !! lid
-		newLayer = theLayer ++ [act w]
-	if length newLayer > undoN
-		then do	head newLayer True
-			buffed <- readIORef $ fBuffed w
-			writeIORef (fBuffed w) $ take lid buffed ++
-				[buffed !! lid >> head newLayer True] ++
-				drop (lid + 1) buffed
-			writeIORef we $ take lid ls ++ [tail newLayer] ++ drop (lid + 1) ls
-		else writeIORef we $ take lid ls ++ [newLayer] ++ drop (lid + 1) ls
 
 setExposeAction :: Field -> Layer -> (Field -> Bool -> IO ()) -> IO ()
 setExposeAction w@Field{fLayers = we} Layer{layerId = lid} act = do
@@ -198,31 +245,6 @@ setCharacterAction :: Field -> Character -> IO () -> IO ()
 setCharacterAction Field{fCharacters = wc} Character{characterId = cid} act = do
 	cs <- readIORef wc
 	writeIORef wc $ take cid cs ++ [act] ++ drop (cid + 1) cs
-
-addLayer :: Field -> IO Layer
-addLayer f@Field{fLayers = we, fBuffed = wb} = do
-	ls <- readIORef we
-	modifyIORef we (++ [[]])
-	modifyIORef wb (++ [return ()])
-	return Layer{layerField = f, layerId = length ls}
-
-addCharacter :: Field -> IO Character
-addCharacter f@Field{fCharacters = wc} = do
-	cs <- readIORef wc
-	modifyIORef wc (++ [return ()])
-	return Character{characterId = length cs, characterField = f}
-
-layerSize :: Layer -> IO (Double, Double)
-layerSize = fieldSize . layerField
-
-fieldSize :: Field -> IO (Double, Double)
-fieldSize w = fmap (fromIntegral *** fromIntegral) $ fieldSizeRaw w
-
-fieldSizeRaw :: Field -> IO (Dimension, Dimension)
-fieldSizeRaw w = do
-	width <- readIORef $ fWidth w
-	height <- readIORef $ fHeight w
-	return (width, height)
 
 undoBufToBG :: Field -> IO ()
 undoBufToBG w = do
@@ -255,25 +277,6 @@ drawCharacterAndLine ::	Character -> [(Double, Double)] -> (Double, Double) ->
 drawCharacterAndLine c@Character{characterField = w} ps (x1, y1) (x2, y2) = do
 	setCharacter w c (fillPolygonBuf w ps >> lineBuf w x1 y1 x2 y2)
 	flushWin w
-
-drawLine :: Layer -> Double -> Double -> Double -> Double -> IO ()
-drawLine l@Layer{layerField = w} x1_ y1_ x2_ y2_ = do
-	(width, height) <- fieldSize w
-	let	x1 = x1_ + (width / 2)
-		x2 = x2_ + (width / 2)
-		y1 = - y1_ + (height / 2)
-		y2 = - y2_ + (height / 2)
-	lineWin w x1 y1 x2 y2
-	addExposeAction w l $ \w' buf -> do
-		(x1', y1') <- convertPos w' x1_ y1_
-		(x2', y2') <- convertPos w' x2_ y2_
-		if buf	then lineUndoBuf w' x1' y1' x2' y2'
-			else lineWin w' x1' y1' x2' y2'
-
-convertPos :: Field -> Double -> Double -> IO (Double, Double)
-convertPos w x y = do
-	(width, height) <- fieldSize w
-	return (x + width / 2, - y + height / 2)
 
 lineWin :: Field -> Double -> Double -> Double -> Double -> IO ()
 lineWin w x1_ y1_ x2_ y2_ = do
