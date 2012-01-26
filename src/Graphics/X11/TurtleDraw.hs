@@ -59,7 +59,7 @@ turtleDrawNotUndo f c l t0 t1 = do
 			forM_ (getPoints px py nx ny) $ \p -> do
 				drawTurtle f c shape size dir p $ Just prePos
 				threadDelay 50000
-			line f l px py nx ny
+			drawLine f l px py nx ny
 		else forM_ (getPoints px py nx ny) $ \p -> do
 			drawTurtle f c shape size dir p Nothing
 			threadDelay 50000
@@ -92,8 +92,8 @@ drawTurtle :: Field -> Character -> [(Double, Double)] -> Double -> Double ->
 	(Double, Double) -> Maybe (Double, Double) -> IO ()
 drawTurtle w c sh s d (x, y) org = do
 	let sp = mkShape sh s d x y
-	maybe (setPolygonCharacter w c sp)
-		(flip (setPolygonCharacterAndLine w c sp) (x, y)) org
+	maybe (drawCharacter w c sp)
+		(flip (drawCharacterAndLine w c sp) (x, y)) org
 
 mkShape ::
 	[(Double, Double)] -> Double -> Double -> Double -> Double -> [(Double, Double)]

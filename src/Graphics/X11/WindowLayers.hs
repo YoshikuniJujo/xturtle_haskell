@@ -10,9 +10,9 @@ module Graphics.X11.WindowLayers (
 	addLayer,
 	addCharacter,
 
-	line,
-	setPolygonCharacter,
-	setPolygonCharacterAndLine,
+	drawLine,
+	drawCharacter,
+	drawCharacterAndLine,
 
 	undoLayer,
 	clearLayer,
@@ -28,13 +28,14 @@ import Graphics.X11(
 	createSimpleWindow, mapWindow, createPixmap, internAtom, createGC,
 
 	setForeground, copyArea,
-	drawLine, fillRectangle, fillPolygon, nonconvex, coordModeOrigin,
+	fillRectangle, fillPolygon, nonconvex, coordModeOrigin,
 
 	setWMProtocols, selectInput, allocaXEvent, nextEvent,
 	keyPressMask, exposureMask,
 
 	getGeometry, initThreads
  )
+import qualified Graphics.X11 as X (drawLine)
 import Graphics.X11.Xlib.Extras(Event(..), getEvent)
 import Graphics.X11.Xlib.Types
 import Control.Monad.Tools(doWhile_)
@@ -230,22 +231,22 @@ fillPolygonBuf w ps = do
 	let	dtp (x, y) = Point (round $ x + width / 2) (round $ - y + height / 2)
 	fillPolygon (wDisplay w) (wBuf w) (wGC w) (map dtp ps) nonconvex coordModeOrigin
 
-setPolygonCharacter :: Field -> Character -> [(Double, Double)] -> IO ()
-setPolygonCharacter w c ps = do
+drawCharacter :: Field -> Character -> [(Double, Double)] -> IO ()
+drawCharacter w c ps = do
 	setCharacter w c (fillPolygonBuf w ps)
 	bufToWin w
 	flushWin w
 
-setPolygonCharacterAndLine ::
+drawCharacterAndLine ::
 	Field -> Character -> [(Double, Double)] -> (Double, Double) ->
 		(Double, Double) -> IO ()
-setPolygonCharacterAndLine w c ps (x1, y1) (x2, y2) = do
+drawCharacterAndLine w c ps (x1, y1) (x2, y2) = do
 	setCharacter w c (fillPolygonBuf w ps >> lineBuf w x1 y1 x2 y2)
 	bufToWin w
 	flushWin w
 
-line :: Field -> Layer -> Double -> Double -> Double -> Double -> IO ()
-line w l x1_ y1_ x2_ y2_ = do
+drawLine :: Field -> Layer -> Double -> Double -> Double -> Double -> IO ()
+drawLine w l x1_ y1_ x2_ y2_ = do
 	(width, height) <- fieldSize w
 	let	x1 = x1_ + (width / 2)
 		x2 = x2_ + (width / 2)
@@ -265,14 +266,14 @@ convertPos w x y = do
 
 lineWin :: Field -> Double -> Double -> Double -> Double -> IO ()
 lineWin w x1_ y1_ x2_ y2_ = do
-	drawLine (wDisplay w) (wBG w) (wGC w) x1 y1 x2 y2
+	X.drawLine (wDisplay w) (wBG w) (wGC w) x1 y1 x2 y2
 	bgToBuf w
 	readIORef (wChars w) >>= sequence_
 	where	[x1, y1, x2, y2] = map round [x1_, y1_, x2_, y2_]
 
 lineUndoBuf :: Field -> Double -> Double -> Double -> Double -> IO ()
 lineUndoBuf w x1_ y1_ x2_ y2_ =
-	drawLine (wDisplay w) (wUndoBuf w) (wGC w) x1 y1 x2 y2
+	X.drawLine (wDisplay w) (wUndoBuf w) (wGC w) x1 y1 x2 y2
 	where	[x1, y1, x2, y2] = map round [x1_, y1_, x2_, y2_]
 
 lineBuf :: Field -> Double -> Double -> Double -> Double -> IO ()
@@ -280,7 +281,7 @@ lineBuf w x1__ y1__ x2__ y2__ = do
 	(x1_, y1_) <- convertPos w x1__ y1__
 	(x2_, y2_) <- convertPos w x2__ y2__
 	let	[x1, y1, x2, y2] = map round [x1_, y1_, x2_, y2_]
-	drawLine (wDisplay w) (wBuf w) (wGC w) x1 y1 x2 y2
+	X.drawLine (wDisplay w) (wBuf w) (wGC w) x1 y1 x2 y2
 
 clearUndoBuf :: Field -> IO ()
 clearUndoBuf w = winSizeRaw w >>=
