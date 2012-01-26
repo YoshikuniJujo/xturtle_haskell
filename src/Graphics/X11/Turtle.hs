@@ -126,8 +126,8 @@ distance t x0 y0 = do
 	return $ ((x - x0) ** 2 + (y - y0) ** 2) ** (1 / 2)
 
 windowWidth, windowHeight :: Turtle -> IO Double
-windowWidth = fmap fst . winSize . field
-windowHeight = fmap snd . winSize . field
+windowWidth = fmap fst . fieldSize . field
+windowHeight = fmap snd . fieldSize . field
 
 pendown, penup :: Turtle -> IO ()
 pendown Turtle{inputChan = c, stateNow = sn} = do

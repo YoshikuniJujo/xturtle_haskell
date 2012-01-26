@@ -5,7 +5,7 @@ module Graphics.X11.WindowLayers (
 
 	openField,
 	closeField,
-	winSize,
+	fieldSize,
 
 	addLayer,
 	addCharacter,
@@ -200,8 +200,8 @@ addCharacter Field{wChars = wc} = do
 	modifyIORef wc (++ [return ()])
 	return $ Character $ length cs
 
-winSize :: Field -> IO (Double, Double)
-winSize w = fmap (fromIntegral *** fromIntegral) $ winSizeRaw w
+fieldSize :: Field -> IO (Double, Double)
+fieldSize w = fmap (fromIntegral *** fromIntegral) $ winSizeRaw w
 
 winSizeRaw :: Field -> IO (Dimension, Dimension)
 winSizeRaw w = do
@@ -226,7 +226,7 @@ bufToWin w = do
 
 fillPolygonBuf :: Field -> [(Double, Double)] -> IO ()
 fillPolygonBuf w ps = do
-	(width, height) <- winSize w
+	(width, height) <- fieldSize w
 	let	dtp (x, y) = Point (round $ x + width / 2) (round $ - y + height / 2)
 	fillPolygon (wDisplay w) (wBuf w) (wGC w) (map dtp ps) nonconvex coordModeOrigin
 
@@ -239,14 +239,14 @@ setPolygonCharacter w c ps = do
 setPolygonCharacterAndLine ::
 	Field -> Character -> [(Double, Double)] -> (Double, Double) ->
 		(Double, Double) -> IO ()
-setPolygonCharacterAndLine w c ps (x1_, y1_) (x2_, y2_) = do
-	setCharacter w c (fillPolygonBuf w ps >> lineBuf w x1_ y1_ x2_ y2_)
+setPolygonCharacterAndLine w c ps (x1, y1) (x2, y2) = do
+	setCharacter w c (fillPolygonBuf w ps >> lineBuf w x1 y1 x2 y2)
 	bufToWin w
 	flushWin w
 
 line :: Field -> Layer -> Double -> Double -> Double -> Double -> IO ()
 line w l x1_ y1_ x2_ y2_ = do
-	(width, height) <- winSize w
+	(width, height) <- fieldSize w
 	let	x1 = x1_ + (width / 2)
 		x2 = x2_ + (width / 2)
 		y1 = - y1_ + (height / 2)
@@ -260,7 +260,7 @@ line w l x1_ y1_ x2_ y2_ = do
 
 convertPos :: Field -> Double -> Double -> IO (Double, Double)
 convertPos w x y = do
-	(width, height) <- winSize w
+	(width, height) <- fieldSize w
 	return (x + width / 2, - y + height / 2)
 
 lineWin :: Field -> Double -> Double -> Double -> Double -> IO ()
