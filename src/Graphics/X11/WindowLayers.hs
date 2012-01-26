@@ -21,7 +21,7 @@ module Graphics.X11.WindowLayers (
 ) where
 
 import Graphics.X11(
-	Window, Pixmap, Atom,
+	Display, Window, Pixmap, Atom, GC, Point(..), Dimension,
 
 	openDisplay, closeDisplay, flush, defaultScreen, rootWindow,
 	whitePixel, blackPixel,	defaultDepth,
@@ -37,28 +37,29 @@ import Graphics.X11(
  )
 import qualified Graphics.X11 as X (drawLine)
 import Graphics.X11.Xlib.Extras(Event(..), getEvent)
-import Graphics.X11.Xlib.Types
-import Control.Monad.Tools(doWhile_)
-import Control.Arrow((***))
-import Control.Concurrent(forkIO, ThreadId)
+
 import Data.IORef(IORef, newIORef, readIORef, writeIORef, modifyIORef)
 import Data.Bits((.|.))
 import Data.Convertible(convert)
+
+import Control.Monad.Tools(doWhile_)
+import Control.Arrow((***))
+import Control.Concurrent(forkIO, ThreadId)
 
 data Field = Field{
 	fDisplay :: Display,
 	fWindow :: Window,
 	fGC :: GC,
-	fGCWhite :: GC,
+	fGCBG :: GC,
 	fDel :: Atom,
 	fUndoBuf :: Pixmap,
 	fBG :: Pixmap,
 	fBuf :: Pixmap,
 	fWidth :: IORef Dimension,
 	fHeight :: IORef Dimension,
-	fExpose :: IORef [[Bool -> IO ()]],
 	fBuffed :: IORef [IO ()],
-	fChars :: IORef [IO ()]
+	fLayers :: IORef [[Bool -> IO ()]],
+	fCharacters :: IORef [IO ()]
  }
 
 data Layer = Layer Int
@@ -99,8 +100,21 @@ openField = do
 	exposeAction <- newIORef []
 	buffedAction <- newIORef []
 	charActions <- newIORef []
-	let w = Field dpy win gc gcWhite del undoBuf bg buf widthRef heightRef
-		exposeAction buffedAction charActions
+	let w = Field{
+		fDisplay = dpy,
+		fWindow = win,
+		fGC = gc,
+		fGCBG = gcWhite,
+		fDel = del,
+		fUndoBuf = undoBuf,
+		fBG = bg,
+		fBuf = buf,
+		fWidth = widthRef,
+		fHeight = heightRef,
+		fBuffed = buffedAction,
+		fLayers = exposeAction,
+		fCharacters = charActions
+	 }
 	_ <- forkIO $ (>> closeDisplay dpy) $ (initThreads >>) $ withEvent w $ \ev ->
 		case ev of
 			ExposeEvent{} -> do
@@ -143,14 +157,14 @@ clearLayer w l@(Layer lid) = do
 	clearUndoBuf w
 	sequence_ nBuffed
 	undoBufToBG w
-	readIORef (fExpose w) >>= mapM_ ($ False) . concat
+	readIORef (fLayers w) >>= mapM_ ($ False) . concat
 	bgToBuf w
-	readIORef (fChars w) >>= sequence_
+	readIORef (fCharacters w) >>= sequence_
 	bufToWin w
 	flushWin w
 
 addExposeAction :: Field -> Layer -> (Field -> Bool -> IO ()) -> IO ()
-addExposeAction w@Field{fExpose = we} (Layer lid) act = do
+addExposeAction w@Field{fLayers = we} (Layer lid) act = do
 	ls <- readIORef we
 	let	theLayer = ls !! lid
 		newLayer = theLayer ++ [act w]
@@ -164,39 +178,39 @@ addExposeAction w@Field{fExpose = we} (Layer lid) act = do
 		else writeIORef we $ take lid ls ++ [newLayer] ++ drop (lid + 1) ls
 
 setExposeAction :: Field -> Layer -> (Field -> Bool -> IO ()) -> IO ()
-setExposeAction w@Field{fExpose = we} (Layer lid) act = do
+setExposeAction w@Field{fLayers = we} (Layer lid) act = do
 	ls <- readIORef we
 	writeIORef we $ take lid ls ++ [[act w]] ++ drop (lid + 1) ls
 
 undoLayer :: Field -> Layer -> IO ()
-undoLayer w@Field{fExpose = we} (Layer lid) = do
+undoLayer w@Field{fLayers = we} (Layer lid) = do
 	ls <- readIORef we
 	writeIORef we $ take lid ls ++ [init (ls !! lid)] ++ drop (lid + 1) ls
 	undoBufToBG w
 	readIORef we >>= mapM_ ($ False) . concat
 	bgToBuf w
-	readIORef (fChars w) >>= sequence_
+	readIORef (fCharacters w) >>= sequence_
 
 setCharacter :: Field -> Character -> IO () -> IO ()
 setCharacter w c act = do
 	bgToBuf w
 	setCharacterAction w c act
-	readIORef (fChars w) >>= sequence_
+	readIORef (fCharacters w) >>= sequence_
 
 setCharacterAction :: Field -> Character -> IO () -> IO ()
-setCharacterAction Field{fChars = wc} (Character cid) act = do
+setCharacterAction Field{fCharacters = wc} (Character cid) act = do
 	cs <- readIORef wc
 	writeIORef wc $ take cid cs ++ [act] ++ drop (cid + 1) cs
 
 addLayer :: Field -> IO Layer
-addLayer Field{fExpose = we, fBuffed = wb} = do
+addLayer Field{fLayers = we, fBuffed = wb} = do
 	ls <- readIORef we
 	modifyIORef we (++ [[]])
 	modifyIORef wb (++ [return ()])
 	return $ Layer $ length ls
 
 addCharacter :: Field -> IO Character
-addCharacter Field{fChars = wc} = do
+addCharacter Field{fCharacters = wc} = do
 	cs <- readIORef wc
 	modifyIORef wc (++ [return ()])
 	return $ Character $ length cs
@@ -268,7 +282,7 @@ lineWin :: Field -> Double -> Double -> Double -> Double -> IO ()
 lineWin w x1_ y1_ x2_ y2_ = do
 	X.drawLine (fDisplay w) (fBG w) (fGC w) x1 y1 x2 y2
 	bgToBuf w
-	readIORef (fChars w) >>= sequence_
+	readIORef (fCharacters w) >>= sequence_
 	where	[x1, y1, x2, y2] = map round [x1_, y1_, x2_, y2_]
 
 lineUndoBuf :: Field -> Double -> Double -> Double -> Double -> IO ()
@@ -285,7 +299,7 @@ lineBuf w x1__ y1__ x2__ y2__ = do
 
 clearUndoBuf :: Field -> IO ()
 clearUndoBuf w = fieldSizeRaw w >>=
-	uncurry (fillRectangle (fDisplay w) (fUndoBuf w) (fGCWhite w) 0 0)
+	uncurry (fillRectangle (fDisplay w) (fUndoBuf w) (fGCBG w) 0 0)
 
 flushWin :: Field -> IO ()
 flushWin = flush . fDisplay
