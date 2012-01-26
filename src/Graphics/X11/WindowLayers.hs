@@ -43,6 +43,7 @@ import Data.Bits((.|.))
 import Data.Convertible(convert)
 
 import Control.Monad.Tools(doWhile_)
+import Control.Monad(replicateM, forM_)
 import Control.Arrow((***))
 import Control.Concurrent(forkIO, ThreadId)
 
@@ -71,11 +72,8 @@ data Character = Character{
 	characterId :: Int
  }
 
-closeField :: Field -> IO ()
-closeField = closeDisplay . fDisplay
-
 forkIOX :: IO () -> IO ThreadId
-forkIOX io = initThreads >> forkIO io
+forkIOX = (initThreads >>) . forkIO
 
 openField :: IO Field
 openField = do
@@ -88,40 +86,41 @@ openField = do
 	let	black = blackPixel dpy scr
 		white = whitePixel dpy scr
 		depth = defaultDepth dpy scr
-	undoBuf <- createPixmap dpy root rWidth rHeight depth
-	bg <- createPixmap dpy root rWidth rHeight depth
-	buf <- createPixmap dpy root rWidth rHeight depth
+	bufs <- replicateM 3 $ createPixmap dpy root rWidth rHeight depth
 	win <- createSimpleWindow dpy root 0 0 rWidth rHeight 1 black white
-	gc <- createGC dpy win
-	gcWhite <- createGC dpy win
-	setForeground dpy gcWhite 0xffffff
-	fillRectangle dpy bg gcWhite 0 0 rWidth rHeight
-	fillRectangle dpy buf gcWhite 0 0 rWidth rHeight
-	fillRectangle dpy undoBuf gcWhite 0 0 rWidth rHeight
+	[gc, gcBG] <- replicateM 2 $ createGC dpy win
+	setForeground dpy gcBG 0xffffff
+	forM_ bufs $ \bf -> fillRectangle dpy bf gcBG 0 0 rWidth rHeight
 	setWMProtocols dpy win [del]
 	selectInput dpy win $ exposureMask .|. keyPressMask
 	mapWindow dpy win
-	widthRef <- newIORef rWidth
-	heightRef <- newIORef rHeight
-	exposeAction <- newIORef []
-	buffedAction <- newIORef []
-	charActions <- newIORef []
+	[widthRef, heightRef] <- mapM newIORef [rWidth, rHeight]
+	buffActions <- newIORef []
+	layerActions <- newIORef []
+	characterActions <- newIORef []
 	let w = Field{
 		fDisplay = dpy,
 		fWindow = win,
 		fGC = gc,
-		fGCBG = gcWhite,
+		fGCBG = gcBG,
 		fDel = del,
-		fUndoBuf = undoBuf,
-		fBG = bg,
-		fBuf = buf,
+		fUndoBuf = bufs !! 0,
+		fBG = bufs !! 1,
+		fBuf = bufs !! 2,
 		fWidth = widthRef,
 		fHeight = heightRef,
-		fBuffed = buffedAction,
-		fLayers = exposeAction,
-		fCharacters = charActions
+		fBuffed = buffActions,
+		fLayers = layerActions,
+		fCharacters = characterActions
 	 }
-	_ <- forkIO $ (>> closeDisplay dpy) $ (initThreads >>) $ withEvent w $ \ev ->
+	_ <- forkIO $ runField w
+	flushWin w
+	return w
+
+runField :: Field -> IO ()
+runField w =
+ (>> closeDisplay (fDisplay w)) $ (initThreads >>) $
+	    withEvent w $ \ev ->
 		case ev of
 			ExposeEvent{} -> do
 				(_, _, _, width, height, _, _) <-
@@ -129,10 +128,10 @@ openField = do
 				writeIORef (fWidth w) width
 				writeIORef (fHeight w) height
 				clearUndoBuf w
-				readIORef buffedAction >>= sequence_
+				readIORef (fBuffed w) >>= sequence_
 				undoBufToBG w
-				readIORef exposeAction >>= mapM_ ($ False) . concat
-				readIORef charActions >>= sequence_
+				readIORef (fLayers w) >>= mapM_ ($ False) . concat
+				readIORef (fCharacters w) >>= sequence_
 				bufToWin w
 				flushWin w
 				return True
@@ -140,15 +139,16 @@ openField = do
 			ClientMessageEvent{} ->
 				return $ not $ isDeleteEvent w ev
 			_ -> return True
-	flushWin w
-	return w
 	where
-	withEvent w act = doWhile_ $ allocaXEvent $ \e -> do
-		nextEvent (fDisplay w) e
+	withEvent w' act = doWhile_ $ allocaXEvent $ \e -> do
+		nextEvent (fDisplay w') e
 		getEvent e >>= act
-	isDeleteEvent w ev@ClientMessageEvent{} =
-		convert (head $ ev_data ev) == fDel w
+	isDeleteEvent w' ev@ClientMessageEvent{} =
+		convert (head $ ev_data ev) == fDel w'
 	isDeleteEvent _ _ = False
+
+closeField :: Field -> IO ()
+closeField = closeDisplay . fDisplay
 
 undoN :: Int
 undoN = 100
@@ -162,10 +162,7 @@ clearLayer l@Layer{layerField = w, layerId = lid} = do
 	nBuffed <- readIORef $ fBuffed w
 	clearUndoBuf w
 	sequence_ nBuffed
-	undoBufToBG w
-	readIORef (fLayers w) >>= mapM_ ($ False) . concat
-	bgToBuf w
-	readIORef (fCharacters w) >>= sequence_
+	redraw w
 	bufToWin w
 	flushWin w
 
@@ -192,6 +189,10 @@ undoLayer :: Layer -> IO ()
 undoLayer Layer{layerField = w, layerId = lid} = do
 	ls <- readIORef $ fLayers w
 	writeIORef (fLayers w) $ take lid ls ++ [init (ls !! lid)] ++ drop (lid + 1) ls
+	redraw w
+
+redraw :: Field -> IO ()
+redraw w = do
 	undoBufToBG w
 	readIORef (fLayers w) >>= mapM_ ($ False) . concat
 	bgToBuf w
@@ -213,13 +214,13 @@ addLayer f@Field{fLayers = we, fBuffed = wb} = do
 	ls <- readIORef we
 	modifyIORef we (++ [[]])
 	modifyIORef wb (++ [return ()])
-	return $ Layer{layerField = f, layerId = length ls}
+	return Layer{layerField = f, layerId = length ls}
 
 addCharacter :: Field -> IO Character
 addCharacter f@Field{fCharacters = wc} = do
 	cs <- readIORef wc
 	modifyIORef wc (++ [return ()])
-	return $ Character{characterId = length cs, characterField = f}
+	return Character{characterId = length cs, characterField = f}
 
 layerSize :: Layer -> IO (Double, Double)
 layerSize = fieldSize . layerField
