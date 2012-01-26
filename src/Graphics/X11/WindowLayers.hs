@@ -104,7 +104,7 @@ openField = do
 		fGC = gc,
 		fGCBG = gcBG,
 		fDel = del,
-		fUndoBuf = bufs !! 0,
+		fUndoBuf = head bufs,
 		fBG = bufs !! 1,
 		fBuf = bufs !! 2,
 		fWidth = widthRef,
@@ -113,39 +113,28 @@ openField = do
 		fLayers = layerActions,
 		fCharacters = characterActions
 	 }
-	_ <- forkIO $ runField w
+	_ <- forkIOX $ runLoop w
 	flushWin w
 	return w
 
-runField :: Field -> IO ()
-runField w =
- (>> closeDisplay (fDisplay w)) $ (initThreads >>) $
-	    withEvent w $ \ev ->
-		case ev of
-			ExposeEvent{} -> do
-				(_, _, _, width, height, _, _) <-
-					getGeometry (fDisplay w) (fWindow w)
-				writeIORef (fWidth w) width
-				writeIORef (fHeight w) height
-				clearUndoBuf w
-				readIORef (fBuffed w) >>= sequence_
-				undoBufToBG w
-				readIORef (fLayers w) >>= mapM_ ($ False) . concat
-				readIORef (fCharacters w) >>= sequence_
-				bufToWin w
-				flushWin w
-				return True
-			KeyEvent{} -> return True
-			ClientMessageEvent{} ->
-				return $ not $ isDeleteEvent w ev
-			_ -> return True
-	where
-	withEvent w' act = doWhile_ $ allocaXEvent $ \e -> do
-		nextEvent (fDisplay w') e
-		getEvent e >>= act
-	isDeleteEvent w' ev@ClientMessageEvent{} =
-		convert (head $ ev_data ev) == fDel w'
-	isDeleteEvent _ _ = False
+runLoop :: Field -> IO ()
+runLoop w = (>> closeField w) $	doWhile_ $ allocaXEvent $ \e -> do
+	nextEvent (fDisplay w) e
+	ev <- getEvent e
+	case ev of
+		ExposeEvent{} -> do
+			(_, _, _, width, height, _, _) <-
+				getGeometry (fDisplay w) (fWindow w)
+			writeIORef (fWidth w) width
+			writeIORef (fHeight w) height
+			redrawBuf w
+			redraw w
+			flushWin w
+			return True
+		KeyEvent{} -> return True
+		ClientMessageEvent{} ->
+			return $ convert (head $ ev_data ev) /= fDel w
+		_ -> return True
 
 closeField :: Field -> IO ()
 closeField = closeDisplay . fDisplay
@@ -159,12 +148,14 @@ clearLayer l@Layer{layerField = w, layerId = lid} = do
 	buffed <- readIORef $ fBuffed w
 	writeIORef (fBuffed w) $
 		take lid buffed ++ [return ()] ++ drop (lid + 1) buffed
-	nBuffed <- readIORef $ fBuffed w
-	clearUndoBuf w
-	sequence_ nBuffed
+	redrawBuf w
 	redraw w
-	bufToWin w
 	flushWin w
+
+redrawBuf :: Field -> IO ()
+redrawBuf f = do
+	clearUndoBuf f
+	readIORef (fBuffed f) >>= sequence_
 
 addExposeAction :: Field -> Layer -> (Field -> Bool -> IO ()) -> IO ()
 addExposeAction w@Field{fLayers = we} Layer{layerId = lid} act = do
@@ -195,7 +186,6 @@ redraw :: Field -> IO ()
 redraw w = do
 	undoBufToBG w
 	readIORef (fLayers w) >>= mapM_ ($ False) . concat
-	bgToBuf w
 	readIORef (fCharacters w) >>= sequence_
 
 setCharacter :: Field -> Character -> IO () -> IO ()
@@ -258,14 +248,12 @@ fillPolygonBuf w ps = do
 drawCharacter :: Character -> [(Double, Double)] -> IO ()
 drawCharacter c@Character{characterField = w} ps = do
 	setCharacter w c (fillPolygonBuf w ps)
-	bufToWin w
 	flushWin w
 
 drawCharacterAndLine ::	Character -> [(Double, Double)] -> (Double, Double) ->
 		(Double, Double) -> IO ()
 drawCharacterAndLine c@Character{characterField = w} ps (x1, y1) (x2, y2) = do
 	setCharacter w c (fillPolygonBuf w ps >> lineBuf w x1 y1 x2 y2)
-	bufToWin w
 	flushWin w
 
 drawLine :: Layer -> Double -> Double -> Double -> Double -> IO ()
@@ -311,7 +299,9 @@ clearUndoBuf w = fieldSizeRaw w >>=
 	uncurry (fillRectangle (fDisplay w) (fUndoBuf w) (fGCBG w) 0 0)
 
 flushWin :: Field -> IO ()
-flushWin = flush . fDisplay
+flushWin f = do
+	bufToWin f
+	flush $ fDisplay f
 
 {-
 changeColor :: Win -> Pixel -> IO ()

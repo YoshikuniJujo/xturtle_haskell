@@ -36,7 +36,7 @@ import Data.IORef
 import Control.Arrow(second)
 
 xturtleVersion :: (Int, String)
-xturtleVersion = (1, "0.0.5a")
+xturtleVersion = (1, "0.0.5b")
 
 data Turtle = Turtle {
 	inputChan :: Chan TurtleInput,
