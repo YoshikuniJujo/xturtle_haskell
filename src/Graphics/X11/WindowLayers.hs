@@ -5,7 +5,7 @@ module Graphics.X11.WindowLayers (
 
 	openField,
 	closeField,
-	fieldSize,
+	layerSize,
 
 	addLayer,
 	addCharacter,
@@ -62,8 +62,14 @@ data Field = Field{
 	fCharacters :: IORef [IO ()]
  }
 
-data Layer = Layer Int
-data Character = Character Int
+data Layer = Layer{
+	layerField :: Field,
+	layerId :: Int
+ }
+data Character = Character{
+	characterField :: Field,
+	characterId :: Int
+ }
 
 closeField :: Field -> IO ()
 closeField = closeDisplay . fDisplay
@@ -147,8 +153,8 @@ openField = do
 undoN :: Int
 undoN = 100
 
-clearLayer :: Field -> Layer -> IO ()
-clearLayer w l@(Layer lid) = do
+clearLayer :: Layer -> IO ()
+clearLayer l@Layer{layerField = w, layerId = lid} = do
 	setExposeAction w l (const $ const $ return ())
 	buffed <- readIORef $ fBuffed w
 	writeIORef (fBuffed w) $
@@ -164,7 +170,7 @@ clearLayer w l@(Layer lid) = do
 	flushWin w
 
 addExposeAction :: Field -> Layer -> (Field -> Bool -> IO ()) -> IO ()
-addExposeAction w@Field{fLayers = we} (Layer lid) act = do
+addExposeAction w@Field{fLayers = we} Layer{layerId = lid} act = do
 	ls <- readIORef we
 	let	theLayer = ls !! lid
 		newLayer = theLayer ++ [act w]
@@ -178,16 +184,16 @@ addExposeAction w@Field{fLayers = we} (Layer lid) act = do
 		else writeIORef we $ take lid ls ++ [newLayer] ++ drop (lid + 1) ls
 
 setExposeAction :: Field -> Layer -> (Field -> Bool -> IO ()) -> IO ()
-setExposeAction w@Field{fLayers = we} (Layer lid) act = do
+setExposeAction w@Field{fLayers = we} Layer{layerId = lid} act = do
 	ls <- readIORef we
 	writeIORef we $ take lid ls ++ [[act w]] ++ drop (lid + 1) ls
 
-undoLayer :: Field -> Layer -> IO ()
-undoLayer w@Field{fLayers = we} (Layer lid) = do
-	ls <- readIORef we
-	writeIORef we $ take lid ls ++ [init (ls !! lid)] ++ drop (lid + 1) ls
+undoLayer :: Layer -> IO ()
+undoLayer Layer{layerField = w, layerId = lid} = do
+	ls <- readIORef $ fLayers w
+	writeIORef (fLayers w) $ take lid ls ++ [init (ls !! lid)] ++ drop (lid + 1) ls
 	undoBufToBG w
-	readIORef we >>= mapM_ ($ False) . concat
+	readIORef (fLayers w) >>= mapM_ ($ False) . concat
 	bgToBuf w
 	readIORef (fCharacters w) >>= sequence_
 
@@ -198,22 +204,25 @@ setCharacter w c act = do
 	readIORef (fCharacters w) >>= sequence_
 
 setCharacterAction :: Field -> Character -> IO () -> IO ()
-setCharacterAction Field{fCharacters = wc} (Character cid) act = do
+setCharacterAction Field{fCharacters = wc} Character{characterId = cid} act = do
 	cs <- readIORef wc
 	writeIORef wc $ take cid cs ++ [act] ++ drop (cid + 1) cs
 
 addLayer :: Field -> IO Layer
-addLayer Field{fLayers = we, fBuffed = wb} = do
+addLayer f@Field{fLayers = we, fBuffed = wb} = do
 	ls <- readIORef we
 	modifyIORef we (++ [[]])
 	modifyIORef wb (++ [return ()])
-	return $ Layer $ length ls
+	return $ Layer{layerField = f, layerId = length ls}
 
 addCharacter :: Field -> IO Character
-addCharacter Field{fCharacters = wc} = do
+addCharacter f@Field{fCharacters = wc} = do
 	cs <- readIORef wc
 	modifyIORef wc (++ [return ()])
-	return $ Character $ length cs
+	return $ Character{characterId = length cs, characterField = f}
+
+layerSize :: Layer -> IO (Double, Double)
+layerSize = fieldSize . layerField
 
 fieldSize :: Field -> IO (Double, Double)
 fieldSize w = fmap (fromIntegral *** fromIntegral) $ fieldSizeRaw w
@@ -245,22 +254,21 @@ fillPolygonBuf w ps = do
 	let	dtp (x, y) = Point (round $ x + width / 2) (round $ - y + height / 2)
 	fillPolygon (fDisplay w) (fBuf w) (fGC w) (map dtp ps) nonconvex coordModeOrigin
 
-drawCharacter :: Field -> Character -> [(Double, Double)] -> IO ()
-drawCharacter w c ps = do
+drawCharacter :: Character -> [(Double, Double)] -> IO ()
+drawCharacter c@Character{characterField = w} ps = do
 	setCharacter w c (fillPolygonBuf w ps)
 	bufToWin w
 	flushWin w
 
-drawCharacterAndLine ::
-	Field -> Character -> [(Double, Double)] -> (Double, Double) ->
+drawCharacterAndLine ::	Character -> [(Double, Double)] -> (Double, Double) ->
 		(Double, Double) -> IO ()
-drawCharacterAndLine w c ps (x1, y1) (x2, y2) = do
+drawCharacterAndLine c@Character{characterField = w} ps (x1, y1) (x2, y2) = do
 	setCharacter w c (fillPolygonBuf w ps >> lineBuf w x1 y1 x2 y2)
 	bufToWin w
 	flushWin w
 
-drawLine :: Field -> Layer -> Double -> Double -> Double -> Double -> IO ()
-drawLine w l x1_ y1_ x2_ y2_ = do
+drawLine :: Layer -> Double -> Double -> Double -> Double -> IO ()
+drawLine l@Layer{layerField = w} x1_ y1_ x2_ y2_ = do
 	(width, height) <- fieldSize w
 	let	x1 = x1_ + (width / 2)
 		x2 = x2_ + (width / 2)

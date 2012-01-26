@@ -9,7 +9,7 @@ module Graphics.X11.TurtleDraw (
 	clearLayer,
 	turtleDraw,
 
-	fieldSize,
+	layerSize,
 	forkIOX
 ) where
 
@@ -20,12 +20,12 @@ import Control.Monad
 import Graphics.X11.WindowLayers
 
 turtleDraw, turtleDrawNotUndo, turtleDrawUndo ::
-	Field -> Character -> Layer -> TurtleState -> TurtleState -> IO ()
-turtleDraw f c l t0 t1 = do
+	Character -> Layer -> TurtleState -> TurtleState -> IO ()
+turtleDraw c l t0 t1 = do
 	let	isUndo = turtleUndo t1
-	if isUndo then turtleDrawUndo f c l t0 t1
-		else turtleDrawNotUndo f c l t0 t1
-turtleDrawUndo f c l t0 t1 = do
+	if isUndo then turtleDrawUndo c l t0 t1
+		else turtleDrawNotUndo c l t0 t1
+turtleDrawUndo c l t0 t1 = do
 	let	shape = turtleShape t1
 		size = turtleSize t1
 		prePos@(px, py) = turtlePos t0
@@ -35,17 +35,17 @@ turtleDrawUndo f c l t0 t1 = do
 		dir = turtleDir t1
 --		doneLine = turtleLineDone t0
 --	when doneLine $ undoLayer f l
-	when pen $ undoLayer f l
+	when pen $ undoLayer l
 	forM_ (getDirections preDir dir) $ \d -> do
-		drawTurtle f c shape size d prePos Nothing
+		drawTurtle c shape size d prePos Nothing
 		threadDelay 10000
 	if pen then forM_ (getPoints px py nx ny) $ \p -> do
-			drawTurtle f c shape size dir p $ Just pos
+			drawTurtle c shape size dir p $ Just pos
 			threadDelay 50000
 		else forM_ (getPoints px py nx ny) $ \p -> do
-			drawTurtle f c shape size dir p Nothing
+			drawTurtle c shape size dir p Nothing
 			threadDelay 50000
-turtleDrawNotUndo f c l t0 t1 = do
+turtleDrawNotUndo c l t0 t1 = do
 	let	shape = turtleShape t1
 		size = turtleSize t1
 		prePos@(px, py) = turtlePos t0
@@ -54,14 +54,14 @@ turtleDrawNotUndo f c l t0 t1 = do
 		(nx, ny) = turtlePos t1
 		dir = turtleDir t1
 	forM_ (getDirections preDir dir) $ \d ->
-		drawTurtle f c shape size d prePos Nothing
+		drawTurtle c shape size d prePos Nothing
 	if prePen then do
 			forM_ (getPoints px py nx ny) $ \p -> do
-				drawTurtle f c shape size dir p $ Just prePos
+				drawTurtle c shape size dir p $ Just prePos
 				threadDelay 50000
-			drawLine f l px py nx ny
+			drawLine l px py nx ny
 		else forM_ (getPoints px py nx ny) $ \p -> do
-			drawTurtle f c shape size dir p Nothing
+			drawTurtle c shape size dir p Nothing
 			threadDelay 50000
 
 step :: Double
@@ -88,12 +88,12 @@ getDirections ds de = takeWhile beforeDir [ds, ds + dd ..] ++ [de]
         dd = sig * stepDir
         beforeDir x = sig * x < sig * de
 
-drawTurtle :: Field -> Character -> [(Double, Double)] -> Double -> Double ->
+drawTurtle :: Character -> [(Double, Double)] -> Double -> Double ->
 	(Double, Double) -> Maybe (Double, Double) -> IO ()
-drawTurtle w c sh s d (x, y) org = do
+drawTurtle c sh s d (x, y) org = do
 	let sp = mkShape sh s d x y
-	maybe (drawCharacter w c sp)
-		(flip (drawCharacterAndLine w c sp) (x, y)) org
+	maybe (drawCharacter c sp)
+		(flip (drawCharacterAndLine c sp) (x, y)) org
 
 mkShape ::
 	[(Double, Double)] -> Double -> Double -> Double -> Double -> [(Double, Double)]

@@ -42,7 +42,6 @@ data Turtle = Turtle {
 	inputChan :: Chan TurtleInput,
 	states :: [TurtleState],
 	stateNow :: IORef Int,
-	field :: Field,
 	layer :: Layer,
 	character :: Character
  }
@@ -56,7 +55,6 @@ newTurtle f = do
 	let	sts = drop 4 $ inputToTurtle [] initialTurtleState ret
 		t = Turtle {
 			inputChan = c,
-			field = f,
 			layer = l,
 			character = ch,
 			states = sts,
@@ -68,7 +66,7 @@ newTurtle f = do
 	writeChan c $ Goto 0 0
 	writeChan c $ RotateTo 0
 	writeChan c $ Goto 0 0
-	_ <- forkIOX $ for2M_ sts $ turtleDraw f ch l
+	_ <- forkIOX $ for2M_ sts $ turtleDraw ch l
 	return t
 
 shape :: Turtle -> String -> IO ()
@@ -112,9 +110,9 @@ home :: Turtle -> IO ()
 home t = modifyIORef (stateNow t) (+ 1) >> goto t 0 0 >> rotateTo t 0
 
 clear :: Turtle -> IO ()
-clear t@Turtle{field = f, layer = l} = do
+clear t@Turtle{layer = l} = do
 	forward t 0
-	clearLayer f l
+	clearLayer l
 
 position :: Turtle -> IO (Double, Double)
 position Turtle{stateNow = sn, states = s} =
@@ -126,8 +124,8 @@ distance t x0 y0 = do
 	return $ ((x - x0) ** 2 + (y - y0) ** 2) ** (1 / 2)
 
 windowWidth, windowHeight :: Turtle -> IO Double
-windowWidth = fmap fst . fieldSize . field
-windowHeight = fmap snd . fieldSize . field
+windowWidth = fmap fst . layerSize . layer
+windowHeight = fmap snd . layerSize . layer
 
 pendown, penup :: Turtle -> IO ()
 pendown Turtle{inputChan = c, stateNow = sn} = do
