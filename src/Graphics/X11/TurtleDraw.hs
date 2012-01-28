@@ -53,8 +53,9 @@ turtleDrawNotUndo c l t0 t1 = do
 		preDir = turtleDir t0
 		(nx, ny) = turtlePos t1
 		dir = turtleDir t1
-	forM_ (getDirections preDir dir) $ \d ->
+	forM_ (getDirections preDir dir) $ \d -> do
 		drawTurtle c shape size d prePos Nothing
+		threadDelay 10000
 	if prePen then do
 			forM_ (getPoints px py nx ny) $ \p -> do
 				drawTurtle c shape size dir p $ Just prePos
@@ -93,7 +94,7 @@ drawTurtle :: Character -> [(Double, Double)] -> Double -> Double ->
 drawTurtle c sh s d (x, y) org = do
 	let sp = mkShape sh s d x y
 	maybe (drawCharacter c sp)
-		(flip (drawCharacterAndLine c sp) (x, y)) org
+		(\(x0, y0) -> (drawCharacterAndLine c sp x0 y0 x y)) org
 
 mkShape ::
 	[(Double, Double)] -> Double -> Double -> Double -> Double -> [(Double, Double)]

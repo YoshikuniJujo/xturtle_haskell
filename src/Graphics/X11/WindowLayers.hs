@@ -21,7 +21,7 @@ module Graphics.X11.WindowLayers(
 ) where
 
 import Graphics.X11(
-	Display, Window, Pixmap, Atom, GC, Point(..), Dimension,
+	Display, Window, Pixmap, Atom, GC, Point(..), Dimension, Position,
 
 	openDisplay, closeDisplay, flush, defaultScreen, rootWindow,
 	whitePixel, blackPixel,	defaultDepth,
@@ -41,7 +41,8 @@ import Graphics.X11.Xlib.Extras(Event(..), getEvent)
 import Data.IORef(IORef, newIORef, readIORef, writeIORef, modifyIORef)
 import Data.Bits((.|.))
 import Data.Convertible(convert)
-import Data.List.Tools(modifyAt)
+import Data.List.Tools(modifyAt, setAt)
+import Data.Bool.Tools(whether)
 
 import Control.Monad(replicateM, forM_)
 import Control.Monad.Tools(doWhile_)
@@ -166,20 +167,9 @@ addCharacter f = do
 
 drawLine :: Layer -> Double -> Double -> Double -> Double -> IO ()
 drawLine l@Layer{layerField = f} x1 y1 x2 y2 = do
-	drawLineBuf f fBG x1 y1 x2 y2
-	redrawCharacters f
-	addLayerAction l $ \undo ->
-		if undo	then drawLineBuf f fUndoBuf x1 y1 x2 y2
-			else do	drawLineBuf f fBG x1 y1 x2 y2
-				redrawCharacters f
-
-drawLineBuf :: Field -> (Field -> Pixmap) ->
-	Double -> Double -> Double -> Double -> IO ()
-drawLineBuf f@Field{fDisplay = dpy, fGC = gc} bf x1d_ y1d_ x2d_ y2d_ = do
-	(x1d, y1d) <- convertPos f x1d_ y1d_
-	(x2d, y2d) <- convertPos f x2d_ y2d_
-	let	[x1, y1, x2, y2] = map round [x1d, y1d, x2d, y2d]
-	X.drawLine dpy (bf f) gc x1 y1 x2 y2
+	drawLineBuf f fBG x1 y1 x2 y2 >> redrawCharacters f
+	addLayerAction l $ whether (drawLineBuf f fUndoBuf x1 y1 x2 y2)
+		(drawLineBuf f fBG x1 y1 x2 y2 >> redrawCharacters f)
 
 undoN :: Int
 undoN = 100
@@ -196,29 +186,51 @@ addLayerAction Layer{layerField = f, layerId = lid} act = do
 				modifyAt ls lid $ (++ [act]) . tail
 		else writeIORef (fLayers f) $ modifyAt ls lid (++ [act])
 
-convertPos :: Field -> Double -> Double -> IO (Double, Double)
-convertPos f x y = do
-	(width, height) <- fieldSize f
-	return (x + width / 2, - y + height / 2)
-
 drawCharacter :: Character -> [(Double, Double)] -> IO ()
-drawCharacter c@Character{characterField = w} ps = do
-	setCharacter w c (fillPolygonBuf w ps)
-	flushWin w
+drawCharacter c = setCharacter c . fillPolygonBuf (characterField c)
 
-drawCharacterAndLine ::	Character -> [(Double, Double)] -> (Double, Double) ->
-		(Double, Double) -> IO ()
-drawCharacterAndLine c@Character{characterField = w} ps (x1, y1) (x2, y2) = do
-	setCharacter w c
-		(fillPolygonBuf w ps >> drawLineBuf w fBuf x1 y1 x2 y2)
-	flushWin w
+drawCharacterAndLine ::	Character -> [(Double, Double)] ->
+	Double -> Double -> Double -> Double -> IO ()
+drawCharacterAndLine c@Character{characterField = f} ps x1 y1 x2 y2 =
+	setCharacter c $ fillPolygonBuf f ps >> drawLineBuf f fBuf x1 y1 x2 y2
+
+setCharacter :: Character -> IO () -> IO ()
+setCharacter Character{characterField = f, characterId = cid} act = do
+	cs <- readIORef $ fCharacters f
+	writeIORef (fCharacters f) $ setAt cs cid act
+	redrawCharacters f
+	flushWin f
+
+fillPolygonBuf :: Field -> [(Double, Double)] -> IO ()
+fillPolygonBuf f ps_ = do
+	ps <- convertPos f ps_
+	fillPolygon (fDisplay f) (fBuf f) (fGC f) (map (uncurry Point) ps)
+		nonconvex coordModeOrigin
+
+drawLineBuf :: Field -> (Field -> Pixmap) ->
+	Double -> Double -> Double -> Double -> IO ()
+drawLineBuf f@Field{fDisplay = dpy, fGC = gc} bf x1_ y1_ x2_ y2_ = do
+	[(x1, y1), (x2, y2)] <- convertPos f [(x1_, y1_), (x2_, y2_)]
+	X.drawLine dpy (bf f) gc x1 y1 x2 y2
+
+convertPos :: Field -> [(Double, Double)] -> IO [(Position, Position)]
+convertPos f ps = do
+	(width, height) <- fieldSize f
+	return $ (round . (+ width / 2) *** round . (+ height / 2) . negate)
+		`map` ps
+
+undoLayer :: Layer -> IO ()
+undoLayer Layer{layerField = w, layerId = lid} = do
+	ls <- readIORef $ fLayers w
+	writeIORef (fLayers w) $ modifyAt ls lid init
+	redraw w
 
 clearLayer :: Layer -> IO ()
-clearLayer l@Layer{layerField = f, layerId = lid} = do
-	setExposeAction f l (const $ const $ return ())
+clearLayer Layer{layerField = f, layerId = lid} = do
+	ls <- readIORef $ fLayers f
+	writeIORef (fLayers f) $ setAt ls lid []
 	buffed <- readIORef $ fBuffed f
-	writeIORef (fBuffed f) $
-		take lid buffed ++ [return ()] ++ drop (lid + 1) buffed
+	writeIORef (fBuffed f) $ setAt buffed lid $ return ()
 	redrawAll f
 
 redrawAll :: Field -> IO ()
@@ -229,40 +241,16 @@ redrawAll f = do
 
 redrawBuf :: Field -> IO ()
 redrawBuf f = do
-	clearUndoBuf f
+	fieldSizeRaw f >>=
+		uncurry (fillRectangle (fDisplay f) (fUndoBuf f) (fGCBG f) 0 0)
 	readIORef (fBuffed f) >>= sequence_
-
-setExposeAction :: Field -> Layer -> (Field -> Bool -> IO ()) -> IO ()
-setExposeAction w@Field{fLayers = we} Layer{layerId = lid} act = do
-	ls <- readIORef we
-	writeIORef we $ take lid ls ++ [[act w]] ++ drop (lid + 1) ls
-
-undoLayer :: Layer -> IO ()
-undoLayer Layer{layerField = w, layerId = lid} = do
-	ls <- readIORef $ fLayers w
-	writeIORef (fLayers w) $ take lid ls ++ [init (ls !! lid)] ++ drop (lid + 1) ls
-	redraw w
 
 redraw :: Field -> IO ()
 redraw w = do
-	undoBufToBG w
-	readIORef (fLayers w) >>= mapM_ ($ False) . concat
-	readIORef (fCharacters w) >>= sequence_
-
-setCharacter :: Field -> Character -> IO () -> IO ()
-setCharacter w c act = do
-	setCharacterAction w c act
-	redrawCharacters w
-
-setCharacterAction :: Field -> Character -> IO () -> IO ()
-setCharacterAction Field{fCharacters = wc} Character{characterId = cid} act = do
-	cs <- readIORef wc
-	writeIORef wc $ take cid cs ++ [act] ++ drop (cid + 1) cs
-
-undoBufToBG :: Field -> IO ()
-undoBufToBG w = do
 	(width, height) <- fieldSizeRaw w
 	copyArea (fDisplay w) (fUndoBuf w) (fBG w) (fGC w) 0 0 width height 0 0
+	readIORef (fLayers w) >>= mapM_ ($ False) . concat
+	readIORef (fCharacters w) >>= sequence_
 
 redrawCharacters :: Field -> IO ()
 redrawCharacters f = do
@@ -270,31 +258,8 @@ redrawCharacters f = do
 	copyArea (fDisplay f) (fBG f) (fBuf f) (fGC f) 0 0 width height 0 0
 	readIORef (fCharacters f) >>= sequence_
 
-bufToWin :: Field -> IO ()
-bufToWin w = do
-	(width, height) <- fieldSizeRaw w
-	copyArea (fDisplay w) (fBuf w) (fWindow w) (fGC w) 0 0 width height 0 0
-
-fillPolygonBuf :: Field -> [(Double, Double)] -> IO ()
-fillPolygonBuf w ps = do
-	(width, height) <- fieldSize w
-	let	dtp (x, y) = Point (round $ x + width / 2) (round $ - y + height / 2)
-	fillPolygon (fDisplay w) (fBuf w) (fGC w) (map dtp ps) nonconvex coordModeOrigin
-
-clearUndoBuf :: Field -> IO ()
-clearUndoBuf w = fieldSizeRaw w >>=
-	uncurry (fillRectangle (fDisplay w) (fUndoBuf w) (fGCBG w) 0 0)
-
 flushWin :: Field -> IO ()
 flushWin f = do
-	bufToWin f
+	(width, height) <- fieldSizeRaw f
+	copyArea (fDisplay f) (fBuf f) (fWindow f) (fGC f) 0 0 width height 0 0
 	flush $ fDisplay f
-
-{-
-changeColor :: Win -> Pixel -> IO ()
-changeColor w = setForeground (fDisplay w) (fGC w)
-
-clearBG :: Win -> IO ()
-clearBG w = fieldSizeRaw w >>=
-	uncurry (fillRectangle (fDisplay w) (fBG w) (fGCWhite w) 0 0)
--}

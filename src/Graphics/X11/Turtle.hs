@@ -36,7 +36,7 @@ import Data.IORef
 import Control.Arrow(second)
 
 xturtleVersion :: (Int, String)
-xturtleVersion = (1, "0.0.5b")
+xturtleVersion = (1, "0.0.6a")
 
 data Turtle = Turtle {
 	inputChan :: Chan TurtleInput,
@@ -60,12 +60,12 @@ newTurtle f = do
 			states = sts,
 			stateNow = sn
 		 }
+	writeChan c PenUp
 	writeChan c $ Shape classic
 	writeChan c $ ShapeSize 1
-	writeChan c PenDown
 	writeChan c $ Goto 0 0
 	writeChan c $ RotateTo 0
-	writeChan c $ Goto 0 0
+	writeChan c PenDown
 	_ <- forkIOX $ for2M_ sts $ turtleDraw ch l
 	return t
 

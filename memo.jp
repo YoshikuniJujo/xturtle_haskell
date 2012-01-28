@@ -114,3 +114,9 @@ Goto Double Double | RotateTo Double | Undo | Shape [(Double, Double)] |
 ShapeSize Double
 で良いかと思う。
 将来的には、Color や線の太さ等を変えられるようにする。
+
+2012.01.28 Sat.
+
+if :: a -> a -> Bool -> a
+となるような関数を作り、yjtools に置くことにする。
+名前は、selectIf あたりが良いと思う。

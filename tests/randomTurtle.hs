@@ -11,9 +11,9 @@ main = do
 
 randomTurtle :: Turtle -> IO ()
 randomTurtle t = do
+	penup t
 	shape t "turtle"
 	shapesize t 2
-	penup t
 	forward t 100
 	pendown t
 	left t 90
