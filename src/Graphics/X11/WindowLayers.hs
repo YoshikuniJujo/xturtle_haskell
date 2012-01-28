@@ -41,6 +41,7 @@ import Graphics.X11.Xlib.Extras(Event(..), getEvent)
 import Data.IORef(IORef, newIORef, readIORef, writeIORef, modifyIORef)
 import Data.Bits((.|.))
 import Data.Convertible(convert)
+import Data.List.Tools(modifyAt)
 
 import Control.Monad(replicateM, forM_)
 import Control.Monad.Tools(doWhile_)
@@ -164,49 +165,43 @@ addCharacter f = do
 	return Character{characterField = f, characterId = length cs}
 
 drawLine :: Layer -> Double -> Double -> Double -> Double -> IO ()
-drawLine l@Layer{layerField = w} x1_ y1_ x2_ y2_ = do
-	(x1, y1) <- convertPos w x1_ y1_
-	(x2, y2) <- convertPos w x2_ y2_
-	lineWin w x1 y1 x2 y2
+drawLine l@Layer{layerField = f} x1_ y1_ x2_ y2_ = do
+	(x1, y1) <- convertPos f x1_ y1_
+	(x2, y2) <- convertPos f x2_ y2_
+	lineWin f x1 y1 x2 y2
 	addLayerAction l $ \buf -> do
-		(x1', y1') <- convertPos w x1_ y1_
-		(x2', y2') <- convertPos w x2_ y2_
-		if buf	then lineUndoBuf w x1' y1' x2' y2'
-			else lineWin w x1' y1' x2' y2'
+		(x1', y1') <- convertPos f x1_ y1_
+		(x2', y2') <- convertPos f x2_ y2_
+		if buf	then lineUndoBuf f x1' y1' x2' y2'
+			else lineWin f x1' y1' x2' y2'
 
 undoN :: Int
 undoN = 100
 
 addLayerAction :: Layer -> (Bool -> IO ()) -> IO ()
-addLayerAction Layer{layerField = w, layerId = lid} act = do
-	ls <- readIORef $ fLayers w
+addLayerAction Layer{layerField = f, layerId = lid} act = do
+	ls <- readIORef $ fLayers f
 	if length (ls !! lid) > undoN
 		then do	head (ls !! lid) True
-			buffed <- readIORef $ fBuffed w
-			writeIORef (fBuffed w) $ 
+			buffed <- readIORef $ fBuffed f
+			writeIORef (fBuffed f) $ 
 				modifyAt buffed lid (>> head (ls !! lid) True)
-			writeIORef (fLayers w) $
+			writeIORef (fLayers f) $
 				modifyAt ls lid $ (++ [act]) . tail
-		else writeIORef (fLayers w) $ modifyAt ls lid (++ [act])
-
-setAt :: [a] -> Int -> a -> [a]
-setAt xs i x = take i xs ++ [x] ++ drop (i + 1) xs
-
-modifyAt :: [a] -> Int -> (a -> a) -> [a]
-modifyAt xs i f = take i xs ++ [f $ xs !! i] ++ drop (i + 1) xs
+		else writeIORef (fLayers f) $ modifyAt ls lid (++ [act])
 
 convertPos :: Field -> Double -> Double -> IO (Double, Double)
-convertPos w x y = do
-	(width, height) <- fieldSize w
+convertPos f x y = do
+	(width, height) <- fieldSize f
 	return (x + width / 2, - y + height / 2)
 
 clearLayer :: Layer -> IO ()
-clearLayer l@Layer{layerField = w, layerId = lid} = do
-	setExposeAction w l (const $ const $ return ())
-	buffed <- readIORef $ fBuffed w
-	writeIORef (fBuffed w) $
+clearLayer l@Layer{layerField = f, layerId = lid} = do
+	setExposeAction f l (const $ const $ return ())
+	buffed <- readIORef $ fBuffed f
+	writeIORef (fBuffed f) $
 		take lid buffed ++ [return ()] ++ drop (lid + 1) buffed
-	redrawAll w
+	redrawAll f
 
 redrawAll :: Field -> IO ()
 redrawAll f = do
