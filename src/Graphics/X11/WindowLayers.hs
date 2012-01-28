@@ -75,9 +75,6 @@ data Character = Character{
 	characterId :: Int
  }
 
-forkIOX :: IO () -> IO ThreadId
-forkIOX = (initThreads >>) . forkIO
-
 openField :: IO Field
 openField = do
 	_ <- initThreads
@@ -143,15 +140,6 @@ closeField = closeDisplay . fDisplay
 layerSize :: Layer -> IO (Double, Double)
 layerSize = fieldSize . layerField
 
-fieldSize :: Field -> IO (Double, Double)
-fieldSize w = fmap (fromIntegral *** fromIntegral) $ fieldSizeRaw w
-
-fieldSizeRaw :: Field -> IO (Dimension, Dimension)
-fieldSizeRaw w = do
-	width <- readIORef $ fWidth w
-	height <- readIORef $ fHeight w
-	return (width, height)
-
 addLayer :: Field -> IO Layer
 addLayer f = do
 	ls <- readIORef $ fLayers f
@@ -171,6 +159,33 @@ drawLine l@Layer{layerField = f} x1 y1 x2 y2 = do
 	addLayerAction l $ whether (drawLineBuf f fUndoBuf x1 y1 x2 y2)
 		(drawLineBuf f fBG x1 y1 x2 y2 >> redrawCharacters f)
 
+drawCharacter :: Character -> [(Double, Double)] -> IO ()
+drawCharacter c = setCharacter c . fillPolygonBuf (characterField c)
+
+drawCharacterAndLine ::	Character -> [(Double, Double)] ->
+	Double -> Double -> Double -> Double -> IO ()
+drawCharacterAndLine c@Character{characterField = f} ps x1 y1 x2 y2 =
+	setCharacter c $ fillPolygonBuf f ps >> drawLineBuf f fBuf x1 y1 x2 y2
+
+undoLayer :: Layer -> IO ()
+undoLayer Layer{layerField = w, layerId = lid} = do
+	ls <- readIORef $ fLayers w
+	writeIORef (fLayers w) $ modifyAt ls lid init
+	redraw w
+
+clearLayer :: Layer -> IO ()
+clearLayer Layer{layerField = f, layerId = lid} = do
+	ls <- readIORef $ fLayers f
+	writeIORef (fLayers f) $ setAt ls lid []
+	buffed <- readIORef $ fBuffed f
+	writeIORef (fBuffed f) $ setAt buffed lid $ return ()
+	redrawAll f
+
+forkIOX :: IO () -> IO ThreadId
+forkIOX = (initThreads >>) . forkIO
+
+--------------------------------------------------------------------------------
+
 undoN :: Int
 undoN = 100
 
@@ -185,14 +200,6 @@ addLayerAction Layer{layerField = f, layerId = lid} act = do
 			writeIORef (fLayers f) $
 				modifyAt ls lid $ (++ [act]) . tail
 		else writeIORef (fLayers f) $ modifyAt ls lid (++ [act])
-
-drawCharacter :: Character -> [(Double, Double)] -> IO ()
-drawCharacter c = setCharacter c . fillPolygonBuf (characterField c)
-
-drawCharacterAndLine ::	Character -> [(Double, Double)] ->
-	Double -> Double -> Double -> Double -> IO ()
-drawCharacterAndLine c@Character{characterField = f} ps x1 y1 x2 y2 =
-	setCharacter c $ fillPolygonBuf f ps >> drawLineBuf f fBuf x1 y1 x2 y2
 
 setCharacter :: Character -> IO () -> IO ()
 setCharacter Character{characterField = f, characterId = cid} act = do
@@ -219,19 +226,14 @@ convertPos f ps = do
 	return $ (round . (+ width / 2) *** round . (+ height / 2) . negate)
 		`map` ps
 
-undoLayer :: Layer -> IO ()
-undoLayer Layer{layerField = w, layerId = lid} = do
-	ls <- readIORef $ fLayers w
-	writeIORef (fLayers w) $ modifyAt ls lid init
-	redraw w
+fieldSize :: Field -> IO (Double, Double)
+fieldSize w = fmap (fromIntegral *** fromIntegral) $ winSize w
 
-clearLayer :: Layer -> IO ()
-clearLayer Layer{layerField = f, layerId = lid} = do
-	ls <- readIORef $ fLayers f
-	writeIORef (fLayers f) $ setAt ls lid []
-	buffed <- readIORef $ fBuffed f
-	writeIORef (fBuffed f) $ setAt buffed lid $ return ()
-	redrawAll f
+winSize :: Field -> IO (Dimension, Dimension)
+winSize f = do
+	width <- readIORef $ fWidth f
+	height <- readIORef $ fHeight f
+	return (width, height)
 
 redrawAll :: Field -> IO ()
 redrawAll f = do
@@ -241,25 +243,25 @@ redrawAll f = do
 
 redrawBuf :: Field -> IO ()
 redrawBuf f = do
-	fieldSizeRaw f >>=
+	winSize f >>=
 		uncurry (fillRectangle (fDisplay f) (fUndoBuf f) (fGCBG f) 0 0)
 	readIORef (fBuffed f) >>= sequence_
 
 redraw :: Field -> IO ()
-redraw w = do
-	(width, height) <- fieldSizeRaw w
-	copyArea (fDisplay w) (fUndoBuf w) (fBG w) (fGC w) 0 0 width height 0 0
-	readIORef (fLayers w) >>= mapM_ ($ False) . concat
-	readIORef (fCharacters w) >>= sequence_
+redraw f = do
+	(width, height) <- winSize f
+	copyArea (fDisplay f) (fUndoBuf f) (fBG f) (fGC f) 0 0 width height 0 0
+	readIORef (fLayers f) >>= mapM_ ($ False) . concat
+	readIORef (fCharacters f) >>= sequence_
 
 redrawCharacters :: Field -> IO ()
 redrawCharacters f = do
-	(width, height) <- fieldSizeRaw f
+	(width, height) <- winSize f
 	copyArea (fDisplay f) (fBG f) (fBuf f) (fGC f) 0 0 width height 0 0
 	readIORef (fCharacters f) >>= sequence_
 
 flushWin :: Field -> IO ()
 flushWin f = do
-	(width, height) <- fieldSizeRaw f
+	(width, height) <- winSize f
 	copyArea (fDisplay f) (fBuf f) (fWindow f) (fGC f) 0 0 width height 0 0
 	flush $ fDisplay f
