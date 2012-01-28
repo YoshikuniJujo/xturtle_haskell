@@ -165,15 +165,21 @@ addCharacter f = do
 	return Character{characterField = f, characterId = length cs}
 
 drawLine :: Layer -> Double -> Double -> Double -> Double -> IO ()
-drawLine l@Layer{layerField = f} x1_ y1_ x2_ y2_ = do
-	(x1, y1) <- convertPos f x1_ y1_
-	(x2, y2) <- convertPos f x2_ y2_
-	lineWin f x1 y1 x2 y2
-	addLayerAction l $ \buf -> do
-		(x1', y1') <- convertPos f x1_ y1_
-		(x2', y2') <- convertPos f x2_ y2_
-		if buf	then lineUndoBuf f x1' y1' x2' y2'
-			else lineWin f x1' y1' x2' y2'
+drawLine l@Layer{layerField = f} x1 y1 x2 y2 = do
+	drawLineBuf f fBG x1 y1 x2 y2
+	redrawCharacters f
+	addLayerAction l $ \undo ->
+		if undo	then drawLineBuf f fUndoBuf x1 y1 x2 y2
+			else do	drawLineBuf f fBG x1 y1 x2 y2
+				redrawCharacters f
+
+drawLineBuf :: Field -> (Field -> Pixmap) ->
+	Double -> Double -> Double -> Double -> IO ()
+drawLineBuf f@Field{fDisplay = dpy, fGC = gc} bf x1d_ y1d_ x2d_ y2d_ = do
+	(x1d, y1d) <- convertPos f x1d_ y1d_
+	(x2d, y2d) <- convertPos f x2d_ y2d_
+	let	[x1, y1, x2, y2] = map round [x1d, y1d, x2d, y2d]
+	X.drawLine dpy (bf f) gc x1 y1 x2 y2
 
 undoN :: Int
 undoN = 100
@@ -194,6 +200,18 @@ convertPos :: Field -> Double -> Double -> IO (Double, Double)
 convertPos f x y = do
 	(width, height) <- fieldSize f
 	return (x + width / 2, - y + height / 2)
+
+drawCharacter :: Character -> [(Double, Double)] -> IO ()
+drawCharacter c@Character{characterField = w} ps = do
+	setCharacter w c (fillPolygonBuf w ps)
+	flushWin w
+
+drawCharacterAndLine ::	Character -> [(Double, Double)] -> (Double, Double) ->
+		(Double, Double) -> IO ()
+drawCharacterAndLine c@Character{characterField = w} ps (x1, y1) (x2, y2) = do
+	setCharacter w c
+		(fillPolygonBuf w ps >> drawLineBuf w fBuf x1 y1 x2 y2)
+	flushWin w
 
 clearLayer :: Layer -> IO ()
 clearLayer l@Layer{layerField = f, layerId = lid} = do
@@ -233,9 +251,8 @@ redraw w = do
 
 setCharacter :: Field -> Character -> IO () -> IO ()
 setCharacter w c act = do
-	bgToBuf w
 	setCharacterAction w c act
-	readIORef (fCharacters w) >>= sequence_
+	redrawCharacters w
 
 setCharacterAction :: Field -> Character -> IO () -> IO ()
 setCharacterAction Field{fCharacters = wc} Character{characterId = cid} act = do
@@ -247,10 +264,11 @@ undoBufToBG w = do
 	(width, height) <- fieldSizeRaw w
 	copyArea (fDisplay w) (fUndoBuf w) (fBG w) (fGC w) 0 0 width height 0 0
 
-bgToBuf :: Field -> IO ()
-bgToBuf w = do
-	(width, height) <- fieldSizeRaw w
-	copyArea (fDisplay w) (fBG w) (fBuf w) (fGC w) 0 0 width height 0 0
+redrawCharacters :: Field -> IO ()
+redrawCharacters f = do
+	(width, height) <- fieldSizeRaw f
+	copyArea (fDisplay f) (fBG f) (fBuf f) (fGC f) 0 0 width height 0 0
+	readIORef (fCharacters f) >>= sequence_
 
 bufToWin :: Field -> IO ()
 bufToWin w = do
@@ -262,36 +280,6 @@ fillPolygonBuf w ps = do
 	(width, height) <- fieldSize w
 	let	dtp (x, y) = Point (round $ x + width / 2) (round $ - y + height / 2)
 	fillPolygon (fDisplay w) (fBuf w) (fGC w) (map dtp ps) nonconvex coordModeOrigin
-
-drawCharacter :: Character -> [(Double, Double)] -> IO ()
-drawCharacter c@Character{characterField = w} ps = do
-	setCharacter w c (fillPolygonBuf w ps)
-	flushWin w
-
-drawCharacterAndLine ::	Character -> [(Double, Double)] -> (Double, Double) ->
-		(Double, Double) -> IO ()
-drawCharacterAndLine c@Character{characterField = w} ps (x1, y1) (x2, y2) = do
-	setCharacter w c (fillPolygonBuf w ps >> lineBuf w x1 y1 x2 y2)
-	flushWin w
-
-lineWin :: Field -> Double -> Double -> Double -> Double -> IO ()
-lineWin w x1_ y1_ x2_ y2_ = do
-	X.drawLine (fDisplay w) (fBG w) (fGC w) x1 y1 x2 y2
-	bgToBuf w
-	readIORef (fCharacters w) >>= sequence_
-	where	[x1, y1, x2, y2] = map round [x1_, y1_, x2_, y2_]
-
-lineUndoBuf :: Field -> Double -> Double -> Double -> Double -> IO ()
-lineUndoBuf w x1_ y1_ x2_ y2_ =
-	X.drawLine (fDisplay w) (fUndoBuf w) (fGC w) x1 y1 x2 y2
-	where	[x1, y1, x2, y2] = map round [x1_, y1_, x2_, y2_]
-
-lineBuf :: Field -> Double -> Double -> Double -> Double -> IO ()
-lineBuf w x1__ y1__ x2__ y2__ = do
-	(x1_, y1_) <- convertPos w x1__ y1__
-	(x2_, y2_) <- convertPos w x2__ y2__
-	let	[x1, y1, x2, y2] = map round [x1_, y1_, x2_, y2_]
-	X.drawLine (fDisplay w) (fBuf w) (fGC w) x1 y1 x2 y2
 
 clearUndoBuf :: Field -> IO ()
 clearUndoBuf w = fieldSizeRaw w >>=
