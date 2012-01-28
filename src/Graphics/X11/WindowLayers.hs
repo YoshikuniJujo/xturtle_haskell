@@ -1,4 +1,4 @@
-module Graphics.X11.WindowLayers (
+module Graphics.X11.WindowLayers(
 	Field,
 	Layer,
 	Character,
@@ -42,8 +42,8 @@ import Data.IORef(IORef, newIORef, readIORef, writeIORef, modifyIORef)
 import Data.Bits((.|.))
 import Data.Convertible(convert)
 
-import Control.Monad.Tools(doWhile_)
 import Control.Monad(replicateM, forM_)
+import Control.Monad.Tools(doWhile_)
 import Control.Arrow((***))
 import Control.Concurrent(forkIO, ThreadId)
 
@@ -67,6 +67,7 @@ data Layer = Layer{
 	layerField :: Field,
 	layerId :: Int
  }
+
 data Character = Character{
 	characterField :: Field,
 	characterId :: Int
@@ -98,7 +99,7 @@ openField = do
 	buffActions <- newIORef []
 	layerActions <- newIORef []
 	characterActions <- newIORef []
-	let w = Field{
+	let f = Field{
 		fDisplay = dpy,
 		fWindow = win,
 		fGC = gc,
@@ -113,25 +114,25 @@ openField = do
 		fLayers = layerActions,
 		fCharacters = characterActions
 	 }
-	_ <- forkIOX $ runLoop w
-	flushWin w
-	return w
+	_ <- forkIOX $ runLoop f
+	flushWin f
+	return f
 
 runLoop :: Field -> IO ()
-runLoop w = (>> closeField w) $	doWhile_ $ allocaXEvent $ \e -> do
-	nextEvent (fDisplay w) e
+runLoop f = (>> closeField f) $	doWhile_ $ allocaXEvent $ \e -> do
+	nextEvent (fDisplay f) e
 	ev <- getEvent e
 	case ev of
 		ExposeEvent{} -> do
 			(_, _, _, width, height, _, _) <-
-				getGeometry (fDisplay w) (fWindow w)
-			writeIORef (fWidth w) width
-			writeIORef (fHeight w) height
-			redrawAll w
+				getGeometry (fDisplay f) (fWindow f)
+			writeIORef (fWidth f) width
+			writeIORef (fHeight f) height
+			redrawAll f
 			return True
 		KeyEvent{} -> return True
 		ClientMessageEvent{} ->
-			return $ convert (head $ ev_data ev) /= fDel w
+			return $ convert (head $ ev_data ev) /= fDel f
 		_ -> return True
 
 closeField :: Field -> IO ()
