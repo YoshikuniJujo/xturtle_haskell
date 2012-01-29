@@ -30,12 +30,11 @@ turtleDrawUndo c l t0 t1 = do
 		size = turtleSize t1
 		prePos@(px, py) = turtlePos t0
 		preDir = turtleDir t0
+		prePen = turtlePenDown t0
 		pen = turtlePenDown t1
 		pos@(nx, ny) = turtlePos t1
 		dir = turtleDir t1
---		doneLine = turtleLineDone t0
---	when doneLine $ undoLayer f l
-	when pen $ undoLayer l
+	when (pen && prePen) $ undoLayer l
 	forM_ (getDirections preDir dir) $ \d -> do
 		drawTurtle c shape size d prePos Nothing
 		threadDelay 10000
@@ -50,13 +49,14 @@ turtleDrawNotUndo c l t0 t1 = do
 		size = turtleSize t1
 		prePos@(px, py) = turtlePos t0
 		prePen = turtlePenDown t0
+		pen = turtlePenDown t1
 		preDir = turtleDir t0
 		(nx, ny) = turtlePos t1
 		dir = turtleDir t1
 	forM_ (getDirections preDir dir) $ \d -> do
 		drawTurtle c shape size d prePos Nothing
 		threadDelay 10000
-	if prePen then do
+	if (pen && prePen) then do
 			forM_ (getPoints px py nx ny) $ \p -> do
 				drawTurtle c shape size dir p $ Just prePos
 				threadDelay 50000
