@@ -67,22 +67,16 @@ turtleDrawNotUndo c l t0 t1 = do
 	when (line t1) $ drawLine l x0 y0 x1 y1
 
 getPoints :: Double -> Double -> Double -> Double -> [(Double, Double)]
-getPoints x1 y1 x2 y2 = let
-        len = ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** (1/2)
-        dx = (x2 - x1) * step / len
-        dy = (y2 - y1) * step / len in
-        zip (takeWhile (before dx x2) [x1, x1 + dx ..])
-                (takeWhile (before dy y2) [y1, y1 + dy ..])
-
-before :: (Num a, Ord a) => a -> a -> a -> Bool
-before d t x = signum d * t >= signum d * x
+getPoints x1 y1 x2 y2 = zip [x1, x1 + dx .. x2 - dx] [y1, y1 + dy .. y2 - dy]
+	where
+	len = ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** (1/2)
+	dx = (x2 - x1) * step / len
+	dy = (y2 - y1) * step / len
 
 getDirections :: Double -> Double -> [Double]
-getDirections ds de = takeWhile beforeDir [ds, ds + dd ..] ++ [de]
-        where
-        sig = signum (de - ds)
-        dd = sig * stepDir
-        beforeDir x = sig * x < sig * de
+getDirections ds de = [ds, ds + dd .. de - dd]
+	where
+	dd = if de > ds then stepDir else - stepDir
 
 drawTurtle :: Character -> [(Double, Double)] -> Double -> Double ->
 	(Double, Double) -> Maybe (Double, Double) -> IO ()
