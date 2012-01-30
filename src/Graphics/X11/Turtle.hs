@@ -50,11 +50,9 @@ newTurtle :: Field -> IO Turtle
 newTurtle f = do
 	ch <- addCharacter f
 	l <- addLayer f
-	(c, ret) <- makeInput
+	(c, sts) <- getTurtleStates classic
 	sn <- newIORef 1
-	let	ts0 = initialTurtleState classic
-		sts = ts0 : ts0 : inputToTurtle [] ts0 ret
-		t = Turtle {
+	let	t = Turtle {
 			inputChan = c,
 			layer = l,
 			character = ch,

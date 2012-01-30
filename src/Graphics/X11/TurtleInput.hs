@@ -1,10 +1,7 @@
 module Graphics.X11.TurtleInput (
 	TurtleState(turtlePos, turtleUndoNum, turtlePenDown),
-
-	makeInput,
-	inputToTurtle,
 	TurtleInput(..),
-	initialTurtleState
+	getTurtleStates
 ) where
 
 import Control.Concurrent
@@ -23,6 +20,12 @@ data TurtleInput
 	| Left Double
 	| SetUndoNum Int
 	deriving Show
+
+getTurtleStates :: [(Double, Double)] -> IO (Chan TurtleInput, [TurtleState])
+getTurtleStates sh = do
+	let	ts0 = initialTurtleState sh
+	(c, ret) <- makeInput
+	return (c, ts0 : ts0 : inputToTurtle [] ts0 ret)
 
 makeInput :: IO (Chan TurtleInput, [TurtleInput])
 makeInput = do
