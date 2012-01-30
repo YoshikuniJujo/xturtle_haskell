@@ -62,45 +62,38 @@ newTurtle f = do
 	_ <- forkIOX $ for2M_ sts $ turtleDraw ch l
 	return t
 
+sendCommand :: Turtle -> TurtleInput -> IO ()
+sendCommand Turtle{inputChan = c, stateNow = sn} ti = do
+	modifyIORef sn (+ 1)
+	writeChan c ti
+	threadDelay 10000
+
 shape :: Turtle -> String -> IO ()
-shape Turtle{inputChan = c, stateNow = sn} "turtle" = do
-	modifyIORef sn (+ 1)
-	writeChan c $ Shape turtle
-shape Turtle{inputChan = c, stateNow = sn} "classic" = do
-	modifyIORef sn (+ 1)
-	writeChan c $ Shape classic
+shape t "turtle" = sendCommand t $ Shape turtle
+shape t "classic" = sendCommand t $ Shape classic
 shape _ name = error $ "There is no shape named " ++ name
 
 shapesize :: Turtle -> Double -> IO ()
-shapesize Turtle{inputChan = c, stateNow = sn} size = do
-	modifyIORef sn (+ 1)
-	writeChan c $ ShapeSize size
+shapesize t = sendCommand t . ShapeSize
 
 forward, backward :: Turtle -> Double -> IO ()
-forward Turtle{inputChan = c, stateNow = sn} len = do
-	modifyIORef sn (+1)
-	writeChan c $ Forward len
-	threadDelay 10000
+forward t = sendCommand t . Forward
 backward t = forward t . negate
 
 left, right :: Turtle -> Double -> IO ()
-left Turtle{inputChan = c, stateNow = sn} dd = do
-	modifyIORef sn (+ 1)
-	writeChan c $ Left dd
-	threadDelay 10000
+left t = sendCommand t . Left
 right t = left t . negate
 
 circle :: Turtle -> Double -> IO ()
-circle t@Turtle{inputChan = c, stateNow = sn} r = do
+circle t r = do
 	forward t (r * pi / 36)
 	left t 10
 	replicateM_ 35 $ forward t (2 * r * pi / 36) >> left t 10
 	forward t (r * pi / 36)
-	writeChan c $ SetUndoNum 74
-	modifyIORef sn (+ 1)
+	sendCommand t $ SetUndoNum 74
 
 home :: Turtle -> IO ()
-home t = modifyIORef (stateNow t) (+ 1) >> goto t 0 0 >> rotateTo t 0
+home t = goto t 0 0 >> rotateTo t 0
 
 clear :: Turtle -> IO ()
 clear t@Turtle{layer = l} = do
@@ -121,31 +114,23 @@ windowWidth = fmap fst . layerSize . layer
 windowHeight = fmap snd . layerSize . layer
 
 pendown, penup :: Turtle -> IO ()
-pendown Turtle{inputChan = c, stateNow = sn} = do
-	modifyIORef sn (+ 1)
-	writeChan c PenDown
-penup Turtle{inputChan = c, stateNow = sn} = do
-	modifyIORef sn (+ 1)
-	writeChan c PenUp
+pendown = flip sendCommand PenDown
+penup = flip sendCommand PenUp
 
 isdown :: Turtle -> IO Bool
 isdown Turtle{states = s, stateNow = sn} =
 	fmap (turtlePenDown . (s !!)) $ readIORef sn
 
 goto :: Turtle -> Double -> Double -> IO ()
-goto Turtle{inputChan = c, stateNow = sn} x y = do
-	modifyIORef sn (+ 1)
-	writeChan c $ Goto x y
+goto t x y = sendCommand t $ Goto x y
 
 rotateTo :: Turtle -> Double -> IO ()
-rotateTo Turtle{inputChan = c} d = writeChan c $ RotateTo d
+rotateTo t = sendCommand t . RotateTo
 
 undo :: Turtle -> IO ()
-undo t@Turtle{inputChan = c, stateNow = sn} = do
+undo t = do
 	un <- getUndoNum t
-	replicateM_ un $ do
-		modifyIORef sn (+1)
-		writeChan c Undo
+	replicateM_ un $ sendCommand t Undo
 
 getUndoNum :: Turtle -> IO Int
 getUndoNum Turtle{states = s, stateNow = sn} =
