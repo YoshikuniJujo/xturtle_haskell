@@ -52,7 +52,8 @@ newTurtle f = do
 	l <- addLayer f
 	(c, ret) <- makeInput
 	sn <- newIORef 1
-	let	sts = drop 4 $ inputToTurtle [] initialTurtleState ret
+	let	ts0 = initialTurtleState classic
+		sts = ts0 : inputToTurtle [] ts0 ret
 		t = Turtle {
 			inputChan = c,
 			layer = l,
@@ -60,11 +61,6 @@ newTurtle f = do
 			states = sts,
 			stateNow = sn
 		 }
-	writeChan c PenUp
-	writeChan c $ Shape classic
-	writeChan c $ ShapeSize 1
-	writeChan c $ Goto 0 0
-	writeChan c $ RotateTo 0
 	writeChan c PenDown
 	_ <- forkIOX $ for2M_ sts $ turtleDraw ch l
 	return t

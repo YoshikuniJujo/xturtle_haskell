@@ -13,16 +13,13 @@ data TurtleState = TurtleState {
 	turtleUndoNum :: Int
  } deriving Show
 
-initialTurtleState :: TurtleState
-initialTurtleState = TurtleState {
-	turtleShape = isUndefined "turtleShape",
-	turtleSize = isUndefined "turtleSize",
-	turtlePos = isUndefined "turtlePos",
-	turtleDir = isUndefined "turtleDir",
-	turtlePenDown = isUndefined "turtlePenDown",
+initialTurtleState :: [(Double, Double)] -> TurtleState
+initialTurtleState sh = TurtleState {
+	turtleShape = sh,
+	turtleSize = 1,
+	turtlePos = (0, 0),
+	turtleDir = 0,
+	turtlePenDown = False,
 	turtleUndo = False,
 	turtleUndoNum = 1
  }
-
-isUndefined :: String -> a
-isUndefined name = error $ name ++ " is undefined"
