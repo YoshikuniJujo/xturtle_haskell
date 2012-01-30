@@ -106,7 +106,7 @@ home t = modifyIORef (stateNow t) (+ 1) >> goto t 0 0 >> rotateTo t 0
 
 clear :: Turtle -> IO ()
 clear t@Turtle{layer = l} = do
-	forward t 0
+	left t 0
 	clearLayer l
 
 position :: Turtle -> IO (Double, Double)
