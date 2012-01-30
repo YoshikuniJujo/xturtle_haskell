@@ -30,11 +30,11 @@ turtleDrawUndo c l t0 t1 = do
 		size = turtleSize t1
 		prePos@(px, py) = turtlePos t0
 		preDir = turtleDir t0
-		prePen = turtlePenDown t0
 		pen = turtlePenDown t1
+		lined = turtleLine t0
 		pos@(nx, ny) = turtlePos t1
 		dir = turtleDir t1
-	when (pen && prePen) $ undoLayer l
+	when lined $ undoLayer l
 	forM_ (getDirections preDir dir) $ \d -> do
 		drawTurtle c shape size d prePos Nothing
 		threadDelay 10000
@@ -48,15 +48,14 @@ turtleDrawNotUndo c l t0 t1 = do
 	let	shape = turtleShape t1
 		size = turtleSize t1
 		prePos@(px, py) = turtlePos t0
-		prePen = turtlePenDown t0
-		pen = turtlePenDown t1
 		preDir = turtleDir t0
+		line = turtleLine t1
 		(nx, ny) = turtlePos t1
 		dir = turtleDir t1
 	forM_ (getDirections preDir dir) $ \d -> do
 		drawTurtle c shape size d prePos Nothing
 		threadDelay 10000
-	if (pen && prePen) then do
+	if line then do
 			forM_ (getPoints px py nx ny) $ \p -> do
 				drawTurtle c shape size dir p $ Just prePos
 				threadDelay 50000

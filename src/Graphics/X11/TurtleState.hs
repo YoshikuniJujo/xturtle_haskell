@@ -9,6 +9,7 @@ data TurtleState = TurtleState {
 	turtlePos :: (Double, Double),
 	turtleDir :: Double,
 	turtlePenDown :: Bool,
+	turtleLine :: Bool,
 	turtleUndo :: Bool,
 	turtleUndoNum :: Int
  } deriving Show
@@ -20,6 +21,7 @@ initialTurtleState sh = TurtleState {
 	turtlePos = (0, 0),
 	turtleDir = 0,
 	turtlePenDown = False,
+	turtleLine = False,
 	turtleUndo = False,
 	turtleUndoNum = 1
  }

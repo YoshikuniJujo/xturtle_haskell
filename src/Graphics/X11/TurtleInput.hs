@@ -37,6 +37,7 @@ nextTurtle t = TurtleState{
 	turtlePos = turtlePos t,
 	turtleDir = turtleDir t,
 	turtlePenDown = turtlePenDown t,
+	turtleLine = False,
 	turtleUndo = False,
 	turtleUndoNum = 1
  }
@@ -52,7 +53,8 @@ inputToTurtle tsbs ts0 (Shape sh : ti) =
 inputToTurtle tsbs ts0 (ShapeSize ss : ti) =
 	inputToTurtleNext (ts0 : tsbs) (nextTurtle ts0){turtleSize = ss} ti
 inputToTurtle tsbs ts0 (Goto x y : ti) =
-	inputToTurtleNext (ts0 : tsbs) (nextTurtle ts0){turtlePos = (x, y)} ti
+	inputToTurtleNext (ts0 : tsbs) (nextTurtle ts0)
+		{turtlePos = (x, y), turtleLine = turtlePenDown ts0} ti
 inputToTurtle tsbs ts0 (RotateTo d : ti) =
 	inputToTurtleNext (ts0 : tsbs) (nextTurtle ts0){turtleDir = d} ti
 inputToTurtle tsbs ts0 (PenDown : ti) =
