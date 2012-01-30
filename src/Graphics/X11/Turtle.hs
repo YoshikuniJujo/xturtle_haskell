@@ -90,10 +90,10 @@ circle t r = do
 	left t 10
 	replicateM_ 35 $ forward t (2 * r * pi / 36) >> left t 10
 	forward t (r * pi / 36)
-	sendCommand t $ SetUndoNum 74
+	sendCommand t $ Undonum 74
 
 home :: Turtle -> IO ()
-home t = goto t 0 0 >> rotateTo t 0
+home t = goto t 0 0 >> rotate t 0
 
 clear :: Turtle -> IO ()
 clear t@Turtle{layer = l} = do
@@ -114,18 +114,18 @@ windowWidth = fmap fst . layerSize . layer
 windowHeight = fmap snd . layerSize . layer
 
 pendown, penup :: Turtle -> IO ()
-pendown = flip sendCommand PenDown
-penup = flip sendCommand PenUp
+pendown = flip sendCommand Pendown
+penup = flip sendCommand Penup
 
 isdown :: Turtle -> IO Bool
 isdown Turtle{states = s, stateNow = sn} =
-	fmap (penState . (s !!)) $ readIORef sn
+	fmap (getPendown . (s !!)) $ readIORef sn
 
 goto :: Turtle -> Double -> Double -> IO ()
 goto t x y = sendCommand t $ Goto x y
 
-rotateTo :: Turtle -> Double -> IO ()
-rotateTo t = sendCommand t . RotateTo
+rotate :: Turtle -> Double -> IO ()
+rotate t = sendCommand t . Rotate
 
 undo :: Turtle -> IO ()
 undo t = do
@@ -134,7 +134,7 @@ undo t = do
 
 getUndoNum :: Turtle -> IO Int
 getUndoNum Turtle{states = s, stateNow = sn} =
-	fmap (undoNum . (s!!)) $ readIORef sn
+	fmap (undonum . (s!!)) $ readIORef sn
 
 for2M_ :: [a] -> (a -> a -> IO b) -> IO ()
 for2M_ xs f = zipWithM_ f xs $ tail xs
