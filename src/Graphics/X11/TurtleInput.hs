@@ -4,9 +4,9 @@ module Graphics.X11.TurtleInput (
 	getTurtleStates
 ) where
 
-import Control.Concurrent
-import Graphics.X11.TurtleState
-import Prelude hiding (Left)
+import Graphics.X11.TurtleState(TurtleState(..), initialTurtleState)
+import Control.Concurrent.Chan(Chan, newChan, getChanContents)
+import Prelude hiding(Left)
 
 data TurtleInput
 	= Shape [(Double, Double)]
@@ -24,48 +24,36 @@ data TurtleInput
 getTurtleStates :: [(Double, Double)] -> IO (Chan TurtleInput, [TurtleState])
 getTurtleStates sh = do
 	let	ts0 = initialTurtleState sh
-	(c, ret) <- makeInput
-	return (c, ts0 : ts0 : inputToTurtle [] ts0 ret)
+	(c, tis) <- makeInput
+	return (c, ts0 : ts0 : inputToTurtle [] ts0 tis)
 
 makeInput :: IO (Chan TurtleInput, [TurtleInput])
 makeInput = do
 	c <- newChan
-	ret <- getChanContents c
-	return (c, ret)
+	tis <- getChanContents c
+	return (c, tis)
 
 nextTurtle :: TurtleState -> TurtleState
-nextTurtle t = TurtleState{
-	turtleShape = turtleShape t,
-	turtleSize = turtleSize t,
-	turtlePos = turtlePos t,
-	turtleDir = turtleDir t,
-	turtlePenDown = turtlePenDown t,
+nextTurtle t = t{
 	turtleLine = False,
 	turtleUndo = False,
 	turtleUndoNum = 1
  }
 
-inputToTurtleNext :: [TurtleState] -> TurtleState -> [TurtleInput] -> [TurtleState]
-inputToTurtleNext tsbs nts ti = nts : inputToTurtle tsbs nts ti
+makeNextTurtle :: TurtleState -> TurtleInput -> TurtleState
+makeNextTurtle ts0 (Shape sh) = (nextTurtle ts0){turtleShape = sh}
+makeNextTurtle ts0 (ShapeSize ss) = (nextTurtle ts0){turtleSize = ss}
+makeNextTurtle ts0 (Goto x y) =
+	(nextTurtle ts0){turtlePos = (x, y), turtleLine = turtlePenDown ts0}
+makeNextTurtle ts0 (RotateTo d) = (nextTurtle ts0){turtleDir = d}
+makeNextTurtle ts0 PenDown = (nextTurtle ts0){turtlePenDown = True}
+makeNextTurtle ts0 PenUp = (nextTurtle ts0){turtlePenDown = False}
+makeNextTurtle ts0 (SetUndoNum un) = (nextTurtle ts0){turtleUndoNum = un}
+makeNextTurtle _ _ = error "not defined"
 
 inputToTurtle :: [TurtleState] -> TurtleState -> [TurtleInput] -> [TurtleState]
 inputToTurtle (tsb : tsbs) _ (Undo : ti) =
-	tsb{turtleUndo = True } : inputToTurtle tsbs tsb{turtleUndo = True} ti
-inputToTurtle tsbs ts0 (Shape sh : ti) =
-	inputToTurtleNext (ts0 : tsbs) (nextTurtle ts0){turtleShape = sh} ti
-inputToTurtle tsbs ts0 (ShapeSize ss : ti) =
-	inputToTurtleNext (ts0 : tsbs) (nextTurtle ts0){turtleSize = ss} ti
-inputToTurtle tsbs ts0 (Goto x y : ti) =
-	inputToTurtleNext (ts0 : tsbs) (nextTurtle ts0)
-		{turtlePos = (x, y), turtleLine = turtlePenDown ts0} ti
-inputToTurtle tsbs ts0 (RotateTo d : ti) =
-	inputToTurtleNext (ts0 : tsbs) (nextTurtle ts0){turtleDir = d} ti
-inputToTurtle tsbs ts0 (PenDown : ti) =
-	inputToTurtleNext (ts0 : tsbs) (nextTurtle ts0){turtlePenDown = True} ti
-inputToTurtle tsbs ts0 (PenUp : ti) =
-	inputToTurtleNext (ts0 : tsbs) (nextTurtle ts0){turtlePenDown = False} ti
-inputToTurtle tsbs ts0 (SetUndoNum un : ti) =
-	inputToTurtleNext (ts0 : tsbs) (nextTurtle ts0){turtleUndoNum = un} ti
+	let nts = tsb{turtleUndo = True} in nts : inputToTurtle tsbs nts ti
 inputToTurtle tsbs ts0 (Forward len : ti) = let
 	(x0, y0) = turtlePos ts0
 	dir = turtleDir ts0
@@ -74,4 +62,6 @@ inputToTurtle tsbs ts0 (Forward len : ti) = let
 	inputToTurtle tsbs ts0 (Goto x y : ti)
 inputToTurtle tsbs ts0 (Left dd : ti) =
 	inputToTurtle tsbs ts0 $ RotateTo (turtleDir ts0 + dd) : ti
-inputToTurtle _ _ _ = error "bad condition in inputToTurtle"
+inputToTurtle tsbs ts0 (ti : tis) =
+	let nts = makeNextTurtle ts0 ti in nts : inputToTurtle (ts0 : tsbs) nts tis
+inputToTurtle _ _ [] = error "no more input"
