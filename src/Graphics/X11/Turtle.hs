@@ -102,7 +102,7 @@ clear t@Turtle{layer = l} = do
 
 position :: Turtle -> IO (Double, Double)
 position Turtle{stateNow = sn, states = s} =
-	fmap (turtlePos . (s !!)) $ readIORef sn
+	fmap (getPosition . (s !!)) $ readIORef sn
 
 distance :: Turtle -> Double -> Double -> IO Double
 distance t x0 y0 = do
@@ -119,7 +119,7 @@ penup = flip sendCommand PenUp
 
 isdown :: Turtle -> IO Bool
 isdown Turtle{states = s, stateNow = sn} =
-	fmap (turtlePenDown . (s !!)) $ readIORef sn
+	fmap (penState . (s !!)) $ readIORef sn
 
 goto :: Turtle -> Double -> Double -> IO ()
 goto t x y = sendCommand t $ Goto x y
@@ -134,7 +134,7 @@ undo t = do
 
 getUndoNum :: Turtle -> IO Int
 getUndoNum Turtle{states = s, stateNow = sn} =
-	fmap (turtleUndoNum . (s!!)) $ readIORef sn
+	fmap (undoNum . (s!!)) $ readIORef sn
 
 for2M_ :: [a] -> (a -> a -> IO b) -> IO ()
 for2M_ xs f = zipWithM_ f xs $ tail xs

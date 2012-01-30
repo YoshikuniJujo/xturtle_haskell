@@ -1,12 +1,25 @@
 module Graphics.X11.TurtleInput (
-	TurtleState(turtlePos, turtleUndoNum, turtlePenDown),
+	TurtleState,
 	TurtleInput(..),
-	getTurtleStates
+
+	getTurtleStates,
+	getPosition,
+	penState,
+	undoNum
 ) where
 
 import Graphics.X11.TurtleState(TurtleState(..), initialTurtleState)
 import Control.Concurrent.Chan(Chan, newChan, getChanContents)
 import Prelude hiding(Left)
+
+getPosition :: TurtleState -> (Double, Double)
+getPosition = turtlePos
+
+undoNum :: TurtleState -> Int
+undoNum = turtleUndoNum
+
+penState :: TurtleState -> Bool
+penState = turtlePenDown
 
 data TurtleInput
 	= Shape [(Double, Double)]
@@ -33,23 +46,23 @@ makeInput = do
 	tis <- getChanContents c
 	return (c, tis)
 
-nextTurtle :: TurtleState -> TurtleState
-nextTurtle t = t{
+clearState :: TurtleState -> TurtleState
+clearState t = t{
 	turtleLine = False,
 	turtleUndo = False,
 	turtleUndoNum = 1
  }
 
-makeNextTurtle :: TurtleState -> TurtleInput -> TurtleState
-makeNextTurtle ts0 (Shape sh) = (nextTurtle ts0){turtleShape = sh}
-makeNextTurtle ts0 (ShapeSize ss) = (nextTurtle ts0){turtleSize = ss}
-makeNextTurtle ts0 (Goto x y) =
-	(nextTurtle ts0){turtlePos = (x, y), turtleLine = turtlePenDown ts0}
-makeNextTurtle ts0 (RotateTo d) = (nextTurtle ts0){turtleDir = d}
-makeNextTurtle ts0 PenDown = (nextTurtle ts0){turtlePenDown = True}
-makeNextTurtle ts0 PenUp = (nextTurtle ts0){turtlePenDown = False}
-makeNextTurtle ts0 (SetUndoNum un) = (nextTurtle ts0){turtleUndoNum = un}
-makeNextTurtle _ _ = error "not defined"
+nextTurtle :: TurtleState -> TurtleInput -> TurtleState
+nextTurtle ts0 (Shape sh) = (clearState ts0){turtleShape = sh}
+nextTurtle ts0 (ShapeSize ss) = (clearState ts0){turtleSize = ss}
+nextTurtle ts0 (Goto x y) =
+	(clearState ts0){turtlePos = (x, y), turtleLine = turtlePenDown ts0}
+nextTurtle ts0 (RotateTo d) = (clearState ts0){turtleDir = d}
+nextTurtle ts0 PenDown = (clearState ts0){turtlePenDown = True}
+nextTurtle ts0 PenUp = (clearState ts0){turtlePenDown = False}
+nextTurtle ts0 (SetUndoNum un) = (clearState ts0){turtleUndoNum = un}
+nextTurtle _ _ = error "not defined"
 
 inputToTurtle :: [TurtleState] -> TurtleState -> [TurtleInput] -> [TurtleState]
 inputToTurtle (tsb : tsbs) _ (Undo : ti) =
@@ -63,5 +76,5 @@ inputToTurtle tsbs ts0 (Forward len : ti) = let
 inputToTurtle tsbs ts0 (Left dd : ti) =
 	inputToTurtle tsbs ts0 $ RotateTo (turtleDir ts0 + dd) : ti
 inputToTurtle tsbs ts0 (ti : tis) =
-	let nts = makeNextTurtle ts0 ti in nts : inputToTurtle (ts0 : tsbs) nts tis
+	let nts = nextTurtle ts0 ti in nts : inputToTurtle (ts0 : tsbs) nts tis
 inputToTurtle _ _ [] = error "no more input"
