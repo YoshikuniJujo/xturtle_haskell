@@ -4,24 +4,24 @@ module Graphics.X11.TurtleState (
 ) where
 
 data TurtleState = TurtleState {
-	turtleShape :: [(Double, Double)],
-	turtleSize :: Double,
-	turtlePos :: (Double, Double),
-	turtleDir :: Double,
-	turtlePenDown :: Bool,
-	turtleLine :: Bool,
-	turtleUndo :: Bool,
-	turtleUndoNum :: Int
+	shape :: [(Double, Double)],
+	size :: Double,
+	position :: (Double, Double),
+	direction :: Double,
+	pendown :: Bool,
+	line :: Bool,
+	undo :: Bool,
+	undonum :: Int
  } deriving Show
 
 initialTurtleState :: [(Double, Double)] -> TurtleState
 initialTurtleState sh = TurtleState {
-	turtleShape = sh,
-	turtleSize = 1,
-	turtlePos = (0, 0),
-	turtleDir = 0,
-	turtlePenDown = True,
-	turtleLine = False,
-	turtleUndo = False,
-	turtleUndoNum = 1
+	shape = sh,
+	size = 1,
+	position = (0, 0),
+	direction = 0,
+	pendown = True,
+	line = False,
+	undo = False,
+	undonum = 1
  }

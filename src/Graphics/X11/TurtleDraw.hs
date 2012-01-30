@@ -22,46 +22,41 @@ import Graphics.X11.WindowLayers
 turtleDraw, turtleDrawNotUndo, turtleDrawUndo ::
 	Character -> Layer -> TurtleState -> TurtleState -> IO ()
 turtleDraw c l t0 t1 = do
-	let	isUndo = turtleUndo t1
+	let	isUndo = undo t1
 	if isUndo then turtleDrawUndo c l t0 t1
 		else turtleDrawNotUndo c l t0 t1
 turtleDrawUndo c l t0 t1 = do
-	let	shape = turtleShape t1
-		size = turtleSize t1
-		prePos@(px, py) = turtlePos t0
-		preDir = turtleDir t0
-		pen = turtlePenDown t1
-		lined = turtleLine t0
-		pos@(nx, ny) = turtlePos t1
-		dir = turtleDir t1
+	let	prePos@(px, py) = position t0
+		preDir = direction t0
+		pen = pendown t1
+		lined = line t0
+		pos@(nx, ny) = position t1
+		dir = direction t1
 	when lined $ undoLayer l
 	forM_ (getDirections preDir dir) $ \d -> do
-		drawTurtle c shape size d prePos Nothing
+		drawTurtle c (shape t1) (size t1) d prePos Nothing
 		threadDelay 10000
 	if pen then forM_ (getPoints px py nx ny) $ \p -> do
-			drawTurtle c shape size dir p $ Just pos
+			drawTurtle c (shape t1) (size t1) dir p $ Just pos
 			threadDelay 50000
 		else forM_ (getPoints px py nx ny) $ \p -> do
-			drawTurtle c shape size dir p Nothing
+			drawTurtle c (shape t1) (size t1) dir p Nothing
 			threadDelay 50000
 turtleDrawNotUndo c l t0 t1 = do
-	let	shape = turtleShape t1
-		size = turtleSize t1
-		prePos@(px, py) = turtlePos t0
-		preDir = turtleDir t0
-		line = turtleLine t1
-		(nx, ny) = turtlePos t1
-		dir = turtleDir t1
+	let	prePos@(px, py) = position t0
+		preDir = direction t0
+		(nx, ny) = position t1
+		dir = direction t1
 	forM_ (getDirections preDir dir) $ \d -> do
-		drawTurtle c shape size d prePos Nothing
+		drawTurtle c (shape t1) (size t1) d prePos Nothing
 		threadDelay 10000
-	if line then do
+	if line t1 then do
 			forM_ (getPoints px py nx ny) $ \p -> do
-				drawTurtle c shape size dir p $ Just prePos
+				drawTurtle c (shape t1) (size t1) dir p $ Just prePos
 				threadDelay 50000
 			drawLine l px py nx ny
 		else forM_ (getPoints px py nx ny) $ \p -> do
-			drawTurtle c shape size dir p Nothing
+			drawTurtle c (shape t1) (size t1) dir p Nothing
 			threadDelay 50000
 
 step :: Double
