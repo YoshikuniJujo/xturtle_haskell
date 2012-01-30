@@ -156,8 +156,9 @@ addCharacter f = do
 drawLine :: Layer -> Double -> Double -> Double -> Double -> IO ()
 drawLine l@Layer{layerField = f} x1 y1 x2 y2 = do
 	drawLineBuf f fBG x1 y1 x2 y2 >> redrawCharacters f
-	addLayerAction l $ whether (drawLineBuf f fUndoBuf x1 y1 x2 y2)
-		(drawLineBuf f fBG x1 y1 x2 y2 >> redrawCharacters f)
+	addLayerAction l $ whether
+		(drawLineBuf f fUndoBuf x1 y1 x2 y2)
+		(drawLineBuf f fBG x1 y1 x2 y2)
 
 drawCharacter :: Character -> [(Double, Double)] -> IO ()
 drawCharacter c = setCharacter c . fillPolygonBuf (characterField c)
@@ -168,10 +169,10 @@ drawCharacterAndLine c@Character{characterField = f} ps x1 y1 x2 y2 =
 	setCharacter c $ fillPolygonBuf f ps >> drawLineBuf f fBuf x1 y1 x2 y2
 
 undoLayer :: Layer -> IO ()
-undoLayer Layer{layerField = w, layerId = lid} = do
-	ls <- readIORef $ fLayers w
-	writeIORef (fLayers w) $ modifyAt ls lid init
-	redraw w
+undoLayer Layer{layerField = f, layerId = lid} = do
+	ls <- readIORef $ fLayers f
+	writeIORef (fLayers f) $ modifyAt ls lid init
+	redraw f
 
 clearLayer :: Layer -> IO ()
 clearLayer Layer{layerField = f, layerId = lid} = do
