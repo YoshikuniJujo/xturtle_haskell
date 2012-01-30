@@ -114,7 +114,7 @@ openField = do
 		fCharacters = characterActions
 	 }
 	_ <- forkIOX $ runLoop f
-	flushWin f
+	flushWindow f
 	return f
 
 runLoop :: Field -> IO ()
@@ -206,7 +206,7 @@ setCharacter Character{characterField = f, characterId = cid} act = do
 	cs <- readIORef $ fCharacters f
 	writeIORef (fCharacters f) $ setAt cs cid act
 	redrawCharacters f
-	flushWin f
+	flushWindow f
 
 fillPolygonBuf :: Field -> [(Double, Double)] -> IO ()
 fillPolygonBuf f ps_ = do
@@ -239,7 +239,7 @@ redrawAll :: Field -> IO ()
 redrawAll f = do
 	redrawBuf f
 	redraw f
-	flushWin f
+	flushWindow f
 
 redrawBuf :: Field -> IO ()
 redrawBuf f = do
@@ -260,8 +260,8 @@ redrawCharacters f = do
 	copyArea (fDisplay f) (fBG f) (fBuf f) (fGC f) 0 0 width height 0 0
 	readIORef (fCharacters f) >>= sequence_
 
-flushWin :: Field -> IO ()
-flushWin f = do
+flushWindow :: Field -> IO ()
+flushWindow f = do
 	(width, height) <- winSize f
 	copyArea (fDisplay f) (fBuf f) (fWindow f) (fGC f) 0 0 width height 0 0
 	flush $ fDisplay f
