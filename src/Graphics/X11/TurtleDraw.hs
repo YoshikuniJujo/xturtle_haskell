@@ -23,6 +23,7 @@ import Graphics.X11.WindowLayers(
 
 import Control.Concurrent(threadDelay)
 import Control.Monad(when, forM_)
+import Control.Arrow((***))
 
 step :: Double
 step = 10
@@ -80,25 +81,10 @@ getDirections ds de = [ds, ds + dd .. de - dd]
 
 drawTurtle :: Character -> [(Double, Double)] -> Double -> Double ->
 	(Double, Double) -> Maybe (Double, Double) -> IO ()
-drawTurtle c sh s d (x, y) org = do
-	let sp = mkShape sh s d x y
+drawTurtle c sh s d (px, py) org = do
+	let sp = map (((+ px) *** (+ py)) . rotatePoint . ((* s) *** (* s))) sh
 	maybe (drawCharacter c sp)
-		(\(x0, y0) -> (drawCharacterAndLine c sp x0 y0 x y)) org
-
-mkShape ::
-	[(Double, Double)] -> Double -> Double -> Double -> Double -> [(Double, Double)]
-mkShape sh s d x y =
-	map (uncurry (addDoubles (x, y)) . rotatePointD d . mulPoint s) sh
-
-addDoubles :: (Double, Double) -> Double -> Double -> (Double, Double)
-addDoubles (x, y) dx dy = (x + dx, y + dy)
-
-rotatePointD :: Double -> (Double, Double) -> (Double, Double)
-rotatePointD = rotatePointR . (* pi) . (/ 180)
-
-rotatePointR :: Double -> (Double, Double) -> (Double, Double)
-rotatePointR rad (x, y) =
-	(x * cos rad - y * sin rad, x * sin rad + y * cos rad)
-
-mulPoint :: Double -> (Double, Double) -> (Double, Double)
-mulPoint s (x, y) = (x * s, y * s)
+		(\(x0, y0) -> (drawCharacterAndLine c sp x0 y0 px py)) org
+	where
+	rotatePoint (x, y) = let rad = d * pi / 180 in
+		(x * cos rad - y * sin rad, x * sin rad + y * cos rad)
