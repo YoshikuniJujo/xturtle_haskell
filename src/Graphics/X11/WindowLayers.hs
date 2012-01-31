@@ -47,7 +47,7 @@ import Data.Bool.Tools(whether)
 import Control.Monad(replicateM, forM_)
 import Control.Monad.Tools(doWhile_)
 import Control.Arrow((***))
-import Control.Concurrent(forkIO, ThreadId)
+import Control.Concurrent(forkIO, ThreadId, Chan, newChan, writeChan, readChan)
 
 data Field = Field{
 	fDisplay :: Display,
@@ -62,7 +62,8 @@ data Field = Field{
 	fHeight :: IORef Dimension,
 	fBuffed :: IORef [IO ()],
 	fLayers :: IORef [[Bool -> IO ()]],
-	fCharacters :: IORef [IO ()]
+	fCharacters :: IORef [IO ()],
+	fWait :: Chan ()
  }
 
 data Layer = Layer{
@@ -98,6 +99,8 @@ openField = do
 	buffActions <- newIORef []
 	layerActions <- newIORef []
 	characterActions <- newIORef []
+	wait <- newChan
+	writeChan wait ()
 	let f = Field{
 		fDisplay = dpy,
 		fWindow = win,
@@ -111,7 +114,8 @@ openField = do
 		fHeight = heightRef,
 		fBuffed = buffActions,
 		fLayers = layerActions,
-		fCharacters = characterActions
+		fCharacters = characterActions,
+		fWait = wait
 	 }
 	_ <- forkIOX $ runLoop f
 	flushWindow f
@@ -252,17 +256,23 @@ redraw :: Field -> IO ()
 redraw f = do
 	(width, height) <- winSize f
 	copyArea (fDisplay f) (fUndoBuf f) (fBG f) (fGC f) 0 0 width height 0 0
+	readChan $ fWait f
 	readIORef (fLayers f) >>= mapM_ ($ False) . concat
 	readIORef (fCharacters f) >>= sequence_
+	writeChan (fWait f) ()
 
 redrawCharacters :: Field -> IO ()
 redrawCharacters f = do
 	(width, height) <- winSize f
+	readChan $ fWait f
 	copyArea (fDisplay f) (fBG f) (fBuf f) (fGC f) 0 0 width height 0 0
 	readIORef (fCharacters f) >>= sequence_
+	writeChan (fWait f) ()
 
 flushWindow :: Field -> IO ()
 flushWindow f = do
 	(width, height) <- winSize f
+	readChan $ fWait f
 	copyArea (fDisplay f) (fBuf f) (fWindow f) (fGC f) 0 0 width height 0 0
 	flush $ fDisplay f
+	writeChan (fWait f) ()
