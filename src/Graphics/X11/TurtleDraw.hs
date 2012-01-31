@@ -37,16 +37,9 @@ stepDir = 5
 rotateSpeed :: Int
 rotateSpeed = 10000
 
-turtleDraw, turtleDrawNotUndo, turtleDrawUndo ::
-	Character -> Layer -> TurtleState -> TurtleState -> IO ()
-turtleDraw c l t0 t1 = if undo t1
-	then turtleDrawUndo c l t0 t1
-	else turtleDrawNotUndo c l t0 t1
-turtleDrawUndo c l t0 t1 = do
-	let	p0@(x0, y0) = position t0
-		p1@(x1, y1) = position t1
-		lineOrigin = if line t0 then Just p1 else Nothing
-	when (line t0) $ undoLayer l
+turtleDraw :: Character -> Layer -> TurtleState -> TurtleState -> IO ()
+turtleDraw c l t0 t1 = do
+	when (undo t1 && line t0) $ undoLayer l
 	forM_ (getDirections (direction t0) (direction t1)) $ \d -> do
 		drawTurtle c (shape t1) (size t1) d p0 Nothing
 		threadDelay rotateSpeed
@@ -54,18 +47,12 @@ turtleDrawUndo c l t0 t1 = do
 		drawTurtle c (shape t1) (size t1) (direction t1) p lineOrigin
 		threadDelay moveSpeed
 	drawTurtle c (shape t1) (size t1) (direction t1) p1 lineOrigin
-turtleDrawNotUndo c l t0 t1 = do
-	let	p0@(x0, y0) = position t0
-		p1@(x1, y1) = position t1
-		lineOrigin = if line t1 then Just p0 else Nothing
-	forM_ (getDirections (direction t0) (direction t1)) $ \d -> do
-		drawTurtle c (shape t1) (size t1) d p0 Nothing
-		threadDelay rotateSpeed
-	forM_ (getPoints x0 y0 x1 y1) $ \p -> do
-		drawTurtle c (shape t1) (size t1) (direction t1) p lineOrigin
-		threadDelay moveSpeed
-	drawTurtle c (shape t1) (size t1) (direction t1) p1 lineOrigin
-	when (line t1) $ drawLine l x0 y0 x1 y1
+	when (not (undo t1) && line t1) $ drawLine l x0 y0 x1 y1
+	where
+	(tl, to) = if undo t1 then (t0, t1) else (t1, t0)
+	lineOrigin = if line tl then Just (position to) else Nothing
+	p0@(x0, y0) = position t0
+	p1@(x1, y1) = position t1
 
 getPoints :: Double -> Double -> Double -> Double -> [(Double, Double)]
 getPoints x1 y1 x2 y2 = zip [x1, x1 + dx .. x2 - dx] [y1, y1 + dy .. y2 - dy]
