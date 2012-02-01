@@ -1,0 +1,17 @@
+2012.02.01 Wed.
+
+To repair closeField, need my original nextEvent,
+which type is IO (Maybe Event).
+The bone is like follow.
+
+myNextEvent = do
+	c <- newChan
+	forkIO $ do
+		e <- nextEvent
+		writeChan c $ Just e
+	forkIO $ do
+		c <- readChan closeChan
+		writeChan c Nothing
+	readChan c
+
+I think I can repair closeField use this function.
