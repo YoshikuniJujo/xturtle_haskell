@@ -98,9 +98,7 @@ home :: Turtle -> IO ()
 home t = goto t 0 0 >> sendCommand t (Rotate 0)
 
 clear :: Turtle -> IO ()
-clear t@Turtle{layer = l} = sendCommand t Clear -- do
---	left t 0
---	clearLayer l
+clear t = sendCommand t Clear
 
 circle :: Turtle -> Double -> IO ()
 circle t r = do
