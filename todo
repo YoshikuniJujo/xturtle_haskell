@@ -1,9 +1,12 @@
 * refactoring
+
+Functions
 * change line width
 * change turtle width and height separately
 * change line color
 * get X events
 * get timer event
 
+Bugs
 * repair closeField
 * undo for clear

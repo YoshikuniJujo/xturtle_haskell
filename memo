@@ -15,3 +15,9 @@ myNextEvent = do
 	readChan c
 
 I think I can repair closeField use this function.
+
+To undo for clearLayer, each layer has history of cleared.
+And if undo then history poped.
+
+I'll make new module Layers.
+Then operate Layer in the module.
