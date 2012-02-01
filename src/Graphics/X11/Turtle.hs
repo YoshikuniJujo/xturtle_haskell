@@ -2,7 +2,7 @@ module Graphics.X11.Turtle (
 	Turtle,
 
 	openField,
-	closeField,
+--	closeField,
 	newTurtle,
 
 	shape,
@@ -30,8 +30,8 @@ module Graphics.X11.Turtle (
 
 import Graphics.X11.TurtleMove(
 	Field, Layer, Character,
-	forkIOX, openField, closeField,
-	addCharacter, addLayer, layerSize, clearLayer,
+	forkIOX, openField, -- closeField,
+	addCharacter, addLayer, layerSize,
 	moveTurtle
  )
 import Graphics.X11.TurtleInput(
@@ -45,7 +45,7 @@ import Prelude hiding(Left)
 import Data.IORef(IORef, newIORef, readIORef, modifyIORef)
 
 xturtleVersion :: (Int, String)
-xturtleVersion = (12, "0.0.7e")
+xturtleVersion = (14, "0.0.8")
 
 data Turtle = Turtle {
 	layer :: Layer,

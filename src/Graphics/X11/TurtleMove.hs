@@ -10,9 +10,7 @@ module Graphics.X11.TurtleMove (
 	addCharacter,
 	layerSize,
 
-	moveTurtle,
-
-	clearLayer
+	moveTurtle
 ) where
 
 import Graphics.X11.TurtleState(TurtleState(..))
