@@ -4,4 +4,4 @@
 * clear timing too early (fixed)
 * can't undo for clear
 * closeField don't work
-* redraw error when ExposeEvent occur
+* redraw error when ExposeEvent occur (fixed)

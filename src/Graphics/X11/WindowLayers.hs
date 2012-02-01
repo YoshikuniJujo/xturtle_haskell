@@ -258,6 +258,7 @@ redraw f = do
 	copyArea (fDisplay f) (fUndoBuf f) (fBG f) (fGC f) 0 0 width height 0 0
 	readChan $ fWait f
 	readIORef (fLayers f) >>= mapM_ ($ False) . concat
+	copyArea (fDisplay f) (fBG f) (fBuf f) (fGC f) 0 0 width height 0 0
 	readIORef (fCharacters f) >>= sequence_
 	writeChan (fWait f) ()
 

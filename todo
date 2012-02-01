@@ -6,4 +6,4 @@
 * get timer event
 
 * repair closeField
-* repair redraw when ExposeEvent occur
+* undo for clear
