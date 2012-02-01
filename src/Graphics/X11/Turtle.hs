@@ -27,7 +27,7 @@ module Graphics.X11.Turtle (
 	xturtleVersion
 ) where
 
-import Graphics.X11.TurtleDraw
+import Graphics.X11.TurtleMove
 import Graphics.X11.TurtleInput
 import Control.Concurrent
 import Control.Monad
@@ -59,7 +59,7 @@ newTurtle f = do
 			states = sts,
 			stateNow = sn
 		 }
-	_ <- forkIOX $ for2M_ sts $ turtleDraw ch l
+	_ <- forkIOX $ for2M_ sts $ moveTurtle ch l
 	return t
 
 sendCommand :: Turtle -> TurtleInput -> IO ()

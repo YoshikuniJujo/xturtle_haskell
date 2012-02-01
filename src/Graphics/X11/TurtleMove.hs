@@ -1,4 +1,4 @@
-module Graphics.X11.TurtleDraw (
+module Graphics.X11.TurtleMove (
 	Field,
 	Layer,
 	Character,
@@ -9,7 +9,7 @@ module Graphics.X11.TurtleDraw (
 	addCharacter,
 	layerSize,
 
-	turtleDraw,
+	moveTurtle,
 
 	clearLayer
 ) where
@@ -25,6 +25,8 @@ import Control.Concurrent(threadDelay)
 import Control.Monad(when, forM_)
 import Control.Arrow((***))
 
+type Pos = (Double, Double)
+
 step :: Double
 step = 10
 
@@ -37,37 +39,36 @@ stepDir = 5
 rotateSpeed :: Int
 rotateSpeed = 10000
 
-turtleDraw :: Character -> Layer -> TurtleState -> TurtleState -> IO ()
-turtleDraw c l t0 t1 = do
+moveTurtle :: Character -> Layer -> TurtleState -> TurtleState -> IO ()
+moveTurtle c l t0 t1 = do
 	when (undo t1 && line t0) $ undoLayer l
 	forM_ (getDirections (direction t0) (direction t1)) $ \d -> do
 		drawTurtle c (shape t1) (size t1) d p0 Nothing
 		threadDelay rotateSpeed
-	forM_ (getPoints x0 y0 x1 y1) $ \p -> do
+	forM_ (getPositions x0 y0 x1 y1) $ \p -> do
 		drawTurtle c (shape t1) (size t1) (direction t1) p lineOrigin
 		threadDelay moveSpeed
 	drawTurtle c (shape t1) (size t1) (direction t1) p1 lineOrigin
 	when (not (undo t1) && line t1) $ drawLine l x0 y0 x1 y1
 	where
 	(tl, to) = if undo t1 then (t0, t1) else (t1, t0)
-	lineOrigin = if line tl then Just (position to) else Nothing
+	lineOrigin = if line tl then Just $ position to else Nothing
 	p0@(x0, y0) = position t0
 	p1@(x1, y1) = position t1
 
-getPoints :: Double -> Double -> Double -> Double -> [(Double, Double)]
-getPoints x1 y1 x2 y2 = zip [x1, x1 + dx .. x2 - dx] [y1, y1 + dy .. y2 - dy]
+getPositions :: Double -> Double -> Double -> Double -> [Pos]
+getPositions x0 y0 x1 y1 = zip [x0, x0 + dx .. x1 - dx] [y0, y0 + dy .. y1 - dy]
 	where
-	len = ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** (1/2)
-	dx = (x2 - x1) * step / len
-	dy = (y2 - y1) * step / len
+	dist = ((x1 - x0) ** 2 + (y1 - y0) ** 2) ** (1/2)
+	dx = step * (x1 - x0) / dist
+	dy = step * (y1 - y0) / dist
 
 getDirections :: Double -> Double -> [Double]
 getDirections ds de = [ds, ds + dd .. de - dd]
 	where
 	dd = if de > ds then stepDir else - stepDir
 
-drawTurtle :: Character -> [(Double, Double)] -> Double -> Double ->
-	(Double, Double) -> Maybe (Double, Double) -> IO ()
+drawTurtle :: Character -> [Pos] -> Double -> Double -> Pos -> Maybe Pos -> IO ()
 drawTurtle c sh s d (px, py) org = do
 	let sp = map (((+ px) *** (+ py)) . rotatePoint . ((* s) *** (* s))) sh
 	maybe (drawCharacter c sp)

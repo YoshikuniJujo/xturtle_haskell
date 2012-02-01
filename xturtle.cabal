@@ -34,4 +34,4 @@ library
   Ghc-options:		-Wall
   Other-modules:	Graphics.X11.WindowLayers,
     Graphics.X11.TurtleInput,
-    Graphics.X11.TurtleDraw, Graphics.X11.TurtleState
+    Graphics.X11.TurtleMove, Graphics.X11.TurtleState
