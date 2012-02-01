@@ -3,3 +3,4 @@
 * dot when change shape, size, dir (fixed)
 * clear timing too early
 * can't undo for clear
+* closeField don't work

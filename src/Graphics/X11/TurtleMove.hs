@@ -5,6 +5,7 @@ module Graphics.X11.TurtleMove (
 
 	forkIOX,
 	openField,
+	closeField,
 	addLayer,
 	addCharacter,
 	layerSize,
@@ -17,7 +18,8 @@ module Graphics.X11.TurtleMove (
 import Graphics.X11.TurtleState(TurtleState(..))
 import Graphics.X11.WindowLayers(
 	Field, Layer, Character,
-	forkIOX, openField, addLayer, addCharacter, layerSize, clearLayer,
+	forkIOX, openField, closeField,
+	addLayer, addCharacter, layerSize, clearLayer,
 	drawLine, drawCharacter, drawCharacterAndLine, undoLayer
  )
 
