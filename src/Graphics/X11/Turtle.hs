@@ -45,7 +45,7 @@ import Prelude hiding(Left)
 import Data.IORef(IORef, newIORef, readIORef, modifyIORef)
 
 xturtleVersion :: (Int, String)
-xturtleVersion = (11, "0.0.7d")
+xturtleVersion = (12, "0.0.7e")
 
 data Turtle = Turtle {
 	layer :: Layer,
@@ -98,9 +98,9 @@ home :: Turtle -> IO ()
 home t = goto t 0 0 >> sendCommand t (Rotate 0)
 
 clear :: Turtle -> IO ()
-clear t@Turtle{layer = l} = do
-	left t 0
-	clearLayer l
+clear t@Turtle{layer = l} = sendCommand t Clear -- do
+--	left t 0
+--	clearLayer l
 
 circle :: Turtle -> Double -> IO ()
 circle t r = do

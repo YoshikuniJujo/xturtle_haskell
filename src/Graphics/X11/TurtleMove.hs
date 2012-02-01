@@ -52,6 +52,7 @@ moveTurtle c l t0 t1 = do
 		threadDelay moveSpeed
 	drawTurtle c (shape t1) (size t1) (direction t1) p1 lineOrigin
 	when (not (undo t1) && line t1) $ drawLine l x0 y0 x1 y1
+	when (clear t1) $ clearLayer l
 	where
 	(tl, to) = if undo t1 then (t0, t1) else (t1, t0)
 	lineOrigin = if line tl then Just $ position to else Nothing

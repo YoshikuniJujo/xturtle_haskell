@@ -11,7 +11,8 @@ data TurtleState = TurtleState {
 	pendown :: Bool,
 	line :: Bool,
 	undo :: Bool,
-	undonum :: Int
+	undonum :: Int,
+	clear :: Bool
  } deriving Show
 
 initialTurtleState :: [(Double, Double)] -> TurtleState
@@ -23,5 +24,6 @@ initialTurtleState sh = TurtleState {
 	pendown = True,
 	line = False,
 	undo = False,
-	undonum = 1
+	undonum = 1,
+	clear = False
  }

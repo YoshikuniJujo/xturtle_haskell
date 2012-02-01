@@ -26,6 +26,7 @@ data TurtleInput
 	| Penup
 	| Pendown
 	| Undo
+	| Clear
 	| Forward Double
 	| Left Double
 	| Undonum Int
@@ -51,10 +52,11 @@ nextTurtle t (Rotate d) = (clearState t){direction = d}
 nextTurtle t Pendown = (clearState t){pendown = True}
 nextTurtle t Penup = (clearState t){pendown = False}
 nextTurtle t (Undonum un) = (clearState t){undonum = un}
+nextTurtle t (Clear) = (clearState t){clear = True}
 nextTurtle _ _ = error "not defined"
 
 clearState :: TurtleState -> TurtleState
-clearState t = t{line = False, undo = False, undonum = 1}
+clearState t = t{line = False, undo = False, undonum = 1, clear = False}
 
 inputToTurtle :: [TurtleState] -> TurtleState -> [TurtleInput] -> [TurtleState]
 inputToTurtle [] ts0 (Undo : tis) = ts0 : inputToTurtle [] ts0 tis

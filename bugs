@@ -1,6 +1,6 @@
 * dot to (0, 0) at first (fixed)
 * dot when clear (fixed)
 * dot when change shape, size, dir (fixed)
-* clear timing too early
+! clear timing too early
 * can't undo for clear
 * closeField don't work
