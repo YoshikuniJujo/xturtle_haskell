@@ -22,7 +22,7 @@ import Graphics.X11.WindowLayers(
  )
 
 import Control.Concurrent(threadDelay)
-import Control.Monad(when, forM_)
+import Control.Monad(when, unless, forM_)
 import Control.Arrow((***))
 
 type Pos = (Double, Double)
@@ -43,7 +43,7 @@ moveTurtle :: Character -> Layer -> TurtleState -> TurtleState -> IO ()
 moveTurtle c l t0 t1 = do
 	when (undo t1 && line t0) $ do
 		done <- undoLayer l
-		when (not done) $ clearLayer l >> drawLines l (drawed t1)
+		unless done $ clearLayer l >> drawLines l (drawed t1)
 	when (undo t1 && clear t0) $ drawLines l $ drawed t1
 	forM_ (getDirections (direction t0) (direction t1)) $ \d -> do
 		drawTurtle c (shape t1) (size t1) d p0 Nothing
