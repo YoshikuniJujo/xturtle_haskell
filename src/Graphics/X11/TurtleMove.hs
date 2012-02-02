@@ -42,6 +42,7 @@ rotateSpeed = 10000
 moveTurtle :: Character -> Layer -> TurtleState -> TurtleState -> IO ()
 moveTurtle c l t0 t1 = do
 	when (undo t1 && line t0) $ undoLayer l
+	when (undo t1 && clear t0) $ drawLines l $ drawed t1
 	forM_ (getDirections (direction t0) (direction t1)) $ \d -> do
 		drawTurtle c (shape t1) (size t1) d p0 Nothing
 		threadDelay rotateSpeed
@@ -56,6 +57,9 @@ moveTurtle c l t0 t1 = do
 	lineOrigin = if line tl then Just $ position to else Nothing
 	p0@(x0, y0) = position t0
 	p1@(x1, y1) = position t1
+
+drawLines :: Layer -> [((Double, Double), (Double, Double))] -> IO ()
+drawLines l ls = mapM_ (\((x0, y0), (x1, y1)) -> drawLine l x0 y0 x1 y1) $ reverse ls
 
 getPositions :: Double -> Double -> Double -> Double -> [Pos]
 getPositions x0 y0 x1 y1 = zip [x0, x0 + dx .. x1 - dx] [y0, y0 + dy .. y1 - dy]
