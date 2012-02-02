@@ -16,6 +16,7 @@ module Graphics.X11.WindowLayers(
 
 	undoLayer,
 	clearLayer,
+	flushLayer,
 
 	forkIOX
 ) where
@@ -144,6 +145,9 @@ closeField = closeDisplay . fDisplay
 layerSize :: Layer -> IO (Double, Double)
 layerSize = fieldSize . layerField
 
+flushLayer :: Layer -> IO ()
+flushLayer = flushWindow . layerField
+
 addLayer :: Field -> IO Layer
 addLayer f = do
 	ls <- readIORef $ fLayers f
@@ -172,11 +176,13 @@ drawCharacterAndLine ::	Character -> [(Double, Double)] ->
 drawCharacterAndLine c@Character{characterField = f} ps x1 y1 x2 y2 =
 	setCharacter c $ fillPolygonBuf f ps >> drawLineBuf f fBuf x1 y1 x2 y2
 
-undoLayer :: Layer -> IO ()
+undoLayer :: Layer -> IO Bool
 undoLayer Layer{layerField = f, layerId = lid} = do
 	ls <- readIORef $ fLayers f
-	writeIORef (fLayers f) $ modifyAt ls lid init
-	redraw f
+	if null $ ls !! lid then return False else do
+		writeIORef (fLayers f) $ modifyAt ls lid init
+		redraw f
+		return True
 
 clearLayer :: Layer -> IO ()
 clearLayer Layer{layerField = f, layerId = lid} = do
@@ -184,7 +190,8 @@ clearLayer Layer{layerField = f, layerId = lid} = do
 	writeIORef (fLayers f) $ setAt ls lid []
 	buffed <- readIORef $ fBuffed f
 	writeIORef (fBuffed f) $ setAt buffed lid $ return ()
-	redrawAll f
+	redrawBuf f
+	redraw f
 
 forkIOX :: IO () -> IO ThreadId
 forkIOX = (initThreads >>) . forkIO

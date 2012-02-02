@@ -16,7 +16,7 @@ module Graphics.X11.TurtleMove (
 import Graphics.X11.TurtleState(TurtleState(..))
 import Graphics.X11.WindowLayers(
 	Field, Layer, Character,
-	forkIOX, openField, closeField,
+	forkIOX, openField, closeField, flushLayer,
 	addLayer, addCharacter, layerSize, clearLayer,
 	drawLine, drawCharacter, drawCharacterAndLine, undoLayer
  )
@@ -41,7 +41,9 @@ rotateSpeed = 10000
 
 moveTurtle :: Character -> Layer -> TurtleState -> TurtleState -> IO ()
 moveTurtle c l t0 t1 = do
-	when (undo t1 && line t0) $ undoLayer l
+	when (undo t1 && line t0) $ do
+		done <- undoLayer l
+		when (not done) $ clearLayer l >> drawLines l (drawed t1)
 	when (undo t1 && clear t0) $ drawLines l $ drawed t1
 	forM_ (getDirections (direction t0) (direction t1)) $ \d -> do
 		drawTurtle c (shape t1) (size t1) d p0 Nothing
@@ -51,7 +53,7 @@ moveTurtle c l t0 t1 = do
 		threadDelay moveSpeed
 	drawTurtle c (shape t1) (size t1) (direction t1) p1 lineOrigin
 	when (not (undo t1) && line t1) $ drawLine l x0 y0 x1 y1
-	when (clear t1) $ clearLayer l
+	when (clear t1) $ clearLayer l >> flushLayer l
 	where
 	(tl, to) = if undo t1 then (t0, t1) else (t1, t0)
 	lineOrigin = if line tl then Just $ position to else Nothing
