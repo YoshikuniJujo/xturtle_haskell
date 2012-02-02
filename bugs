@@ -2,6 +2,6 @@
 * dot when clear (fixed)
 * dot when change shape, size, dir (fixed)
 * clear timing too early (fixed)
-* can't undo for clear
+* can't undo for clear (fixed)
 * closeField don't work
 * redraw error when ExposeEvent occur (fixed)
