@@ -53,7 +53,7 @@ nextTurtle t (Rotate d) = (clearState t){direction = d}
 nextTurtle t Pendown = (clearState t){pendown = True}
 nextTurtle t Penup = (clearState t){pendown = False}
 nextTurtle t (Undonum un) = (clearState t){undonum = un}
-nextTurtle t (Clear) = (clearState t){clear = True}
+nextTurtle t (Clear) = (clearState t){clear = True, drawed = []}
 nextTurtle _ _ = error "not defined"
 
 clearState :: TurtleState -> TurtleState
