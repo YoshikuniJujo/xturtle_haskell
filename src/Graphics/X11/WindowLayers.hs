@@ -253,27 +253,28 @@ redrawBuf f = do
 	readIORef (fBuffed f) >>= sequence_
 
 redraw :: Field -> IO ()
-redraw f = do
+redraw = withLock $ \f -> do
 	(width, height) <- winSize f
 	copyArea (fDisplay f) (fUndoBuf f) (fBG f) (fGC f) 0 0 width height 0 0
-	readChan $ fWait f
 	readIORef (fLayers f) >>= mapM_ ($ False) . concat
 	copyArea (fDisplay f) (fBG f) (fBuf f) (fGC f) 0 0 width height 0 0
 	readIORef (fCharacters f) >>= sequence_
-	writeChan (fWait f) ()
 
 redrawCharacters :: Field -> IO ()
-redrawCharacters f = do
+redrawCharacters = withLock $ \f -> do
 	(width, height) <- winSize f
-	readChan $ fWait f
 	copyArea (fDisplay f) (fBG f) (fBuf f) (fGC f) 0 0 width height 0 0
 	readIORef (fCharacters f) >>= sequence_
-	writeChan (fWait f) ()
 
 flushWindow :: Field -> IO ()
-flushWindow f = do
+flushWindow = withLock $ \f -> do
 	(width, height) <- winSize f
-	readChan $ fWait f
 	copyArea (fDisplay f) (fBuf f) (fWindow f) (fGC f) 0 0 width height 0 0
 	flush $ fDisplay f
+
+withLock :: (Field -> IO a) -> Field -> IO a
+withLock act f = do
+	readChan $ fWait f
+	ret <- act f
 	writeChan (fWait f) ()
+	return ret
