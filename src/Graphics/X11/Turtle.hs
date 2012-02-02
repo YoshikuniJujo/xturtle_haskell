@@ -45,7 +45,7 @@ import Prelude hiding(Left)
 import Data.IORef(IORef, newIORef, readIORef, modifyIORef)
 
 xturtleVersion :: (Int, String)
-xturtleVersion = (15, "0.0.8a")
+xturtleVersion = (16, "0.0.9")
 
 data Turtle = Turtle {
 	layer :: Layer,
