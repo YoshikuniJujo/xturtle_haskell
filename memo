@@ -25,3 +25,14 @@ I'll make new module Layers.
 Then operate Layer in the module.
 
 Mmm, buffer of layer make problem complex.
+
+2012.02.02 Thu.
+
+for closeField
+need XPending, ConectionNumber and threadWaitRead
+
+getConnection :: Field -> Fd
+getConnection = Fd . connectionNumber . fDisplay
+
+waitInput :: Field -> IO ()
+waitInput = threadWaitRead . getConnection
