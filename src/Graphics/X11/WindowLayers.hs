@@ -34,7 +34,7 @@ import Graphics.X11(
 	setWMProtocols, selectInput, allocaXEvent, nextEvent,
 	keyPressMask, exposureMask,
 
-	getGeometry, initThreads
+	getGeometry, initThreads, connectionNumber, pending, destroyWindow
  )
 import qualified Graphics.X11 as X (drawLine)
 import Graphics.X11.Xlib.Extras(Event(..), getEvent)
@@ -45,10 +45,14 @@ import Data.Convertible(convert)
 import Data.List.Tools(modifyAt, setAt)
 import Data.Bool.Tools(whether)
 
-import Control.Monad(replicateM, forM_)
+import Control.Monad(replicateM, forM_, forever, replicateM_, when)
 import Control.Monad.Tools(doWhile_)
 import Control.Arrow((***))
-import Control.Concurrent(forkIO, ThreadId, Chan, newChan, writeChan, readChan)
+import Control.Concurrent(
+	forkIO, ThreadId, Chan, newChan, writeChan, readChan, threadWaitRead,
+	killThread)
+
+import System.Posix.Types
 
 data Field = Field{
 	fDisplay :: Display,
@@ -64,7 +68,9 @@ data Field = Field{
 	fBuffed :: IORef [IO ()],
 	fLayers :: IORef [[Bool -> IO ()]],
 	fCharacters :: IORef [IO ()],
-	fWait :: Chan ()
+	fWait :: Chan (),
+	fEvent :: Chan (Maybe Event),
+	fClose :: Chan ()
  }
 
 data Layer = Layer{
@@ -101,6 +107,8 @@ openField = do
 	layerActions <- newIORef []
 	characterActions <- newIORef []
 	wait <- newChan
+	event <- newChan
+	close <- newChan
 	writeChan wait ()
 	let f = Field{
 		fDisplay = dpy,
@@ -116,31 +124,58 @@ openField = do
 		fBuffed = buffActions,
 		fLayers = layerActions,
 		fCharacters = characterActions,
-		fWait = wait
+		fWait = wait,
+		fEvent = event,
+		fClose = close
 	 }
 	_ <- forkIOX $ runLoop f
 	flushWindow f
 	return f
 
 runLoop :: Field -> IO ()
-runLoop f = (>> closeField f) $	doWhile_ $ allocaXEvent $ \e -> do
-	nextEvent (fDisplay f) e
-	ev <- getEvent e
-	case ev of
-		ExposeEvent{} -> do
-			(_, _, _, width, height, _, _) <-
-				getGeometry (fDisplay f) (fWindow f)
-			writeIORef (fWidth f) width
-			writeIORef (fHeight f) height
-			redrawAll f
-			return True
-		KeyEvent{} -> return True
-		ClientMessageEvent{} ->
-			return $ convert (head $ ev_data ev) /= fDel f
-		_ -> return True
+runLoop f = allocaXEvent $ \e -> do
+	endc <- waitInput f
+	th1 <- forkIOX $ forever $ do
+		evN <- pending $ fDisplay f
+		replicateM_ (fromIntegral evN) $ do
+			nextEvent (fDisplay f) e
+			ev <- getEvent e
+			writeChan (fEvent f) $ Just ev
+		end <- readChan endc
+		when end $ writeChan (fEvent f) Nothing
+	(>> closeDisplay (fDisplay f)) $
+		(>> destroyWindow (fDisplay f) (fWindow f)) $ doWhile_ $ do
+		mev <- readChan $ fEvent f
+		case mev of
+			Just (ExposeEvent{}) -> do
+				(_, _, _, width, height, _, _) <-
+					getGeometry (fDisplay f) (fWindow f)
+				writeIORef (fWidth f) width
+				writeIORef (fHeight f) height
+				redrawAll f
+				return True
+			Just (KeyEvent{}) -> return True
+			Just ev@(ClientMessageEvent{}) ->
+				return $ convert (head $ ev_data ev) /= fDel f
+			Nothing -> killThread th1 >> return False
+			_ -> return True
+
+getConnection :: Field -> Fd
+getConnection = Fd . connectionNumber . fDisplay
+
+waitInput :: Field -> IO (Chan Bool)
+waitInput f = do
+	c <- newChan
+	_ <- forkIOX $ forever $ do
+		threadWaitRead $ getConnection f
+		writeChan c False
+	_ <- forkIO $ do
+		readChan $ fClose f
+		writeChan c True
+	return c
 
 closeField :: Field -> IO ()
-closeField = closeDisplay . fDisplay
+closeField = flip writeChan () . fClose
 
 layerSize :: Layer -> IO (Double, Double)
 layerSize = fieldSize . layerField
