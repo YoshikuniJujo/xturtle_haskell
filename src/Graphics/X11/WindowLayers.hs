@@ -13,6 +13,7 @@ module Graphics.X11.WindowLayers(
 	drawLine,
 	drawCharacter,
 	drawCharacterAndLine,
+	clearCharacter,
 
 	undoLayer,
 	clearLayer,
@@ -70,7 +71,8 @@ data Field = Field{
 	fCharacters :: IORef [IO ()],
 	fWait :: Chan (),
 	fEvent :: Chan (Maybe Event),
-	fClose :: Chan ()
+	fClose :: Chan (),
+	fClosed :: IORef Bool
  }
 
 data Layer = Layer{
@@ -109,6 +111,7 @@ openField = do
 	wait <- newChan
 	event <- newChan
 	close <- newChan
+	closed <- newIORef False
 	writeChan wait ()
 	let f = Field{
 		fDisplay = dpy,
@@ -126,7 +129,8 @@ openField = do
 		fCharacters = characterActions,
 		fWait = wait,
 		fEvent = event,
-		fClose = close
+		fClose = close,
+		fClosed = closed
 	 }
 	_ <- forkIOX $ runLoop f
 	flushWindow f
@@ -175,7 +179,9 @@ waitInput f = do
 	return c
 
 closeField :: Field -> IO ()
-closeField = flip writeChan () . fClose
+closeField f = do
+	writeChan (fClose f) ()
+	writeIORef (fClosed f) True
 
 layerSize :: Layer -> IO (Double, Double)
 layerSize = fieldSize . layerField
@@ -196,20 +202,30 @@ addCharacter f = do
 	writeIORef (fCharacters f) (cs ++ [return ()])
 	return Character{characterField = f, characterId = length cs}
 
+runIfOpened :: Field -> IO a -> IO ()
+runIfOpened f act = do
+	cl <- readIORef $ fClosed f
+	if cl then return () else act >> return ()
+
 drawLine :: Layer -> Double -> Double -> Double -> Double -> IO ()
-drawLine l@Layer{layerField = f} x1 y1 x2 y2 = do
+drawLine l@Layer{layerField = f} x1 y1 x2 y2 = runIfOpened f $ do
 	drawLineBuf f fBG x1 y1 x2 y2 >> redrawCharacters f
 	addLayerAction l $ whether
 		(drawLineBuf f fUndoBuf x1 y1 x2 y2)
 		(drawLineBuf f fBG x1 y1 x2 y2)
 
+clearCharacter :: Character -> IO ()
+clearCharacter c = runIfOpened (characterField c) $
+	setCharacter c $ return ()
+
 drawCharacter :: Character -> [(Double, Double)] -> IO ()
-drawCharacter c = setCharacter c . fillPolygonBuf (characterField c)
+drawCharacter c =
+	runIfOpened (characterField c) . setCharacter c . fillPolygonBuf (characterField c)
 
 drawCharacterAndLine ::	Character -> [(Double, Double)] ->
 	Double -> Double -> Double -> Double -> IO ()
 drawCharacterAndLine c@Character{characterField = f} ps x1 y1 x2 y2 =
-	setCharacter c $ fillPolygonBuf f ps >> drawLineBuf f fBuf x1 y1 x2 y2
+	runIfOpened f $ setCharacter c $ fillPolygonBuf f ps >> drawLineBuf f fBuf x1 y1 x2 y2
 
 undoLayer :: Layer -> IO Bool
 undoLayer Layer{layerField = f, layerId = lid} = do

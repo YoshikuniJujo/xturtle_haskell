@@ -2,11 +2,13 @@ module Graphics.X11.Turtle (
 	Turtle,
 
 	openField,
---	closeField,
+	closeField,
 	newTurtle,
+	killTurtle,
 
 	shape,
 	shapesize,
+	hideturtle,
 	forward,
 	backward,
 	left,
@@ -30,8 +32,8 @@ module Graphics.X11.Turtle (
 
 import Graphics.X11.TurtleMove(
 	Field, Layer, Character,
-	forkIOX, openField, -- closeField,
-	addCharacter, addLayer, layerSize,
+	forkIOX, openField, closeField,
+	addCharacter, addLayer, layerSize, clearLayer, clearCharacter,
 	moveTurtle
  )
 import Graphics.X11.TurtleInput(
@@ -39,7 +41,7 @@ import Graphics.X11.TurtleInput(
 	getTurtleStates, getPosition, getPendown, undonum
  )
 import Graphics.X11.TurtleShape(lookupShape, classic)
-import Control.Concurrent(Chan, writeChan, threadDelay)
+import Control.Concurrent(Chan, writeChan, threadDelay, ThreadId, killThread)
 import Control.Monad(replicateM_, zipWithM_)
 import Prelude hiding(Left)
 import Data.IORef(IORef, newIORef, readIORef, modifyIORef)
@@ -52,7 +54,8 @@ data Turtle = Turtle {
 	character :: Character,
 	inputChan :: Chan TurtleInput,
 	states :: [TurtleState],
-	stateIndex :: IORef Int
+	stateIndex :: IORef Int,
+	thread :: ThreadId
  }
 
 newTurtle :: Field -> IO Turtle
@@ -66,10 +69,20 @@ newTurtle f = do
 			layer = l,
 			character = ch,
 			states = sts,
-			stateIndex = si
+			stateIndex = si,
+			thread = undefined
 		 }
-	_ <- forkIOX $ zipWithM_ (moveTurtle ch l) sts $ tail sts
-	return t
+	tid <- forkIOX $ zipWithM_ (moveTurtle ch l) sts $ tail sts
+	return t{thread = tid}
+
+killTurtle :: Turtle -> IO ()
+killTurtle t = do
+	clearLayer $ layer t
+	clearCharacter $ character t
+	killThread $ thread t
+
+hideturtle :: Turtle -> IO ()
+hideturtle t = sendCommand t $ SetVisible False
 
 sendCommand :: Turtle -> TurtleInput -> IO ()
 sendCommand Turtle{inputChan = c, stateIndex = si} ti = do

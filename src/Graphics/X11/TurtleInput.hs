@@ -25,6 +25,7 @@ data TurtleInput
 	| Rotate Double
 	| Penup
 	| Pendown
+	| SetVisible Bool
 	| Undo
 	| Clear
 	| Forward Double
@@ -52,6 +53,7 @@ nextTurtle t (Goto x y) = (clearState t){position = (x, y), line = pendown t,
 nextTurtle t (Rotate d) = (clearState t){direction = d}
 nextTurtle t Pendown = (clearState t){pendown = True}
 nextTurtle t Penup = (clearState t){pendown = False}
+nextTurtle t (SetVisible v) = (clearState t){visible = v}
 nextTurtle t (Undonum un) = (clearState t){undonum = un}
 nextTurtle t (Clear) = (clearState t){clear = True, drawed = []}
 nextTurtle _ _ = error "not defined"
