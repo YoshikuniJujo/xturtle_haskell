@@ -3,5 +3,6 @@
 * dot when change shape, size, dir (fixed)
 * clear timing too early (fixed)
 * can't undo for clear (fixed)
-* closeField don't work
+* closeField don't work (fixed)
 * redraw error when ExposeEvent occur (fixed)
+* freeze ghci if closeField before turtle stop
