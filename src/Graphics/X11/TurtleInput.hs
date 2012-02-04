@@ -6,7 +6,8 @@ module Graphics.X11.TurtleInput (
 	getPosition,
 	getPendown,
 	undonum,
-	visible
+	visible,
+	direction
 ) where
 
 import Graphics.X11.TurtleState(TurtleState(..), initialTurtleState)

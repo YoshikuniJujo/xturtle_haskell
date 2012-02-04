@@ -14,6 +14,7 @@ module Graphics.X11.Turtle (
 	backward,
 	left,
 	right,
+	setheading,
 	goto,
 	home,
 	clear,
@@ -25,6 +26,7 @@ module Graphics.X11.Turtle (
 	windowWidth,
 	windowHeight,
 	position,
+	heading,
 	distance,
 	isdown,
 	isvisible,
@@ -41,7 +43,7 @@ import Graphics.X11.TurtleMove(
  )
 import Graphics.X11.TurtleInput(
 	TurtleInput(..), TurtleState,
-	getTurtleStates, getPosition, getPendown, undonum, visible
+	getTurtleStates, getPosition, getPendown, undonum, visible, direction
  )
 import Graphics.X11.TurtleShape(lookupShape, classic)
 import Control.Concurrent(Chan, writeChan, threadDelay, ThreadId, killThread)
@@ -105,9 +107,10 @@ forward, backward :: Turtle -> Double -> IO ()
 forward t = sendCommand t . Forward
 backward t = forward t . negate
 
-left, right :: Turtle -> Double -> IO ()
+left, right, setheading :: Turtle -> Double -> IO ()
 left t = sendCommand t . Left
 right t = left t . negate
+setheading t = sendCommand t . Rotate
 
 goto :: Turtle -> Double -> Double -> IO ()
 goto t x y = sendCommand t $ Goto x y
@@ -141,6 +144,9 @@ windowHeight = fmap snd . layerSize . layer
 position :: Turtle -> IO (Double, Double)
 position Turtle{stateIndex = si, states = s} =
 	fmap (getPosition . (s !!)) $ readIORef si
+
+heading :: Turtle -> IO Double
+heading t = fmap (direction . (states t !!)) $ readIORef $ stateIndex t
 
 distance :: Turtle -> Double -> Double -> IO Double
 distance t x0 y0 = do
