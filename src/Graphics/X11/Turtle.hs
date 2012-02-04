@@ -34,6 +34,7 @@ import Graphics.X11.TurtleMove(
 	Field, Layer, Character,
 	forkIOX, openField, closeField,
 	addCharacter, addLayer, layerSize, clearLayer, clearCharacter,
+	addThread,
 	moveTurtle
  )
 import Graphics.X11.TurtleInput(
@@ -73,6 +74,7 @@ newTurtle f = do
 			thread = undefined
 		 }
 	tid <- forkIOX $ zipWithM_ (moveTurtle ch l) sts $ tail sts
+	addThread f tid
 	return t{thread = tid}
 
 killTurtle :: Turtle -> IO ()

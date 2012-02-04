@@ -19,7 +19,8 @@ module Graphics.X11.WindowLayers(
 	clearLayer,
 	flushLayer,
 
-	forkIOX
+	forkIOX,
+	addThread
 ) where
 
 import Graphics.X11(
@@ -51,7 +52,7 @@ import Control.Monad.Tools(doWhile_)
 import Control.Arrow((***))
 import Control.Concurrent(
 	forkIO, ThreadId, Chan, newChan, writeChan, readChan, threadWaitRead,
-	killThread)
+	killThread, threadDelay)
 
 import System.Posix.Types
 
@@ -72,7 +73,8 @@ data Field = Field{
 	fWait :: Chan (),
 	fEvent :: Chan (Maybe Event),
 	fClose :: Chan (),
-	fClosed :: IORef Bool
+	fClosed :: IORef Bool,
+	fRunning :: IORef [ThreadId]
  }
 
 data Layer = Layer{
@@ -112,6 +114,7 @@ openField = do
 	event <- newChan
 	close <- newChan
 	closed <- newIORef False
+	running <- newIORef []
 	writeChan wait ()
 	let f = Field{
 		fDisplay = dpy,
@@ -130,7 +133,8 @@ openField = do
 		fWait = wait,
 		fEvent = event,
 		fClose = close,
-		fClosed = closed
+		fClosed = closed,
+		fRunning = running
 	 }
 	_ <- forkIOX $ runLoop f
 	flushWindow f
@@ -180,8 +184,13 @@ waitInput f = do
 
 closeField :: Field -> IO ()
 closeField f = do
+	readIORef (fRunning f) >>= mapM_ killThread
+	threadDelay 100000
 	writeChan (fClose f) ()
 	writeIORef (fClosed f) True
+
+addThread :: Field -> ThreadId -> IO ()
+addThread f tid = modifyIORef (fRunning f) (tid :)
 
 layerSize :: Layer -> IO (Double, Double)
 layerSize = fieldSize . layerField

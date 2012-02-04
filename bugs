@@ -5,4 +5,4 @@
 * can't undo for clear (fixed)
 * closeField don't work (fixed)
 * redraw error when ExposeEvent occur (fixed)
-* freeze ghci if closeField before turtle stop
+* freeze ghci if closeField before turtle stop (fixed but not so good)
