@@ -9,6 +9,7 @@ module Graphics.X11.Turtle (
 	shape,
 	shapesize,
 	hideturtle,
+	showturtle,
 	forward,
 	backward,
 	left,
@@ -26,6 +27,7 @@ module Graphics.X11.Turtle (
 	position,
 	distance,
 	isdown,
+	isvisible,
 
 	xturtleVersion
 ) where
@@ -39,7 +41,7 @@ import Graphics.X11.TurtleMove(
  )
 import Graphics.X11.TurtleInput(
 	TurtleInput(..), TurtleState,
-	getTurtleStates, getPosition, getPendown, undonum
+	getTurtleStates, getPosition, getPendown, undonum, visible
  )
 import Graphics.X11.TurtleShape(lookupShape, classic)
 import Control.Concurrent(Chan, writeChan, threadDelay, ThreadId, killThread)
@@ -83,8 +85,9 @@ killTurtle t = do
 	clearCharacter $ character t
 	killThread $ thread t
 
-hideturtle :: Turtle -> IO ()
+hideturtle, showturtle :: Turtle -> IO ()
 hideturtle t = sendCommand t $ SetVisible False
+showturtle t = sendCommand t $ SetVisible True
 
 sendCommand :: Turtle -> TurtleInput -> IO ()
 sendCommand Turtle{inputChan = c, stateIndex = si} ti = do
@@ -146,3 +149,6 @@ distance t x0 y0 = do
 
 isdown :: Turtle -> IO Bool
 isdown t = fmap (getPendown . (states t !!)) $ readIORef $ stateIndex t
+
+isvisible :: Turtle -> IO Bool
+isvisible t = fmap (visible . (states t !!)) $ readIORef $ stateIndex t
