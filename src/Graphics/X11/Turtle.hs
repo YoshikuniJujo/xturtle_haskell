@@ -42,6 +42,9 @@ module Graphics.X11.Turtle (
 	shape,
 	shapesize,
 
+	degrees,
+	radians,
+
 	windowWidth,
 	windowHeight,
 
@@ -171,6 +174,12 @@ bgcolor f r_ g_ b_ = fieldColor f c
 
 pensize :: Turtle -> Int -> IO ()
 pensize t = sendCommand t . Pensize
+
+degrees :: Turtle -> Double -> IO ()
+degrees t = sendCommand t . Degrees
+
+radians :: Turtle -> IO ()
+radians = flip degrees $ 2 * pi
 
 undo :: Turtle -> IO ()
 undo t = readIORef (stateIndex t)

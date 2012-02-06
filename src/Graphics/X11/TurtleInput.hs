@@ -35,6 +35,7 @@ data TurtleInput
 	| Undonum Int
 	| Pencolor Color
 	| Pensize Int
+	| Degrees Double
 	deriving Show
 
 getTurtleStates :: [(Double, Double)] -> IO (Chan TurtleInput, [TurtleState])
@@ -57,6 +58,10 @@ nextTurtle t (Undonum un) = (clearState t){undonum = un}
 nextTurtle t (Clear) = (clearState t){clear = True, drawed = []}
 nextTurtle t (Pencolor c) = (clearState t){pencolor = c}
 nextTurtle t (Pensize ps) = (clearState t){pensize = ps}
+nextTurtle t (Degrees ds) = (clearState t){
+	degrees = ds,
+	direction = direction t * ds / degrees t
+ }
 nextTurtle _ _ = error "not defined"
 
 clearState :: TurtleState -> TurtleState
@@ -68,9 +73,9 @@ inputToTurtle (tsb : tsbs) _ (Undo : tis) =
 	let ts1 = tsb{undo = True} in ts1 : inputToTurtle tsbs ts1 tis
 inputToTurtle tsbs ts0 (Forward len : tis) = let
 	(x0, y0) = position ts0
-	dir = direction ts0
-	x = x0 + len * cos (dir * pi / 180)
-	y = y0 + len * sin (dir * pi / 180) in
+	dir = direction ts0 / degrees ts0
+	x = x0 + len * cos (dir * 2 * pi)
+	y = y0 + len * sin (dir * 2 * pi) in
 	inputToTurtle tsbs ts0 $ Goto x y : tis
 inputToTurtle tsbs ts0 (Left dd : tis) =
 	inputToTurtle tsbs ts0 $ Rotate (direction ts0 + dd) : tis

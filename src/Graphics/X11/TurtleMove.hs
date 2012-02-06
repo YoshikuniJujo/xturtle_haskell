@@ -41,10 +41,13 @@ moveSpeed :: Int
 moveSpeed = 50000
 
 stepDir :: Double
-stepDir = 5
+stepDir = 1 / 72
 
 rotateSpeed :: Int
 rotateSpeed = 10000
+
+dir :: TurtleState -> Double
+dir t = direction t / degrees t
 
 moveTurtle :: Character -> Layer -> TurtleState -> TurtleState -> IO ()
 moveTurtle c l t0 t1 = do
@@ -53,15 +56,15 @@ moveTurtle c l t0 t1 = do
 		unless done $ clearLayer l >> drawLines l (pensize t1) (drawed t1)
 	when (undo t1 && clear t0) $ drawLines l (pensize t1) $ drawed t1
 	when (visible t1) $ do
-		forM_ (getDirections (direction t0) (direction t1)) $ \d -> do
+		forM_ (getDirections (dir t0) (dir t1)) $ \d -> do
 			drawTurtle c (pencolor t1) (shape t1) (size t1) d
 				(pensize t1) p0 Nothing
 			threadDelay rotateSpeed
 		forM_ (getPositions x0 y0 x1 y1) $ \p -> do
 			drawTurtle c (pencolor t1) (shape t1) (size t1)
-				(direction t1) (pensize t1) p lineOrigin
+				(dir t1) (pensize t1) p lineOrigin
 			threadDelay moveSpeed
-		drawTurtle c (pencolor t1) (shape t1) (size t1) (direction t1)
+		drawTurtle c (pencolor t1) (shape t1) (size t1) (dir t1)
 			(pensize t1) p1 lineOrigin
 	unless (visible t1) $ clearCharacter c
 	when (not (undo t1) && line t1) $
@@ -97,5 +100,5 @@ drawTurtle c clr sh s d lw (px, py) org = do
 	maybe (drawCharacter c clr sp)
 		(\(x0, y0) -> (drawCharacterAndLine c clr sp lw x0 y0 px py)) org
 	where
-	rotatePoint (x, y) = let rad = d * pi / 180 in
+	rotatePoint (x, y) = let rad = d * 2 * pi in
 		(x * cos rad - y * sin rad, x * sin rad + y * cos rad)

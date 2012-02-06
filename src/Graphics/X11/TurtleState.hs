@@ -21,7 +21,8 @@ data TurtleState = TurtleState {
 	clear :: Bool,
 	visible :: Bool,
 	pencolor :: Color,
-	pensize :: Int
+	pensize :: Int,
+	degrees :: Double
  } deriving Show
 
 initialTurtleState :: [(Double, Double)] -> TurtleState
@@ -38,5 +39,6 @@ initialTurtleState sh = TurtleState {
 	clear = False,
 	visible = True,
 	pencolor = 0x000000,
-	pensize = 0
+	pensize = 0,
+	degrees = 360
  }
