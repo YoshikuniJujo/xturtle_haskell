@@ -1,6 +1,7 @@
 * refactoring
 
 Functions
+* change background color
 * change line width
 * change turtle width and height separately
 * fill

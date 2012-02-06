@@ -5,14 +5,21 @@ import System.Random
 import Control.Monad
 import Control.Concurrent
 
+main :: IO ()
+main = do
+	(f, t1, t2) <- twoFlowers
+	replicateM_ 400 $ undo t1 >> undo t2
+	threadDelay 40000000
+
 qcircle :: Turtle -> Double -> IO ()
 qcircle t s = replicateM_ 9 $ forward t s >> right t 10
 
 leaf :: Turtle -> Double -> IO ()
 leaf t s = qcircle t s >> right t 90 >> qcircle t s
 
-twoFlowers :: IO (Turtle, Turtle)
+twoFlowers :: IO (Field, Turtle, Turtle)
 twoFlowers = do
+	wait <- newChan
 	f <- openField
 	threadDelay 1000000
 	t1 <- newTurtle f
@@ -22,9 +29,11 @@ twoFlowers = do
 	shape t1 "turtle"
 	shapesize t1 2
 	shape t2 "turtle"
-	forkIO $ flower t1 10
-	forkIO $ flower t2 5
-	return (t1, t2)
+	forkIO $ flower t1 10 >> writeChan wait ()
+	forkIO $ flower t2 5 >> writeChan wait ()
+	readChan wait
+	readChan wait
+	return (f, t1, t2)
 
 flower :: Turtle -> Double -> IO ()
 flower t s = do
