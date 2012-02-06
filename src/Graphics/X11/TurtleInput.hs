@@ -34,6 +34,7 @@ data TurtleInput
 	| Left Double
 	| Undonum Int
 	| Pencolor Color
+	| Pensize Int
 	deriving Show
 
 getTurtleStates :: [(Double, Double)] -> IO (Chan TurtleInput, [TurtleState])
@@ -55,6 +56,7 @@ nextTurtle t (SetVisible v) = (clearState t){visible = v}
 nextTurtle t (Undonum un) = (clearState t){undonum = un}
 nextTurtle t (Clear) = (clearState t){clear = True, drawed = []}
 nextTurtle t (Pencolor c) = (clearState t){pencolor = c}
+nextTurtle t (Pensize ps) = (clearState t){pensize = ps}
 nextTurtle _ _ = error "not defined"
 
 clearState :: TurtleState -> TurtleState

@@ -30,6 +30,7 @@ module Graphics.X11.Turtle (
 	isdown,
 
 	pencolor,
+	pensize,
 
 	clear,
 
@@ -160,6 +161,9 @@ pencolor t r_ g_ b_ = sendCommand t $ Pencolor c
 	where
 	c = shift r 16 .|. shift g 8 .|. b
 	[r, g, b] = map fromIntegral [r_, g_, b_]
+
+pensize :: Turtle -> Int -> IO ()
+pensize t = sendCommand t . Pensize
 
 undo :: Turtle -> IO ()
 undo t = readIORef (stateIndex t)
