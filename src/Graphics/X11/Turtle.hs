@@ -63,6 +63,7 @@ import Control.Monad(replicateM_, zipWithM_)
 import Prelude hiding(Left)
 import Data.IORef(IORef, newIORef, readIORef, modifyIORef)
 import Data.Bits(shift, (.|.))
+import Data.Word(Word8)
 
 xturtleVersion :: (Int, String)
 xturtleVersion = (16, "0.0.9")
@@ -154,9 +155,11 @@ penup, pendown :: Turtle -> IO ()
 penup = flip sendCommand Penup
 pendown = flip sendCommand Pendown
 
-pencolor :: Turtle -> Int -> Int -> Int -> IO ()
-pencolor t r g b = sendCommand t $ Pencolor c
-	where c = fromIntegral $ shift r 16 .|. shift g 8 .|. b
+pencolor :: Turtle -> Word8 -> Word8 -> Word8 -> IO ()
+pencolor t r_ g_ b_ = sendCommand t $ Pencolor c
+	where
+	c = shift r 16 .|. shift g 8 .|. b
+	[r, g, b] = map fromIntegral [r_, g_, b_]
 
 undo :: Turtle -> IO ()
 undo t = readIORef (stateIndex t)
