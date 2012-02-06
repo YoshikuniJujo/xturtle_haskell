@@ -72,7 +72,7 @@ import Data.Bits(shift, (.|.))
 import Data.Word(Word8)
 
 xturtleVersion :: (Int, String)
-xturtleVersion = (16, "0.0.9")
+xturtleVersion = (17, "0.0.10a")
 
 data Turtle = Turtle {
 	layer :: Layer,
