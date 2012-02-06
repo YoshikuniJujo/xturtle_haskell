@@ -38,14 +38,9 @@ data TurtleInput
 getTurtleStates :: [(Double, Double)] -> IO (Chan TurtleInput, [TurtleState])
 getTurtleStates sh = do
 	let	ts0 = initialTurtleState sh
-	(c, tis) <- makeInput
-	return (c, ts0 : ts0 : inputToTurtle [] ts0 tis)
-
-makeInput :: IO (Chan TurtleInput, [TurtleInput])
-makeInput = do
 	c <- newChan
 	tis <- getChanContents c
-	return (c, tis)
+	return (c, ts0 : ts0 : inputToTurtle [] ts0 tis)
 
 nextTurtle :: TurtleState -> TurtleInput -> TurtleState
 nextTurtle t (Shape sh) = (clearState t){shape = sh}
