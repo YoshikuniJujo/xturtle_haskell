@@ -70,8 +70,9 @@ drawLines :: Layer -> [(Color, (Double, Double), (Double, Double))] -> IO ()
 drawLines l ls = mapM_ (\(clr, (x0, y0), (x1, y1)) -> drawLine l clr x0 y0 x1 y1) $ reverse ls
 
 getPositions :: Double -> Double -> Double -> Double -> [Pos]
-getPositions x0 y0 x1 y1 = zip [x0, x0 + dx .. x1 - dx] [y0, y0 + dy .. y1 - dy]
+getPositions x0 y0 x1 y1 = take num $ zip [x0, x0 + dx .. ] [y0, y0 + dy .. ]
 	where
+	num = floor $ dist / step
 	dist = ((x1 - x0) ** 2 + (y1 - y0) ** 2) ** (1/2)
 	dx = step * (x1 - x0) / dist
 	dy = step * (y1 - y0) / dist
