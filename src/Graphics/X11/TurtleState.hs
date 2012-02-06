@@ -1,7 +1,12 @@
 module Graphics.X11.TurtleState (
 	TurtleState(..),
 	initialTurtleState,
+	Color
 ) where
+
+import Data.Word(Word32)
+
+type Color = Word32
 
 data TurtleState = TurtleState {
 	shape :: [(Double, Double)],
@@ -9,12 +14,13 @@ data TurtleState = TurtleState {
 	position :: (Double, Double),
 	direction :: Double,
 	pendown :: Bool,
-	drawed :: [((Double, Double), (Double, Double))],
+	drawed :: [(Color, (Double, Double), (Double, Double))],
 	line :: Bool,
 	undo :: Bool,
 	undonum :: Int,
 	clear :: Bool,
-	visible :: Bool
+	visible :: Bool,
+	pencolor :: Color
  } deriving Show
 
 initialTurtleState :: [(Double, Double)] -> TurtleState
@@ -29,5 +35,6 @@ initialTurtleState sh = TurtleState {
 	undo = False,
 	undonum = 1,
 	clear = False,
-	visible = True
+	visible = True,
+	pencolor = 0x000000
  }

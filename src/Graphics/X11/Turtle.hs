@@ -29,6 +29,8 @@ module Graphics.X11.Turtle (
 	penup,
 	isdown,
 
+	pencolor,
+
 	clear,
 
 	showturtle,
@@ -60,6 +62,7 @@ import Control.Concurrent(Chan, writeChan, threadDelay, ThreadId, killThread)
 import Control.Monad(replicateM_, zipWithM_)
 import Prelude hiding(Left)
 import Data.IORef(IORef, newIORef, readIORef, modifyIORef)
+import Data.Bits(shift, (.|.))
 
 xturtleVersion :: (Int, String)
 xturtleVersion = (16, "0.0.9")
@@ -150,6 +153,10 @@ circle t r = do
 penup, pendown :: Turtle -> IO ()
 penup = flip sendCommand Penup
 pendown = flip sendCommand Pendown
+
+pencolor :: Turtle -> Int -> Int -> Int -> IO ()
+pencolor t r g b = sendCommand t $ Pencolor c
+	where c = fromIntegral $ shift r 16 .|. shift g 8 .|. b
 
 undo :: Turtle -> IO ()
 undo t = readIORef (stateIndex t)

@@ -24,7 +24,7 @@ module Graphics.X11.WindowLayers(
 ) where
 
 import Graphics.X11(
-	Display, Window, Pixmap, Atom, GC, Point(..), Dimension, Position,
+	Display, Window, Pixmap, Atom, GC, Point(..), Dimension, Position, Pixel,
 
 	openDisplay, closeDisplay, flush, defaultScreen, rootWindow,
 	whitePixel, blackPixel,	defaultDepth,
@@ -216,25 +216,29 @@ runIfOpened f act = do
 	cl <- readIORef $ fClosed f
 	if cl then return () else act >> return ()
 
-drawLine :: Layer -> Double -> Double -> Double -> Double -> IO ()
-drawLine l@Layer{layerField = f} x1 y1 x2 y2 = runIfOpened f $ do
-	drawLineBuf f fBG x1 y1 x2 y2 >> redrawCharacters f
+drawLine :: Layer -> Pixel -> Double -> Double -> Double -> Double -> IO ()
+drawLine l@Layer{layerField = f} clr x1 y1 x2 y2 = runIfOpened f $ do
+	drawLineBuf f clr fBG x1 y1 x2 y2 >> redrawCharacters f
 	addLayerAction l $ whether
-		(drawLineBuf f fUndoBuf x1 y1 x2 y2)
-		(drawLineBuf f fBG x1 y1 x2 y2)
+		(drawLineBuf f clr fUndoBuf x1 y1 x2 y2)
+		(drawLineBuf f clr fBG x1 y1 x2 y2)
 
 clearCharacter :: Character -> IO ()
 clearCharacter c = runIfOpened (characterField c) $
 	setCharacter c $ return ()
 
-drawCharacter :: Character -> [(Double, Double)] -> IO ()
-drawCharacter c =
-	runIfOpened (characterField c) . setCharacter c . fillPolygonBuf (characterField c)
+drawCharacter :: Character -> Pixel -> [(Double, Double)] -> IO ()
+drawCharacter c@Character{characterField = f} clr sh = do
+	setForeground (fDisplay f) (fGC f) clr
+	runIfOpened (characterField c) $ setCharacter c $
+		fillPolygonBuf (characterField c) sh
 
-drawCharacterAndLine ::	Character -> [(Double, Double)] ->
+drawCharacterAndLine ::	Character -> Pixel -> [(Double, Double)] ->
 	Double -> Double -> Double -> Double -> IO ()
-drawCharacterAndLine c@Character{characterField = f} ps x1 y1 x2 y2 =
-	runIfOpened f $ setCharacter c $ fillPolygonBuf f ps >> drawLineBuf f fBuf x1 y1 x2 y2
+drawCharacterAndLine c@Character{characterField = f} clr ps x1 y1 x2 y2 = do
+	setForeground (fDisplay f) (fGC f) clr
+	runIfOpened f $ setCharacter c $
+		fillPolygonBuf f ps >> drawLineBuf f clr fBuf x1 y1 x2 y2
 
 undoLayer :: Layer -> IO Bool
 undoLayer Layer{layerField = f, layerId = lid} = do
@@ -286,9 +290,10 @@ fillPolygonBuf f ps_ = do
 	fillPolygon (fDisplay f) (fBuf f) (fGC f) (map (uncurry Point) ps)
 		nonconvex coordModeOrigin
 
-drawLineBuf :: Field -> (Field -> Pixmap) ->
+drawLineBuf :: Field -> Pixel -> (Field -> Pixmap) ->
 	Double -> Double -> Double -> Double -> IO ()
-drawLineBuf f@Field{fDisplay = dpy, fGC = gc} bf x1_ y1_ x2_ y2_ = do
+drawLineBuf f@Field{fDisplay = dpy, fGC = gc} clr bf x1_ y1_ x2_ y2_ = do
+	setForeground (fDisplay f) (fGC f) clr
 	[(x1, y1), (x2, y2)] <- convertPos f [(x1_, y1_), (x2_, y2_)]
 	X.drawLine dpy (bf f) gc x1 y1 x2 y2
 

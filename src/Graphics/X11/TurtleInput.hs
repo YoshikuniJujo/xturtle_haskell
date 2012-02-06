@@ -10,7 +10,7 @@ module Graphics.X11.TurtleInput (
 	direction
 ) where
 
-import Graphics.X11.TurtleState(TurtleState(..), initialTurtleState)
+import Graphics.X11.TurtleState(TurtleState(..), initialTurtleState, Color)
 import Control.Concurrent.Chan(Chan, newChan, getChanContents)
 import Prelude hiding(Left)
 
@@ -33,6 +33,7 @@ data TurtleInput
 	| Forward Double
 	| Left Double
 	| Undonum Int
+	| Pencolor Color
 	deriving Show
 
 getTurtleStates :: [(Double, Double)] -> IO (Chan TurtleInput, [TurtleState])
@@ -46,13 +47,14 @@ nextTurtle :: TurtleState -> TurtleInput -> TurtleState
 nextTurtle t (Shape sh) = (clearState t){shape = sh}
 nextTurtle t (ShapeSize ss) = (clearState t){size = ss}
 nextTurtle t (Goto x y) = (clearState t){position = (x, y), line = pendown t,
-	drawed = if pendown t then (position t, (x, y)) : drawed t else drawed t} 
+	drawed = if pendown t then (pencolor t, position t, (x, y)) : drawed t else drawed t} 
 nextTurtle t (Rotate d) = (clearState t){direction = d}
 nextTurtle t Pendown = (clearState t){pendown = True}
 nextTurtle t Penup = (clearState t){pendown = False}
 nextTurtle t (SetVisible v) = (clearState t){visible = v}
 nextTurtle t (Undonum un) = (clearState t){undonum = un}
 nextTurtle t (Clear) = (clearState t){clear = True, drawed = []}
+nextTurtle t (Pencolor c) = (clearState t){pencolor = c}
 nextTurtle _ _ = error "not defined"
 
 clearState :: TurtleState -> TurtleState
