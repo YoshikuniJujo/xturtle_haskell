@@ -22,6 +22,7 @@ import Graphics.X11.WindowLayers(
 	forkIOX, openField, closeField, flushLayer,
 	addLayer, addCharacter, layerSize, clearLayer,
 	drawLine, drawCharacter, drawCharacterAndLine, undoLayer,
+	drawLineNotFlush,
 	clearCharacter, addThread
  )
 
@@ -67,7 +68,8 @@ moveTurtle c l t0 t1 = do
 	p1@(x1, y1) = position t1
 
 drawLines :: Layer -> [(Color, (Double, Double), (Double, Double))] -> IO ()
-drawLines l ls = mapM_ (\(clr, (x0, y0), (x1, y1)) -> drawLine l clr x0 y0 x1 y1) $ reverse ls
+drawLines l ls =
+	mapM_ (\(clr, (x0, y0), (x1, y1)) -> drawLineNotFlush l clr x0 y0 x1 y1) $ reverse ls
 
 getPositions :: Double -> Double -> Double -> Double -> [Pos]
 getPositions x0 y0 x1 y1 = take num $ zip [x0, x0 + dx .. ] [y0, y0 + dy .. ]

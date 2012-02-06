@@ -11,6 +11,7 @@ module Graphics.X11.WindowLayers(
 	addCharacter,
 
 	drawLine,
+	drawLineNotFlush,
 	drawCharacter,
 	drawCharacterAndLine,
 	clearCharacter,
@@ -215,6 +216,13 @@ runIfOpened :: Field -> IO a -> IO ()
 runIfOpened f act = do
 	cl <- readIORef $ fClosed f
 	if cl then return () else act >> return ()
+
+drawLineNotFlush :: Layer -> Pixel -> Double -> Double -> Double -> Double -> IO ()
+drawLineNotFlush l@Layer{layerField = f} clr x1 y1 x2 y2 = runIfOpened f $ do
+	drawLineBuf f clr fBG x1 y1 x2 y2
+	addLayerAction l $ whether
+		(drawLineBuf f clr fUndoBuf x1 y1 x2 y2)
+		(drawLineBuf f clr fBG x1 y1 x2 y2)
 
 drawLine :: Layer -> Pixel -> Double -> Double -> Double -> Double -> IO ()
 drawLine l@Layer{layerField = f} clr x1 y1 x2 y2 = runIfOpened f $ do
