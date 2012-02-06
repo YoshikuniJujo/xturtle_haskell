@@ -62,6 +62,7 @@ import Graphics.X11.TurtleInput(
 	TurtleInput(..), TurtleState,
 	getTurtleStates, getPosition, getPendown, undonum, visible, direction
  )
+import qualified Graphics.X11.TurtleInput as S(degrees)
 import Graphics.X11.TurtleShape(lookupShape, classic)
 import Control.Concurrent(Chan, writeChan, threadDelay, ThreadId, killThread)
 import Control.Monad(replicateM_, zipWithM_)
@@ -150,11 +151,16 @@ clear t = sendCommand t Clear
 
 circle :: Turtle -> Double -> IO ()
 circle t r = do
+	deg <- getDegrees t
 	forward t (r * pi / 36)
-	left t 10
-	replicateM_ 35 $ forward t (2 * r * pi / 36) >> left t 10
+	left t (deg / 36)
+	replicateM_ 35 $ forward t (2 * r * pi / 36) >> left t (deg / 36)
 	forward t (r * pi / 36)
 	sendCommand t $ Undonum 74
+
+getDegrees :: Turtle -> IO Double
+getDegrees Turtle{stateIndex = si, states = s} =
+	fmap (S.degrees . (s !!)) $ readIORef si
 
 penup, pendown :: Turtle -> IO ()
 penup = flip sendCommand Penup
