@@ -1,15 +1,11 @@
 module Graphics.X11.Turtle (
+	Field,
 	Turtle,
 
 	openField,
 	closeField,
 	newTurtle,
 	killTurtle,
-
-	shape,
-	shapesize,
-	hideturtle,
-	showturtle,
 
 	forward,
 	backward,
@@ -23,17 +19,27 @@ module Graphics.X11.Turtle (
 	circle,
 	undo,
 
-	clear,
-	penup,
+	position,
+	xcor,
+	ycor,
+	heading,
+	distance,
+
 	pendown,
+	penup,
+	isdown,
+
+	clear,
+
+	showturtle,
+	hideturtle,
+	isvisible,
+
+	shape,
+	shapesize,
 
 	windowWidth,
 	windowHeight,
-	position,
-	heading,
-	distance,
-	isdown,
-	isvisible,
 
 	xturtleVersion
 ) where
@@ -156,6 +162,10 @@ windowHeight = fmap snd . layerSize . layer
 position :: Turtle -> IO (Double, Double)
 position Turtle{stateIndex = si, states = s} =
 	fmap (getPosition . (s !!)) $ readIORef si
+
+xcor, ycor :: Turtle -> IO Double
+xcor = fmap fst . position
+ycor = fmap snd . position
 
 heading :: Turtle -> IO Double
 heading t = fmap (direction . (states t !!)) $ readIORef $ stateIndex t
