@@ -4,6 +4,7 @@ Functions
 * change line width
 * change turtle width and height separately
 * change line color
+* fill
 * get X events
 * get timer event
 

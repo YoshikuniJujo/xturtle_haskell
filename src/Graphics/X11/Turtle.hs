@@ -10,18 +10,22 @@ module Graphics.X11.Turtle (
 	shapesize,
 	hideturtle,
 	showturtle,
+
 	forward,
 	backward,
-	left,
 	right,
-	setheading,
+	left,
 	goto,
+	setx,
+	sety,
+	setheading,
 	home,
-	clear,
 	circle,
+	undo,
+
+	clear,
 	penup,
 	pendown,
-	undo,
 
 	windowWidth,
 	windowHeight,
@@ -114,6 +118,14 @@ setheading t = sendCommand t . Rotate
 
 goto :: Turtle -> Double -> Double -> IO ()
 goto t x y = sendCommand t $ Goto x y
+
+setx, sety :: Turtle -> Double -> IO ()
+setx t x = do
+	(_, y) <- position t
+	sendCommand t $ Goto x y
+sety t y = do
+	(x, _) <- position t
+	sendCommand t $ Goto x y
 
 home :: Turtle -> IO ()
 home t = goto t 0 0 >> sendCommand t (Rotate 0)
