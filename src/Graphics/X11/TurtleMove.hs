@@ -12,6 +12,7 @@ module Graphics.X11.TurtleMove (
 	clearLayer,
 	clearCharacter,
 	addThread,
+	fieldColor,
 
 	moveTurtle
 ) where
@@ -23,7 +24,8 @@ import Graphics.X11.WindowLayers(
 	addLayer, addCharacter, layerSize, clearLayer,
 	drawLine, drawCharacter, drawCharacterAndLine, undoLayer,
 	drawLineNotFlush,
-	clearCharacter, addThread
+	clearCharacter, addThread,
+	fieldColor
  )
 
 import Control.Concurrent(threadDelay)

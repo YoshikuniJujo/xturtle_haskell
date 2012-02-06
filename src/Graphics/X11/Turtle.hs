@@ -29,6 +29,7 @@ module Graphics.X11.Turtle (
 	penup,
 	isdown,
 
+	bgcolor,
 	pencolor,
 	pensize,
 
@@ -51,7 +52,7 @@ import Graphics.X11.TurtleMove(
 	Field, Layer, Character,
 	forkIOX, openField, closeField,
 	addCharacter, addLayer, layerSize, clearLayer, clearCharacter,
-	addThread,
+	addThread, fieldColor,
 	moveTurtle
  )
 import Graphics.X11.TurtleInput(
@@ -158,6 +159,12 @@ pendown = flip sendCommand Pendown
 
 pencolor :: Turtle -> Word8 -> Word8 -> Word8 -> IO ()
 pencolor t r_ g_ b_ = sendCommand t $ Pencolor c
+	where
+	c = shift r 16 .|. shift g 8 .|. b
+	[r, g, b] = map fromIntegral [r_, g_, b_]
+
+bgcolor :: Field -> Word8 -> Word8 -> Word8 -> IO ()
+bgcolor f r_ g_ b_ = fieldColor f c
 	where
 	c = shift r 16 .|. shift g 8 .|. b
 	[r, g, b] = map fromIntegral [r_, g_, b_]

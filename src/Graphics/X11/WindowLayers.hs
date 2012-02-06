@@ -5,6 +5,7 @@ module Graphics.X11.WindowLayers(
 
 	openField,
 	closeField,
+	fieldColor,
 	layerSize,
 
 	addLayer,
@@ -170,6 +171,15 @@ runLoop f = allocaXEvent $ \e -> do
 				return $ convert (head $ ev_data ev) /= fDel f
 			Nothing -> killThread th1 >> return False
 			_ -> return True
+
+fieldColor :: Field -> Pixel -> IO ()
+fieldColor f clr = do
+	setForeground (fDisplay f) (fGCBG f) clr
+	let bufs = [fUndoBuf f, fBG f, fBuf f]
+	width <- readIORef $ fWidth f
+	height <- readIORef $ fHeight f
+	forM_ bufs $ \bf -> fillRectangle (fDisplay f) bf (fGCBG f) 0 0 width height
+	redrawAll f
 
 getConnection :: Field -> Fd
 getConnection = Fd . connectionNumber . fDisplay
