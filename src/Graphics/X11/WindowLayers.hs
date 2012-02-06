@@ -229,15 +229,15 @@ clearCharacter c = runIfOpened (characterField c) $
 
 drawCharacter :: Character -> Pixel -> [(Double, Double)] -> IO ()
 drawCharacter c@Character{characterField = f} clr sh = do
-	setForeground (fDisplay f) (fGC f) clr
-	runIfOpened (characterField c) $ setCharacter c $
+	runIfOpened (characterField c) $ setCharacter c $ do
+		setForeground (fDisplay f) (fGC f) clr
 		fillPolygonBuf (characterField c) sh
 
 drawCharacterAndLine ::	Character -> Pixel -> [(Double, Double)] ->
 	Double -> Double -> Double -> Double -> IO ()
 drawCharacterAndLine c@Character{characterField = f} clr ps x1 y1 x2 y2 = do
-	setForeground (fDisplay f) (fGC f) clr
-	runIfOpened f $ setCharacter c $
+	runIfOpened f $ setCharacter c $ do
+		setForeground (fDisplay f) (fGC f) clr
 		fillPolygonBuf f ps >> drawLineBuf f clr fBuf x1 y1 x2 y2
 
 undoLayer :: Layer -> IO Bool
