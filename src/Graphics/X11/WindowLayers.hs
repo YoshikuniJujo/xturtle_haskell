@@ -5,6 +5,7 @@ module Graphics.X11.WindowLayers(
 
 	openField,
 	closeField,
+	waitField,
 	fieldColor,
 	layerSize,
 
@@ -82,7 +83,8 @@ data Field = Field{
 	fClose :: Chan (),
 	fClosed :: IORef Bool,
 	fRunning :: IORef [ThreadId],
-	fOnclick :: IORef (Double -> Double -> IO ())
+	fOnclick :: IORef (Double -> Double -> IO Bool),
+	fEnd :: Chan ()
  }
 
 data Layer = Layer{
@@ -123,7 +125,8 @@ openField = do
 	close <- newChan
 	closed <- newIORef False
 	running <- newIORef []
-	onclickRef <- newIORef $ const $ const $ return ()
+	onclickRef <- newIORef $ const $ const $ return True
+	endRef <- newChan
 	writeChan wait ()
 	let f = Field{
 		fDisplay = dpy,
@@ -144,7 +147,8 @@ openField = do
 		fClose = close,
 		fClosed = closed,
 		fRunning = running,
-		fOnclick = onclickRef
+		fOnclick = onclickRef,
+		fEnd = endRef
 	 }
 	_ <- forkIOX $ runLoop f
 	flushWindow f
@@ -161,7 +165,7 @@ runLoop f = allocaXEvent $ \e -> do
 			writeChan (fEvent f) $ Just ev
 		end <- readChan endc
 		when end $ writeChan (fEvent f) Nothing
-	(>> closeDisplay (fDisplay f)) $
+	(>> (closeDisplay (fDisplay f) >> writeChan (fEnd f) ())) $
 		(>> destroyWindow (fDisplay f) (fWindow f)) $ doWhile_ $ do
 		mev <- readChan $ fEvent f
 		case mev of
@@ -176,13 +180,12 @@ runLoop f = allocaXEvent $ \e -> do
 			Just ev@ButtonEvent{} -> do
 				pos <- convertPosRev f (ev_x ev) (ev_y ev)
 				readIORef (fOnclick f) >>= ($ pos) . uncurry
-				return True
 			Just ev@ClientMessageEvent{} ->
 				return $ convert (head $ ev_data ev) /= fDel f
 			Nothing -> killThread th1 >> return False
 			_ -> return True
 
-onclick :: Field -> (Double -> Double -> IO ()) -> IO ()
+onclick :: Field -> (Double -> Double -> IO Bool) -> IO ()
 onclick f act = writeIORef (fOnclick f) act
 
 fieldColor :: Field -> Pixel -> IO ()
@@ -389,3 +392,6 @@ withLock act f = do
 	ret <- act f
 	writeChan (fWait f) ()
 	return ret
+
+waitField :: Field -> IO ()
+waitField = readChan . fEnd
