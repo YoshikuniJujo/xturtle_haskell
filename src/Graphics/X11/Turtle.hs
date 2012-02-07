@@ -23,6 +23,7 @@ module Graphics.X11.Turtle (
 	xcor,
 	ycor,
 	heading,
+	towards,
 	distance,
 
 	pendown,
@@ -205,6 +206,13 @@ ycor = fmap snd . position
 
 heading :: Turtle -> IO Double
 heading t = fmap (direction . (states t !!)) $ readIORef $ stateIndex t
+
+towards :: Turtle -> Double -> Double -> IO Double
+towards t x0 y0 = do
+	(x, y) <- position t
+	d <- heading t
+	deg <- getDegrees t
+	return $ atan2 (y0 - y) (x0 - x) * deg / (2 * pi) - d
 
 distance :: Turtle -> Double -> Double -> IO Double
 distance t x0 y0 = do
