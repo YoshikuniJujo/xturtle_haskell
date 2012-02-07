@@ -21,6 +21,8 @@ module Graphics.X11.WindowLayers(
 	clearLayer,
 	flushLayer,
 
+	onclick,
+
 	forkIOX,
 	addThread
 ) where
@@ -38,7 +40,7 @@ import Graphics.X11(
 	fillRectangle, fillPolygon, nonconvex, coordModeOrigin,
 
 	setWMProtocols, selectInput, allocaXEvent, nextEvent,
-	keyPressMask, exposureMask,
+	keyPressMask, exposureMask, buttonPressMask,
 
 	getGeometry, initThreads, connectionNumber, pending, destroyWindow
  )
@@ -59,6 +61,7 @@ import Control.Concurrent(
 	killThread, threadDelay)
 
 import System.Posix.Types
+import Foreign.C.Types
 
 data Field = Field{
 	fDisplay :: Display,
@@ -78,7 +81,8 @@ data Field = Field{
 	fEvent :: Chan (Maybe Event),
 	fClose :: Chan (),
 	fClosed :: IORef Bool,
-	fRunning :: IORef [ThreadId]
+	fRunning :: IORef [ThreadId],
+	fOnclick :: IORef (Double -> Double -> IO ())
  }
 
 data Layer = Layer{
@@ -108,7 +112,7 @@ openField = do
 	setForeground dpy gcBG 0xffffff
 	forM_ bufs $ \bf -> fillRectangle dpy bf gcBG 0 0 rWidth rHeight
 	setWMProtocols dpy win [del]
-	selectInput dpy win $ exposureMask .|. keyPressMask
+	selectInput dpy win $ exposureMask .|. keyPressMask .|. buttonPressMask
 	mapWindow dpy win
 	[widthRef, heightRef] <- mapM newIORef [rWidth, rHeight]
 	buffActions <- newIORef []
@@ -119,6 +123,7 @@ openField = do
 	close <- newChan
 	closed <- newIORef False
 	running <- newIORef []
+	onclickRef <- newIORef $ const $ const $ return ()
 	writeChan wait ()
 	let f = Field{
 		fDisplay = dpy,
@@ -138,7 +143,8 @@ openField = do
 		fEvent = event,
 		fClose = close,
 		fClosed = closed,
-		fRunning = running
+		fRunning = running,
+		fOnclick = onclickRef
 	 }
 	_ <- forkIOX $ runLoop f
 	flushWindow f
@@ -167,10 +173,17 @@ runLoop f = allocaXEvent $ \e -> do
 				redrawAll f
 				return True
 			Just (KeyEvent{}) -> return True
-			Just ev@(ClientMessageEvent{}) ->
+			Just ev@ButtonEvent{} -> do
+				pos <- convertPosRev f (ev_x ev) (ev_y ev)
+				readIORef (fOnclick f) >>= ($ pos) . uncurry
+				return True
+			Just ev@ClientMessageEvent{} ->
 				return $ convert (head $ ev_data ev) /= fDel f
 			Nothing -> killThread th1 >> return False
 			_ -> return True
+
+onclick :: Field -> (Double -> Double -> IO ()) -> IO ()
+onclick f act = writeIORef (fOnclick f) act
 
 fieldColor :: Field -> Pixel -> IO ()
 fieldColor f clr = do
@@ -323,6 +336,11 @@ convertPos f ps = do
 	(width, height) <- fieldSize f
 	return $ (round . (+ width / 2) *** round . (+ height / 2) . negate)
 		`map` ps
+
+convertPosRev :: Field -> CInt -> CInt -> IO (Double, Double)
+convertPosRev f x y = do
+	(width, height) <- fieldSize f
+	return $ (fromIntegral x - width / 2, fromIntegral (- y) + height / 2)
 
 fieldSize :: Field -> IO (Double, Double)
 fieldSize w = fmap (fromIntegral *** fromIntegral) $ winSize w
