@@ -10,3 +10,4 @@ Functions
 
 Bugs
 * repair closeField
+* pensize should be Double?
