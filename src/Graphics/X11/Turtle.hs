@@ -71,6 +71,7 @@ import Prelude hiding(Left)
 import Data.IORef(IORef, newIORef, readIORef, modifyIORef)
 import Data.Bits(shift, (.|.))
 import Data.Word(Word8)
+import Data.Fixed(mod')
 
 xturtleVersion :: (Int, String)
 xturtleVersion = (17, "0.0.10a")
@@ -205,14 +206,17 @@ xcor = fmap fst . position
 ycor = fmap snd . position
 
 heading :: Turtle -> IO Double
-heading t = fmap (direction . (states t !!)) $ readIORef $ stateIndex t
+heading t = do
+	deg <- getDegrees t
+	dir <- fmap (direction . (states t !!)) $ readIORef $ stateIndex t
+	return $ dir `mod'` deg
 
 towards :: Turtle -> Double -> Double -> IO Double
 towards t x0 y0 = do
 	(x, y) <- position t
-	d <- heading t
 	deg <- getDegrees t
-	return $ atan2 (y0 - y) (x0 - x) * deg / (2 * pi) - d
+	let	dir = atan2 (y0 - y) (x0 - x) * deg / (2 * pi)
+	return $ if dir < 0 then dir + deg else dir
 
 distance :: Turtle -> Double -> Double -> IO Double
 distance t x0 y0 = do
