@@ -7,6 +7,7 @@ Functions
 * fill
 * get X events
 * get timer event
+* raise exception if bad shape name
 
 Bugs
 * repair closeField

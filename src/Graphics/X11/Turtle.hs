@@ -66,7 +66,7 @@ import Graphics.X11.TurtleInput(
 	getTurtleStates, getPosition, getPendown, undonum, visible, direction
  )
 import qualified Graphics.X11.TurtleInput as S(degrees)
-import Graphics.X11.TurtleShape(lookupShape, classic)
+import Graphics.X11.TurtleShape(lookupShape)
 import Control.Concurrent(Chan, writeChan, threadDelay, ThreadId, killThread)
 import Control.Monad(replicateM_, zipWithM_)
 import Prelude hiding(Left)
@@ -76,7 +76,7 @@ import Data.Word(Word8)
 import Data.Fixed(mod')
 
 xturtleVersion :: (Int, String)
-xturtleVersion = (18, "0.0.11")
+xturtleVersion = (19, "0.0.11a")
 
 data Turtle = Turtle {
 	layer :: Layer,
@@ -91,7 +91,7 @@ newTurtle :: Field -> IO Turtle
 newTurtle f = do
 	ch <- addCharacter f
 	l <- addLayer f
-	(ic, sts) <- getTurtleStates classic
+	(ic, sts) <- getTurtleStates $ lookupShape "classic"
 	si <- newIORef 1
 	let	t = Turtle {
 			inputChan = ic,
