@@ -9,36 +9,36 @@ import Data.Word(Word32)
 type Color = Word32
 
 data TurtleState = TurtleState {
-	shape :: [(Double, Double)],
-	size :: Double,
 	position :: (Double, Double),
 	direction :: Double,
+	degrees :: Double,
 	pendown :: Bool,
-	drawed :: [(Color, (Double, Double), (Double, Double))],
-	line :: Bool,
-	undo :: Bool,
-	undonum :: Int,
-	clear :: Bool,
-	visible :: Bool,
-	pencolor :: Color,
 	pensize :: Int,
-	degrees :: Double
+	pencolor :: Color,
+	shape :: [(Double, Double)],
+	size :: Double,
+	visible :: Bool,
+	clear :: Bool,
+	undo :: Bool,
+	line :: Bool,
+	undonum :: Int,
+	drawed :: [(Color, (Double, Double), (Double, Double))]
  } deriving Show
 
 initialTurtleState :: [(Double, Double)] -> TurtleState
 initialTurtleState sh = TurtleState {
-	shape = sh,
-	size = 1,
 	position = (0, 0),
 	direction = 0,
+	degrees = 360,
 	pendown = True,
-	drawed = [],
-	line = False,
-	undo = False,
-	undonum = 1,
-	clear = False,
-	visible = True,
-	pencolor = 0x000000,
 	pensize = 0,
-	degrees = 360
+	pencolor = 0x000000,
+	shape = sh,
+	size = 1,
+	visible = True,
+	clear = False,
+	undo = False,
+	line = False,
+	undonum = 1,
+	drawed = []
  }
