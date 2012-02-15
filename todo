@@ -1,13 +1,12 @@
 * refactoring
 
 Functions
-* change line width
 * change turtle width and height separately
 * fill
 * get X events
+* get Key events
 * get timer event
 * raise exception if bad shape name
 
 Bugs
 * repair closeField
-* bug about change pensize and undo

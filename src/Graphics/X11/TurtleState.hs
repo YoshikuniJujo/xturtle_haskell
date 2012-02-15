@@ -22,7 +22,7 @@ data TurtleState = TurtleState {
 	undo :: Bool,
 	line :: Bool,
 	undonum :: Int,
-	drawed :: [(Color, (Double, Double), (Double, Double))]
+	drawed :: [(Color, Double, (Double, Double), (Double, Double))]
  } deriving Show
 
 initialTurtleState :: [(Double, Double)] -> TurtleState

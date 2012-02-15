@@ -55,8 +55,8 @@ moveTurtle :: Character -> Layer -> TurtleState -> TurtleState -> IO ()
 moveTurtle c l t0 t1 = do
 	when (undo t1 && line t0) $ do
 		done <- undoLayer l
-		unless done $ clearLayer l >> drawLines l (pensize t1) (drawed t1)
-	when (undo t1 && clear t0) $ drawLines l (pensize t1) $ drawed t1
+		unless done $ clearLayer l >> drawLines l (drawed t1)
+	when (undo t1 && clear t0) $ drawLines l $ drawed t1
 	when (visible t1) $ do
 		forM_ (getDirections (dir t0) (dir t1)) $ \d -> do
 			drawTurtle c (pencolor t1) (shape t1) (shapesize t1) d
@@ -78,9 +78,9 @@ moveTurtle c l t0 t1 = do
 	p0@(x0, y0) = position t0
 	p1@(x1, y1) = position t1
 
-drawLines :: Layer -> Double -> [(Color, (Double, Double), (Double, Double))] -> IO ()
-drawLines l lw ls =
-	mapM_ (\(clr, (x0, y0), (x1, y1)) -> drawLineNotFlush l lw clr x0 y0 x1 y1) $ reverse ls
+drawLines :: Layer -> [(Color, Double, (Double, Double), (Double, Double))] -> IO ()
+drawLines l ls =
+	mapM_ (\(clr, lw, (x0, y0), (x1, y1)) -> drawLineNotFlush l lw clr x0 y0 x1 y1) $ reverse ls
 
 getPositions :: Double -> Double -> Double -> Double -> [Pos]
 getPositions x0 y0 x1 y1 = take num $ zip [x0, x0 + dx .. ] [y0, y0 + dy .. ]
