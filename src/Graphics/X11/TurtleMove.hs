@@ -8,7 +8,7 @@ module Graphics.X11.TurtleMove (
 	closeField,
 	addLayer,
 	addCharacter,
-	layerSize,
+	fieldSize,
 	clearLayer,
 	clearCharacter,
 	addThread,
@@ -23,7 +23,7 @@ import Graphics.X11.TurtleState(TurtleState(..), Color)
 import Graphics.X11.WindowLayers(
 	Field, Layer, Character,
 	forkIOX, openField, closeField, flushLayer,
-	addLayer, addCharacter, layerSize, clearLayer,
+	addLayer, addCharacter, fieldSize, clearLayer,
 	drawLine, drawCharacter, drawCharacterAndLine, undoLayer,
 	drawLineNotFlush,
 	clearCharacter, addThread,

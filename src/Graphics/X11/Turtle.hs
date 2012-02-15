@@ -57,7 +57,7 @@ module Graphics.X11.Turtle (
 import Graphics.X11.TurtleMove(
 	Field, Layer, Character,
 	forkIOX, openField, closeField,
-	addCharacter, addLayer, layerSize, clearLayer, clearCharacter,
+	addCharacter, addLayer, fieldSize, clearLayer, clearCharacter,
 	addThread, fieldColor, onclick, waitField,
 	moveTurtle
  )
@@ -79,6 +79,7 @@ xturtleVersion :: (Int, String)
 xturtleVersion = (20, "0.0.11b")
 
 data Turtle = Turtle {
+	field :: Field,
 	layer :: Layer,
 	character :: Character,
 	inputChan :: Chan TurtleInput,
@@ -94,6 +95,7 @@ newTurtle f = do
 	(ic, sts) <- getTurtleStates $ lookupShape "classic"
 	si <- newIORef 1
 	let	t = Turtle {
+			field = f,
 			inputChan = ic,
 			layer = l,
 			character = ch,
@@ -196,8 +198,8 @@ undo t = readIORef (stateIndex t)
 	>>= flip replicateM_ (sendCommand t Undo) . undonum . (states t !!)
 
 windowWidth, windowHeight :: Turtle -> IO Double
-windowWidth = fmap fst . layerSize . layer
-windowHeight = fmap snd . layerSize . layer
+windowWidth = fmap fst . fieldSize . field
+windowHeight = fmap snd . fieldSize . field
 
 position :: Turtle -> IO (Double, Double)
 position Turtle{stateIndex = si, states = s} =

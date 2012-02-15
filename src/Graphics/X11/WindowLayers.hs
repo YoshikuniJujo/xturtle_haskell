@@ -7,7 +7,7 @@ module Graphics.X11.WindowLayers(
 	closeField,
 	waitField,
 	fieldColor,
-	layerSize,
+	fieldSize,
 
 	addLayer,
 	addCharacter,
@@ -220,9 +220,6 @@ closeField f = do
 
 addThread :: Field -> ThreadId -> IO ()
 addThread f tid = modifyIORef (fRunning f) (tid :)
-
-layerSize :: Layer -> IO (Double, Double)
-layerSize = fieldSize . layerField
 
 flushLayer :: Layer -> IO ()
 flushLayer = flushWindow . layerField
