@@ -76,7 +76,7 @@ import Data.Word(Word8)
 import Data.Fixed(mod')
 
 xturtleVersion :: (Int, String)
-xturtleVersion = (20, "0.0.11b")
+xturtleVersion = (21, "0.0.12")
 
 data Turtle = Turtle {
 	field :: Field,
