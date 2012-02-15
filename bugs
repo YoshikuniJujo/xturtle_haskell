@@ -7,3 +7,4 @@
 * redraw error when ExposeEvent occur (fixed)
 * freeze ghci if closeField before turtle stop (fixed but not so good)
 * flicker when undo (fixed)
+* change pensize and undo

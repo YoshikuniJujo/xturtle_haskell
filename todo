@@ -1,7 +1,6 @@
 * refactoring
 
 Functions
-* change background color
 * change line width
 * change turtle width and height separately
 * fill
@@ -12,3 +11,4 @@ Functions
 Bugs
 * repair closeField
 * pensize should be Double?
+* bug about change pensize and undo
