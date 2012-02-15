@@ -48,7 +48,7 @@ getTurtleStates sh = do
 
 nextTurtle :: TurtleState -> TurtleInput -> TurtleState
 nextTurtle t (Shape sh) = (clearState t){shape = sh}
-nextTurtle t (ShapeSize ss) = (clearState t){size = ss}
+nextTurtle t (ShapeSize ss) = (clearState t){shapesize = ss}
 nextTurtle t (Goto x y) = (clearState t){position = (x, y), line = pendown t,
 	drawed = if pendown t then (pencolor t, position t, (x, y)) : drawed t else drawed t} 
 nextTurtle t (Rotate d) = (clearState t){direction = d}

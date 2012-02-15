@@ -59,14 +59,14 @@ moveTurtle c l t0 t1 = do
 	when (undo t1 && clear t0) $ drawLines l (pensize t1) $ drawed t1
 	when (visible t1) $ do
 		forM_ (getDirections (dir t0) (dir t1)) $ \d -> do
-			drawTurtle c (pencolor t1) (shape t1) (size t1) d
+			drawTurtle c (pencolor t1) (shape t1) (shapesize t1) d
 				(pensize t1) p0 Nothing
 			threadDelay rotateSpeed
 		forM_ (getPositions x0 y0 x1 y1) $ \p -> do
-			drawTurtle c (pencolor t1) (shape t1) (size t1)
+			drawTurtle c (pencolor t1) (shape t1) (shapesize t1)
 				(dir t1) (pensize t1) p lineOrigin
 			threadDelay moveSpeed
-		drawTurtle c (pencolor t1) (shape t1) (size t1) (dir t1)
+		drawTurtle c (pencolor t1) (shape t1) (shapesize t1) (dir t1)
 			(pensize t1) p1 lineOrigin
 	unless (visible t1) $ clearCharacter c
 	when (not (undo t1) && line t1) $
