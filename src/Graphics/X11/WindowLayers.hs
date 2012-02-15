@@ -245,19 +245,24 @@ runIfOpened f act = do
 	cl <- readIORef $ fClosed f
 	if cl then return () else act >> return ()
 
-drawLineNotFlush :: Layer -> Int -> Pixel -> Double -> Double -> Double -> Double -> IO ()
-drawLineNotFlush l@Layer{layerField = f} lw clr x1 y1 x2 y2 = runIfOpened f $ do
+drawLineNotFlush ::
+	Layer -> Double -> Pixel -> Double -> Double -> Double -> Double -> IO ()
+drawLineNotFlush l@Layer{layerField = f} lw_ clr x1 y1 x2 y2 = runIfOpened f $ do
 	drawLineBuf f lw clr fBG x1 y1 x2 y2
 	addLayerAction l $ whether
 		(drawLineBuf f lw clr fUndoBuf x1 y1 x2 y2)
 		(drawLineBuf f lw clr fBG x1 y1 x2 y2)
+	where
+	lw = round lw_
 
-drawLine :: Layer -> Int -> Pixel -> Double -> Double -> Double -> Double -> IO ()
-drawLine l@Layer{layerField = f} lw clr x1 y1 x2 y2 = runIfOpened f $ do
+drawLine :: Layer -> Double -> Pixel -> Double -> Double -> Double -> Double -> IO ()
+drawLine l@Layer{layerField = f} lw_ clr x1 y1 x2 y2 = runIfOpened f $ do
 	drawLineBuf f lw clr fBG x1 y1 x2 y2 >> redrawCharacters f
 	addLayerAction l $ whether
 		(drawLineBuf f lw clr fUndoBuf x1 y1 x2 y2)
 		(drawLineBuf f lw clr fBG x1 y1 x2 y2)
+	where
+	lw = round lw_
 
 clearCharacter :: Character -> IO ()
 clearCharacter c = runIfOpened (characterField c) $
@@ -269,12 +274,14 @@ drawCharacter c@Character{characterField = f} clr sh = do
 		setForeground (fDisplay f) (fGC f) clr
 		fillPolygonBuf (characterField c) sh
 
-drawCharacterAndLine ::	Character -> Pixel -> [(Double, Double)] -> Int ->
+drawCharacterAndLine ::	Character -> Pixel -> [(Double, Double)] -> Double ->
 	Double -> Double -> Double -> Double -> IO ()
-drawCharacterAndLine c@Character{characterField = f} clr ps lw x1 y1 x2 y2 = do
+drawCharacterAndLine c@Character{characterField = f} clr ps lw_ x1 y1 x2 y2 = do
 	runIfOpened f $ setCharacter c $ do
 		setForeground (fDisplay f) (fGC f) clr
 		fillPolygonBuf f ps >> drawLineBuf f lw clr fBuf x1 y1 x2 y2
+	where
+	lw = round lw_
 
 undoLayer :: Layer -> IO Bool
 undoLayer Layer{layerField = f, layerId = lid} = do

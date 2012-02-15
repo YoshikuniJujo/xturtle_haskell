@@ -13,7 +13,7 @@ data TurtleState = TurtleState {
 	direction :: Double,
 	degrees :: Double,
 	pendown :: Bool,
-	pensize :: Int,
+	pensize :: Double,
 	pencolor :: Color,
 	shape :: [(Double, Double)],
 	shapesize :: Double,

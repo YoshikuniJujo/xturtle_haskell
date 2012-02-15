@@ -10,5 +10,4 @@ Functions
 
 Bugs
 * repair closeField
-* pensize should be Double?
 * bug about change pensize and undo

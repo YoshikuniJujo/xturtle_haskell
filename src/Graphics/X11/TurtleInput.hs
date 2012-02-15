@@ -35,7 +35,7 @@ data TurtleInput
 	| Left Double
 	| Undonum Int
 	| Pencolor Color
-	| Pensize Int
+	| Pensize Double
 	| Degrees Double
 	deriving Show
 

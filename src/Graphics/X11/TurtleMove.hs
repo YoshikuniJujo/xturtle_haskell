@@ -78,7 +78,7 @@ moveTurtle c l t0 t1 = do
 	p0@(x0, y0) = position t0
 	p1@(x1, y1) = position t1
 
-drawLines :: Layer -> Int -> [(Color, (Double, Double), (Double, Double))] -> IO ()
+drawLines :: Layer -> Double -> [(Color, (Double, Double), (Double, Double))] -> IO ()
 drawLines l lw ls =
 	mapM_ (\(clr, (x0, y0), (x1, y1)) -> drawLineNotFlush l lw clr x0 y0 x1 y1) $ reverse ls
 
@@ -95,7 +95,7 @@ getDirections ds de = [ds, ds + dd .. de - dd]
 	where
 	dd = if de > ds then stepDir else - stepDir
 
-drawTurtle :: Character -> Color -> [Pos] -> Double -> Double -> Int ->
+drawTurtle :: Character -> Color -> [Pos] -> Double -> Double -> Double ->
 	Pos -> Maybe Pos -> IO ()
 drawTurtle c clr sh s d lw (px, py) org = do
 	let sp = map (((+ px) *** (+ py)) . rotatePoint . ((* s) *** (* s))) sh

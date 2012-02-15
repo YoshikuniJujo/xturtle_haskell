@@ -182,7 +182,7 @@ bgcolor f r_ g_ b_ = fieldColor f c
 	c = shift r 16 .|. shift g 8 .|. b
 	[r, g, b] = map fromIntegral [r_, g_, b_]
 
-pensize :: Turtle -> Int -> IO ()
+pensize :: Turtle -> Double -> IO ()
 pensize t = sendCommand t . Pensize
 
 degrees :: Turtle -> Double -> IO ()
