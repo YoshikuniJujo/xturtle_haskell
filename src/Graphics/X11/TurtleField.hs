@@ -14,6 +14,7 @@ module Graphics.X11.TurtleField(
 
 	drawLine,
 	drawLineNotFlush,
+	writeString,
 	drawCharacter,
 	drawCharacterAndLine,
 	clearCharacter,
@@ -43,10 +44,14 @@ import Graphics.X11(
 	setWMProtocols, selectInput, allocaXEvent, nextEvent,
 	keyPressMask, exposureMask, buttonPressMask,
 
-	getGeometry, initThreads, connectionNumber, pending, destroyWindow
+	getGeometry, initThreads, connectionNumber, pending, destroyWindow,
+
+	defaultVisual, defaultColormap, defaultScreenOfDisplay
  )
 import qualified Graphics.X11 as X (drawLine)
 import Graphics.X11.Xlib.Extras(Event(..), getEvent)
+import Graphics.X11.Xft
+import Graphics.X11.Xrender
 
 import Data.IORef(IORef, newIORef, readIORef, writeIORef, modifyIORef)
 import Data.Bits((.|.))
@@ -259,6 +264,20 @@ drawLine l@Layer{layerField = f} lw_ clr x1 y1 x2 y2 = runIfOpened f $ do
 		(drawLineBuf f lw clr fBG x1 y1 x2 y2)
 	where
 	lw = round lw_
+
+writeString :: Layer -> Double -> (Int, Int, Int, Int) -> String -> IO ()
+writeString l@Layer{layerField = f} _size _clr str = do
+	let	dpy = fDisplay f
+		scr = defaultScreen dpy
+		scrN = defaultScreenOfDisplay dpy
+		visual = defaultVisual dpy scr
+		colormap = defaultColormap dpy scr
+	xftDraw <- xftDrawCreate dpy (fBG f) visual colormap
+	xftFont <- xftFontOpen dpy scrN ""
+	withXftColorValue dpy visual colormap (XRenderColor 0xf200 0xf200 0xf200 0xffff) $ \c -> do
+		xftDrawString xftDraw c xftFont (10 :: Int) (40 :: Int) str
+	redrawCharacters f
+	flushLayer l
 
 clearCharacter :: Character -> IO ()
 clearCharacter c = runIfOpened (characterField c) $
