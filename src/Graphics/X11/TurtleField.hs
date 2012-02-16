@@ -25,7 +25,9 @@ module Graphics.X11.TurtleField(
 	onclick,
 
 	forkIOX,
-	addThread
+	addThread,
+
+	Color(..)
 ) where
 
 import Graphics.X11(
@@ -63,6 +65,11 @@ import Control.Concurrent(
 
 import System.Posix.Types
 import Foreign.C.Types
+
+data Color = Color {pixel :: Pixel}
+
+colorToPixel :: Color -> Pixel
+colorToPixel = pixel
 
 data Field = Field{
 	fDisplay :: Display,
@@ -188,9 +195,9 @@ runLoop f = allocaXEvent $ \e -> do
 onclick :: Field -> (Double -> Double -> IO Bool) -> IO ()
 onclick f = writeIORef (fOnclick f)
 
-fieldColor :: Field -> Pixel -> IO ()
+fieldColor :: Field -> Color -> IO ()
 fieldColor f clr = do
-	setForeground (fDisplay f) (fGCBG f) clr
+	setForeground (fDisplay f) (fGCBG f) $ colorToPixel clr
 	let bufs = [fUndoBuf f, fBG f, fBuf f]
 	width <- readIORef $ fWidth f
 	height <- readIORef $ fHeight f
@@ -242,7 +249,7 @@ runIfOpened f act = do
 	unless cl $ act >> return ()
 
 drawLineNotFlush ::
-	Layer -> Double -> Pixel -> Double -> Double -> Double -> Double -> IO ()
+	Layer -> Double -> Color -> Double -> Double -> Double -> Double -> IO ()
 drawLineNotFlush l@Layer{layerField = f} lw_ clr x1 y1 x2 y2 = runIfOpened f $ do
 	drawLineBuf f lw clr fBG x1 y1 x2 y2
 	addLayerAction l $ whether
@@ -251,7 +258,7 @@ drawLineNotFlush l@Layer{layerField = f} lw_ clr x1 y1 x2 y2 = runIfOpened f $ d
 	where
 	lw = round lw_
 
-drawLine :: Layer -> Double -> Pixel -> Double -> Double -> Double -> Double -> IO ()
+drawLine :: Layer -> Double -> Color -> Double -> Double -> Double -> Double -> IO ()
 drawLine l@Layer{layerField = f} lw_ clr x1 y1 x2 y2 = runIfOpened f $ do
 	drawLineBuf f lw clr fBG x1 y1 x2 y2 >> redrawCharacters f
 	addLayerAction l $ whether
@@ -264,17 +271,17 @@ clearCharacter :: Character -> IO ()
 clearCharacter c = runIfOpened (characterField c) $
 	setCharacter c $ return ()
 
-drawCharacter :: Character -> Pixel -> [(Double, Double)] -> IO ()
+drawCharacter :: Character -> Color -> [(Double, Double)] -> IO ()
 drawCharacter c@Character{characterField = f} clr sh =
 	runIfOpened (characterField c) $ setCharacter c $ do
-		setForeground (fDisplay f) (fGC f) clr
+		setForeground (fDisplay f) (fGC f) $ colorToPixel clr
 		fillPolygonBuf (characterField c) sh
 
-drawCharacterAndLine ::	Character -> Pixel -> [(Double, Double)] -> Double ->
+drawCharacterAndLine ::	Character -> Color -> [(Double, Double)] -> Double ->
 	Double -> Double -> Double -> Double -> IO ()
 drawCharacterAndLine c@Character{characterField = f} clr ps lw_ x1 y1 x2 y2 =
 	runIfOpened f $ setCharacter c $ do
-		setForeground (fDisplay f) (fGC f) clr
+		setForeground (fDisplay f) (fGC f) $ colorToPixel clr
 		fillPolygonBuf f ps >> drawLineBuf f lw clr fBuf x1 y1 x2 y2
 	where
 	lw = round lw_
@@ -329,10 +336,10 @@ fillPolygonBuf f ps_ = do
 	fillPolygon (fDisplay f) (fBuf f) (fGC f) (map (uncurry Point) ps)
 		nonconvex coordModeOrigin
 
-drawLineBuf :: Field -> Int -> Pixel -> (Field -> Pixmap) ->
+drawLineBuf :: Field -> Int -> Color -> (Field -> Pixmap) ->
 	Double -> Double -> Double -> Double -> IO ()
 drawLineBuf f@Field{fDisplay = dpy, fGC = gc} lw clr bf x1_ y1_ x2_ y2_ = do
-	setForeground (fDisplay f) (fGC f) clr
+	setForeground (fDisplay f) (fGC f) $ colorToPixel clr
 	setLineAttributes (fDisplay f) (fGC f) (fromIntegral lw) lineSolid capRound joinRound
 	[(x1, y1), (x2, y2)] <- convertPos f [(x1_, y1_), (x2_, y2_)]
 	X.drawLine dpy (bf f) gc x1 y1 x2 y2

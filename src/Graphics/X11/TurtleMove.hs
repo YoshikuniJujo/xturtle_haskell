@@ -15,11 +15,12 @@ module Graphics.X11.TurtleMove (
 	fieldColor,
 	onclick,
 	waitField,
+	Color(..),
 
 	moveTurtle
 ) where
 
-import Graphics.X11.TurtleState(TurtleState(..), Color)
+import Graphics.X11.TurtleState(TurtleState(..), pencolor)
 import Graphics.X11.TurtleField(
 	Field, Layer, Character,
 	forkIOX, openField, closeField, flushLayer,
@@ -27,12 +28,13 @@ import Graphics.X11.TurtleField(
 	drawLine, drawCharacter, drawCharacterAndLine, undoLayer,
 	drawLineNotFlush,
 	clearCharacter, addThread,
-	fieldColor, onclick, waitField
+	fieldColor, onclick, waitField, Color(..)
  )
 
 import Control.Concurrent(threadDelay)
 import Control.Monad(when, unless, forM_)
 import Control.Arrow((***))
+import Data.Word
 
 type Pos = (Double, Double)
 
@@ -59,18 +61,18 @@ moveTurtle c l t0 t1 = do
 	when (undo t1 && clear t0) $ drawLines l $ drawed t1
 	when (visible t1) $ do
 		forM_ (getDirections (dir t0) (dir t1)) $ \d -> do
-			drawTurtle c (pencolor t1) (shape t1) (shapesize t1) d
+			drawTurtle c (Color $ pencolor t1) (shape t1) (shapesize t1) d
 				(pensize t1) p0 Nothing
 			threadDelay rotateSpeed
 		forM_ (getPositions x0 y0 x1 y1) $ \p -> do
-			drawTurtle c (pencolor t1) (shape t1) (shapesize t1)
+			drawTurtle c (Color $ pencolor t1) (shape t1) (shapesize t1)
 				(dir t1) (pensize t1) p lineOrigin
 			threadDelay moveSpeed
-		drawTurtle c (pencolor t1) (shape t1) (shapesize t1) (dir t1)
+		drawTurtle c (Color $ pencolor t1) (shape t1) (shapesize t1) (dir t1)
 			(pensize t1) p1 lineOrigin
 	unless (visible t1) $ clearCharacter c
 	when (not (undo t1) && line t1) $
-		drawLine l (pensize t1) (pencolor t1) x0 y0 x1 y1 >> flushLayer l
+		drawLine l (pensize t1) (Color $ pencolor t1) x0 y0 x1 y1 >> flushLayer l
 	when (clear t1) $ clearLayer l >> flushLayer l
 	where
 	(tl, to) = if undo t1 then (t0, t1) else (t1, t0)
@@ -78,9 +80,9 @@ moveTurtle c l t0 t1 = do
 	p0@(x0, y0) = position t0
 	p1@(x1, y1) = position t1
 
-drawLines :: Layer -> [(Color, Double, (Double, Double), (Double, Double))] -> IO ()
+drawLines :: Layer -> [(Word32, Double, (Double, Double), (Double, Double))] -> IO ()
 drawLines l ls =
-	mapM_ (\(clr, lw, (x0, y0), (x1, y1)) -> drawLineNotFlush l lw clr x0 y0 x1 y1) $ reverse ls
+	mapM_ (\(clr, lw, (x0, y0), (x1, y1)) -> drawLineNotFlush l lw (Color clr) x0 y0 x1 y1) $ reverse ls
 
 getPositions :: Double -> Double -> Double -> Double -> [Pos]
 getPositions x0 y0 x1 y1 = take num $ zip [x0, x0 + dx .. ] [y0, y0 + dy .. ]

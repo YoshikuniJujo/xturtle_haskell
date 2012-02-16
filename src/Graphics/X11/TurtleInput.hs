@@ -11,7 +11,8 @@ module Graphics.X11.TurtleInput (
 	degrees
 ) where
 
-import Graphics.X11.TurtleState(TurtleState(..), initialTurtleState, Color)
+import Graphics.X11.TurtleState(TurtleState(..), initialTurtleState, Color,
+	pencolor, setPencolor)
 import Control.Concurrent.Chan(Chan, newChan, getChanContents)
 import Prelude hiding(Left)
 
@@ -34,7 +35,7 @@ data TurtleInput
 	| Forward Double
 	| Left Double
 	| Undonum Int
-	| Pencolor Color
+	| Pencolor Double Double Double
 	| Pensize Double
 	| Degrees Double
 	deriving Show
@@ -58,7 +59,7 @@ nextTurtle t Penup = (clearState t){pendown = False}
 nextTurtle t (SetVisible v) = (clearState t){visible = v}
 nextTurtle t (Undonum un) = (clearState t){undonum = un}
 nextTurtle t (Clear) = (clearState t){clear = True, drawed = []}
-nextTurtle t (Pencolor c) = (clearState t){pencolor = c}
+nextTurtle t (Pencolor r g b) = (clearState t){red = r, green = g, blue = b}-- setPencolor (clearState t) c
 nextTurtle t (Pensize ps) = (clearState t){pensize = ps}
 nextTurtle t (Degrees ds) = (clearState t){
 	degrees = ds,

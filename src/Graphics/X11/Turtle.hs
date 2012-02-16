@@ -58,7 +58,7 @@ import Graphics.X11.TurtleMove(
 	Field, Layer, Character,
 	forkIOX, openField, closeField,
 	addCharacter, addLayer, fieldSize, clearLayer, clearCharacter,
-	addThread, fieldColor, onclick, waitField,
+	addThread, fieldColor, onclick, waitField, Color(..),
 	moveTurtle
  )
 import Graphics.X11.TurtleInput(
@@ -72,7 +72,6 @@ import Control.Monad(replicateM_, zipWithM_)
 import Prelude hiding(Left)
 import Data.IORef(IORef, newIORef, readIORef, modifyIORef)
 import Data.Bits(shift, (.|.))
-import Data.Word(Word8)
 import Data.Fixed(mod')
 
 xturtleVersion :: (Int, String)
@@ -172,17 +171,14 @@ penup, pendown :: Turtle -> IO ()
 penup = flip sendCommand Penup
 pendown = flip sendCommand Pendown
 
-pencolor :: Turtle -> Word8 -> Word8 -> Word8 -> IO ()
-pencolor t r_ g_ b_ = sendCommand t $ Pencolor c
-	where
-	c = shift r 16 .|. shift g 8 .|. b
-	[r, g, b] = map fromIntegral [r_, g_, b_]
+pencolor :: Turtle -> Double -> Double -> Double -> IO ()
+pencolor t r_ g_ b_ = sendCommand t $ Pencolor r_ g_ b_ -- c
 
-bgcolor :: Field -> Word8 -> Word8 -> Word8 -> IO ()
-bgcolor f r_ g_ b_ = fieldColor f c
+bgcolor :: Field -> Double -> Double -> Double -> IO ()
+bgcolor f r_ g_ b_ = fieldColor f $ Color c
 	where
 	c = shift r 16 .|. shift g 8 .|. b
-	[r, g, b] = map fromIntegral [r_, g_, b_]
+	[r, g, b] = map (round . (* 255)) [r_, g_, b_]
 
 pensize :: Turtle -> Double -> IO ()
 pensize t = sendCommand t . Pensize
