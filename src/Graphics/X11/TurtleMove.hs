@@ -20,7 +20,7 @@ module Graphics.X11.TurtleMove (
 ) where
 
 import Graphics.X11.TurtleState(TurtleState(..), Color)
-import Graphics.X11.WindowLayers(
+import Graphics.X11.TurtleField(
 	Field, Layer, Character,
 	forkIOX, openField, closeField, flushLayer,
 	addLayer, addCharacter, fieldSize, clearLayer,
