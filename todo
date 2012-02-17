@@ -1,7 +1,9 @@
 * refactoring
 
 Functions
-* ondrag
+* get draw data to save
+	- test: turtle restart
+	- test: save as svg
 * get Mouse move event
 * change turtle speed
 * change turtle width and height separately

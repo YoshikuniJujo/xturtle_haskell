@@ -3,9 +3,11 @@ module Main where
 import Graphics.X11.Turtle
 import Data.IORef
 import Control.Concurrent
+import System.Environment
 
 main :: IO ()
 main = do
+	[fn] <- getArgs
 	clr <- newIORef 0
 	bgclr <- newIORef 0
 	f <- openField
@@ -24,6 +26,7 @@ main = do
 	pensize t 10
 	hideturtle t
 	penup t
+	readFile fn >>= sendInputs t . read
 	onclick f $ \b x y -> do
 		case b of
 			1 -> goto t x y >> pendown t >> forward t 0 >> return True
@@ -37,7 +40,14 @@ main = do
 				(\(r, g, b) -> pencolor t r g b >> pencolor clrT r g b) . (colors !!) >>
 				forward clrT 0 >> return True
 	onrelease f $ \_ _ -> penup t>> return True
-	onkeypress f $ const $ return False
+	onkeypress f $ \_ -> do
+		print "hello"
+		inputs <- getInputs t
+		print $ head inputs
+		print inputs
+		print $ length inputs
+		writeFile fn $ show $ drop 5 inputs
+		return False
 	ondrag f $ \x y -> goto t x y
 	waitField f
 

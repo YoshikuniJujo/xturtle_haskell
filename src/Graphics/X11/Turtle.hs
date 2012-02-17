@@ -55,7 +55,10 @@ module Graphics.X11.Turtle (
 	waitField,
 
 	xturtleVersion,
-	write
+	write,
+
+	getInputs,
+	sendInputs
 ) where
 
 import Graphics.X11.TurtleMove(
@@ -87,6 +90,7 @@ data Turtle = Turtle {
 	character :: Character,
 	inputChan :: Chan TurtleInput,
 	states :: [TurtleState],
+	inputs :: [TurtleInput],
 	stateIndex :: IORef Int,
 	thread :: ThreadId
  }
@@ -95,7 +99,7 @@ newTurtle :: Field -> IO Turtle
 newTurtle f = do
 	ch <- addCharacter f
 	l <- addLayer f
-	(ic, sts) <- getTurtleStates $ lookupShape "classic"
+	(ic, tis, sts) <- getTurtleStates $ lookupShape "classic"
 	si <- newIORef 1
 	let	t = Turtle {
 			field = f,
@@ -103,6 +107,7 @@ newTurtle f = do
 			layer = l,
 			character = ch,
 			states = sts,
+			inputs = tis,
 			stateIndex = si,
 			thread = undefined
 		 }
@@ -235,3 +240,11 @@ isdown t = fmap (getPendown . (states t !!)) $ readIORef $ stateIndex t
 
 isvisible :: Turtle -> IO Bool
 isvisible t = fmap (visible . (states t !!)) $ readIORef $ stateIndex t
+
+getInputs :: Turtle -> IO [TurtleInput]
+getInputs t = do
+	i <- readIORef $ stateIndex t
+	return $ take (i - 1) $ inputs t
+
+sendInputs :: Turtle -> [TurtleInput] -> IO ()
+sendInputs t = mapM_ (sendCommand t)
