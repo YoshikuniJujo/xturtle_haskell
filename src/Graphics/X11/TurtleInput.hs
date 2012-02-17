@@ -11,7 +11,8 @@ module Graphics.X11.TurtleInput (
 	degrees
 ) where
 
-import Graphics.X11.TurtleState(TurtleState(..), initialTurtleState, pencolor)
+import Graphics.X11.TurtleState(TurtleState(..), initialTurtleState, pencolor,
+	Draw(..))
 import Control.Concurrent.Chan(Chan, newChan, getChanContents)
 import Prelude hiding(Left)
 
@@ -50,8 +51,8 @@ nextTurtle :: TurtleState -> TurtleInput -> TurtleState
 nextTurtle t (Shape sh) = (clearState t){shape = sh}
 nextTurtle t (ShapeSize ss) = (clearState t){shapesize = ss}
 nextTurtle t (Goto x y) = (clearState t){position = (x, y), line = pendown t,
-	drawed = if pendown t then (pencolor t, pensize t, position t, (x, y))
-		: drawed t else drawed t} 
+	drawed = if pendown t
+		then Line (pencolor t) (pensize t) (position t) (x, y) : drawed t else drawed t} 
 nextTurtle t (Rotate d) = (clearState t){direction = d}
 nextTurtle t Pendown = (clearState t){pendown = True}
 nextTurtle t Penup = (clearState t){pendown = False}

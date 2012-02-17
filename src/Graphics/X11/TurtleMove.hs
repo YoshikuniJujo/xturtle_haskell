@@ -21,7 +21,7 @@ module Graphics.X11.TurtleMove (
 	moveTurtle
 ) where
 
-import Graphics.X11.TurtleState(TurtleState(..), pencolor)
+import Graphics.X11.TurtleState(TurtleState(..), pencolor, Draw(..))
 import Graphics.X11.TurtleField(
 	Field, Layer, Character,
 	forkIOX, openField, closeField, flushLayer,
@@ -81,9 +81,9 @@ moveTurtle c l t0 t1 = do
 	p0@(x0, y0) = position t0
 	p1@(x1, y1) = position t1
 
-drawLines :: Layer -> [(Word32, Double, (Double, Double), (Double, Double))] -> IO ()
+-- drawLines :: Layer -> [(Word32, Double, (Double, Double), (Double, Double))] -> IO ()
 drawLines l ls =
-	mapM_ (\(clr, lw, (x0, y0), (x1, y1)) -> drawLineNotFlush l lw (Color clr) x0 y0 x1 y1) $ reverse ls
+	mapM_ (\(Line clr lw (x0, y0) (x1, y1)) -> drawLineNotFlush l lw (Color clr) x0 y0 x1 y1) $ reverse ls
 
 getPositions :: Double -> Double -> Double -> Double -> [Pos]
 getPositions x0 y0 x1 y1 = take num $ zip [x0, x0 + dx .. ] [y0, y0 + dy .. ]

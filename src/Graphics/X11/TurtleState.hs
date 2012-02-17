@@ -3,7 +3,8 @@ module Graphics.X11.TurtleState (
 	initialTurtleState,
 	Color,
 	pencolor,
-	setPencolor
+	setPencolor,
+	Draw(..)
 ) where
 
 import Data.Word(Word32)
@@ -25,6 +26,7 @@ data Draw
 		pos :: (Double, Double),
 		contents :: String
 	 }
+	deriving Show
 
 pencolor :: TurtleState -> Word32
 pencolor t = c
@@ -56,7 +58,7 @@ data TurtleState = TurtleState {
 	undo :: Bool,
 	line :: Bool,
 	undonum :: Int,
-	drawed :: [(Color, Double, (Double, Double), (Double, Double))]
+	drawed :: [Draw]
  } deriving Show
 
 initialTurtleState :: [(Double, Double)] -> TurtleState
