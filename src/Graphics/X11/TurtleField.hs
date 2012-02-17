@@ -105,7 +105,7 @@ data Field = Field{
 	fClose :: Chan (),
 	fClosed :: IORef Bool,
 	fRunning :: IORef [ThreadId],
-	fOnclick :: IORef (Double -> Double -> IO Bool),
+	fOnclick :: IORef (Int -> Double -> Double -> IO Bool),
 	fOnrelease :: IORef (Double -> Double -> IO Bool),
 	fOndrag :: IORef (Double -> Double -> IO ()),
 	fPress :: IORef Bool,
@@ -160,7 +160,7 @@ openField = do
 	close <- newChan
 	closed <- newIORef False
 	running <- newIORef []
-	onclickRef <- newIORef $ const $ const $ return True
+	onclickRef <- newIORef $ const $ const $ const $ return True
 	onreleaseRef <- newIORef $ const $ const $ return True
 	ondragRef <- newIORef $ const $ const $ return ()
 	pressRef <- newIORef False
@@ -229,8 +229,9 @@ runLoop ic f = allocaXEvent $ \e -> do
 				case ev_event_type ev of
 					et	| et == buttonPress -> do
 							writeIORef (fPress f) True
-							readIORef (fOnclick f) >>=
-								($ pos) . uncurry
+							fun <- readIORef (fOnclick f)
+							uncurry (fun $ fromIntegral $ ev_button ev)
+								pos
 						| et == buttonRelease -> do
 							writeIORef (fPress f) False
 							readIORef (fOnrelease f) >>=
@@ -246,7 +247,7 @@ runLoop ic f = allocaXEvent $ \e -> do
 			Nothing -> killThread th1 >> return False
 			_ -> return True
 
-onclick, onrelease :: Field -> (Double -> Double -> IO Bool) -> IO ()
+-- onclick, onrelease :: Field -> (Double -> Double -> IO Bool) -> IO ()
 onclick f = writeIORef $ fOnclick f
 onrelease f = writeIORef $ fOnrelease f
 
