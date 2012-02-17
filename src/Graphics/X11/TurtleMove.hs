@@ -75,7 +75,7 @@ moveTurtle c l t0 t1 = do
 	when (not (undo t1) && line t1) $
 		drawLine l (pensize t1) (Color $ pencolor t1) x0 y0 x1 y1 >> flushLayer l
 	when (clear t1) $ clearLayer l >> flushLayer l
-	when (not $ undo t1) $ drawDraw l (draw t1) >> flushLayer l
+	unless (undo t1) $ drawDraw l (draw t1) >> flushLayer l
 	where
 	(tl, to) = if undo t1 then (t0, t1) else (t1, t0)
 	lineOrigin = if line tl then Just $ position to else Nothing

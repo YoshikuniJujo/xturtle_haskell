@@ -51,7 +51,7 @@ import Graphics.X11(
 
 	defaultVisual, defaultColormap, defaultScreenOfDisplay,
 
-	keycodeToKeysym, supportsLocale, setLocaleModifiers,
+	supportsLocale, setLocaleModifiers,
 	xK_VoidSymbol
  )
 import qualified Graphics.X11 as X (drawLine)
@@ -65,7 +65,6 @@ import Data.Bits((.|.))
 import Data.Convertible(convert)
 import Data.List.Tools(modifyAt, setAt)
 import Data.Bool.Tools(whether)
-import Data.Char
 import Data.Maybe
 
 import Control.Monad(replicateM, forM_, forever, replicateM_, when, unless)
@@ -205,10 +204,10 @@ runLoop ic f = allocaXEvent $ \e -> do
 				writeIORef (fHeight f) height
 				redrawAll f
 				return True
-			Just ev@(KeyEvent{}) -> do
+			Just (KeyEvent{}) -> do
 				(mstr, mks) <- utf8LookupString ic e
 				let	str = fromMaybe " " mstr
-					ks = fromMaybe xK_VoidSymbol mks
+					_ks = fromMaybe xK_VoidSymbol mks
 				readIORef (fKeypress f) >>= fmap and . ($ str) . mapM
 			Just ev@ButtonEvent{} -> do
 				pos <- convertPosRev f (ev_x ev) (ev_y ev)
