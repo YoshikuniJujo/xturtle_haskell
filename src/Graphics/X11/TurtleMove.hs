@@ -35,7 +35,6 @@ import Graphics.X11.TurtleField(
 import Control.Concurrent(threadDelay)
 import Control.Monad(when, unless, forM_)
 import Control.Arrow((***))
-import Data.Word
 
 type Pos = (Double, Double)
 
@@ -75,15 +74,20 @@ moveTurtle c l t0 t1 = do
 	when (not (undo t1) && line t1) $
 		drawLine l (pensize t1) (Color $ pencolor t1) x0 y0 x1 y1 >> flushLayer l
 	when (clear t1) $ clearLayer l >> flushLayer l
+	drawDraw l (draw t1) >> flushLayer l
 	where
 	(tl, to) = if undo t1 then (t0, t1) else (t1, t0)
 	lineOrigin = if line tl then Just $ position to else Nothing
 	p0@(x0, y0) = position t0
 	p1@(x1, y1) = position t1
 
--- drawLines :: Layer -> [(Word32, Double, (Double, Double), (Double, Double))] -> IO ()
-drawLines l ls =
-	mapM_ (\(Line clr lw (x0, y0) (x1, y1)) -> drawLineNotFlush l lw (Color clr) x0 y0 x1 y1) $ reverse ls
+drawLines :: Layer -> [Draw] -> IO ()
+drawLines l = mapM_ (drawDraw l) . reverse
+
+drawDraw :: Layer -> Draw -> IO ()
+drawDraw _ NoDraw = return ()
+drawDraw l (Line clr lw (x0, y0) (x1, y1)) = drawLineNotFlush l lw (Color clr) x0 y0 x1 y1
+drawDraw l (Str (r, g, b) fnt sz (x, y) str) = writeString l fnt sz r g b x y str
 
 getPositions :: Double -> Double -> Double -> Double -> [Pos]
 getPositions x0 y0 x1 y1 = take num $ zip [x0, x0 + dx .. ] [y0, y0 + dy .. ]

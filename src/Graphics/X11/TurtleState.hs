@@ -13,14 +13,15 @@ import Data.Bits
 type Color = Word32
 
 data Draw
-	= Line{
+	= NoDraw
+	| Line{
 		color :: Color,
 		width :: Double,
 		begin :: (Double, Double),
 		end :: (Double, Double)
 	 }
 	| Str{
-		color :: Color,
+		scolor :: (Double, Double, Double),
 		font :: String,
 		size :: Double,
 		pos :: (Double, Double),
@@ -58,6 +59,7 @@ data TurtleState = TurtleState {
 	undo :: Bool,
 	line :: Bool,
 	undonum :: Int,
+	draw :: Draw,
 	drawed :: [Draw]
  } deriving Show
 
@@ -78,5 +80,6 @@ initialTurtleState sh = TurtleState {
 	undo = False,
 	line = False,
 	undonum = 1,
+	draw = NoDraw,
 	drawed = []
  }

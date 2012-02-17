@@ -59,7 +59,7 @@ import Graphics.X11.TurtleMove(
 	Field, Layer, Character,
 	forkIOX, openField, closeField,
 	addCharacter, addLayer, fieldSize, clearLayer, clearCharacter,
-	addThread, fieldColor, onclick, waitField, writeString, Color(..),
+	addThread, fieldColor, onclick, waitField, Color(..),
 	moveTurtle
  )
 import Graphics.X11.TurtleInput(
@@ -190,6 +190,9 @@ degrees t = sendCommand t . Degrees
 radians :: Turtle -> IO ()
 radians = flip degrees $ 2 * pi
 
+write :: Turtle -> String -> Double -> String -> IO ()
+write t fnt sz = sendCommand t . Write fnt sz
+
 undo :: Turtle -> IO ()
 undo t = readIORef (stateIndex t)
 	>>= flip replicateM_ (sendCommand t Undo) . undonum . (states t !!)
@@ -229,6 +232,3 @@ isdown t = fmap (getPendown . (states t !!)) $ readIORef $ stateIndex t
 
 isvisible :: Turtle -> IO Bool
 isvisible t = fmap (visible . (states t !!)) $ readIORef $ stateIndex t
-
-write :: Turtle -> String -> Double -> Double -> Double -> Double -> Double -> Double -> String -> IO ()
-write = writeString . layer

@@ -275,17 +275,25 @@ drawLine l@Layer{layerField = f} lw_ clr x1 y1 x2 y2 = runIfOpened f $ do
 writeString :: Layer -> String -> Double -> Double -> Double -> Double ->
 	Double -> Double -> String -> IO ()
 writeString l@Layer{layerField = f} fname size r g b x y str = do
+	writeStringBuf f fBG fname size r g b x y str
+	redrawCharacters f
+	addLayerAction l $ whether
+		(writeStringBuf f fUndoBuf fname size r g b x y str)
+		(writeStringBuf f fBG fname size r g b x y str)
+
+writeStringBuf :: Field -> (Field -> Pixmap) -> String -> Double -> Double -> Double -> Double ->
+	Double -> Double -> String -> IO ()
+writeStringBuf f buf fname size r g b x_ y_ str = do
 	let	dpy = fDisplay f
 		scr = defaultScreen dpy
 		scrN = defaultScreenOfDisplay dpy
 		visual = defaultVisual dpy scr
 		colormap = defaultColormap dpy scr
-	xftDraw <- xftDrawCreate dpy (fBG f) visual colormap
+	xftDraw <- xftDrawCreate dpy (buf f) visual colormap
 	xftFont <- xftFontOpen dpy scrN $ fname ++ "-" ++ show (round size :: Int) -- "KochiGothic-20"
+	[(x, y)] <- convertPos f [(x_, y_)]
 	withXftColorValue dpy visual colormap color $ \c ->
-		xftDrawString xftDraw c xftFont (round x :: Int) (round y :: Int) str
-	redrawCharacters f
-	flushLayer l
+		xftDrawString xftDraw c xftFont x y str
 	where
 	color = XRenderColor {
 		xrendercolor_red = round $ r * 0xffff,

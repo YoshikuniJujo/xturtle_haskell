@@ -38,6 +38,7 @@ data TurtleInput
 	| Pencolor Double Double Double
 	| Pensize Double
 	| Degrees Double
+	| Write String Double String
 	deriving Show
 
 getTurtleStates :: [(Double, Double)] -> IO (Chan TurtleInput, [TurtleState])
@@ -65,10 +66,14 @@ nextTurtle t (Degrees ds) = (clearState t){
 	degrees = ds,
 	direction = direction t * ds / degrees t
  }
+nextTurtle t (Write fnt sz str) = (clearState t){
+	draw = Str (red t, green t, blue t) fnt sz (position t) str,
+	drawed = Str (red t, green t, blue t) fnt sz (position t) str : drawed t
+ }
 nextTurtle _ _ = error "not defined"
 
 clearState :: TurtleState -> TurtleState
-clearState t = t{line = False, undo = False, undonum = 1, clear = False}
+clearState t = t{line = False, undo = False, undonum = 1, clear = False, draw = NoDraw}
 
 inputToTurtle :: [TurtleState] -> TurtleState -> [TurtleInput] -> [TurtleState]
 inputToTurtle [] ts0 (Undo : tis) = ts0 : inputToTurtle [] ts0 tis
