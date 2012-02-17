@@ -11,6 +11,21 @@ import Data.Bits
 
 type Color = Word32
 
+data Draw
+	= Line{
+		color :: Color,
+		width :: Double,
+		begin :: (Double, Double),
+		end :: (Double, Double)
+	 }
+	| Str{
+		color :: Color,
+		font :: String,
+		size :: Double,
+		pos :: (Double, Double),
+		contents :: String
+	 }
+
 pencolor :: TurtleState -> Word32
 pencolor t = c
 	where
