@@ -5,7 +5,6 @@ Functions
 * change turtle speed
 * change turtle width and height separately
 * fill
-* get Key events
 (* get X events)
 * get timer event
 * raise exception if bad shape name

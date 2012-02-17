@@ -44,19 +44,21 @@ import Graphics.X11(
 	setForeground, copyArea,
 	fillRectangle, fillPolygon, nonconvex, coordModeOrigin,
 
-	setWMProtocols, selectInput, allocaXEvent, nextEvent,
+	setWMProtocols, selectInput, allocaXEvent, nextEvent, XEventPtr,
 	keyPressMask, exposureMask, buttonPressMask,
 
 	getGeometry, initThreads, connectionNumber, pending, destroyWindow,
 
 	defaultVisual, defaultColormap, defaultScreenOfDisplay,
 
-	keycodeToKeysym
+	keycodeToKeysym, supportsLocale, setLocaleModifiers,
+	xK_VoidSymbol
  )
 import qualified Graphics.X11 as X (drawLine)
 import Graphics.X11.Xlib.Extras(Event(..), getEvent)
 import Graphics.X11.Xft
 import Graphics.X11.Xrender
+import Graphics.X11.Xim
 
 import Data.IORef(IORef, newIORef, readIORef, writeIORef, modifyIORef)
 import Data.Bits((.|.))
@@ -64,15 +66,17 @@ import Data.Convertible(convert)
 import Data.List.Tools(modifyAt, setAt)
 import Data.Bool.Tools(whether)
 import Data.Char
+import Data.Maybe
 
 import Control.Monad(replicateM, forM_, forever, replicateM_, when, unless)
-import Control.Monad.Tools(doWhile_)
+import Control.Monad.Tools(doWhile_, whenM, unlessM)
 import Control.Arrow((***))
 import Control.Concurrent(
 	forkIO, ThreadId, Chan, newChan, writeChan, readChan, threadWaitRead,
 	killThread)
 
 import System.Posix.Types
+import System.Locale.SetLocale
 import Foreign.C.Types
 
 data Color = Color {pixel :: Pixel}
@@ -116,7 +120,10 @@ data Character = Character{
 
 openField :: IO Field
 openField = do
+	setLocale LC_CTYPE Nothing >>= maybe (error "Can't set locale.") print
 	_ <- initThreads
+	unlessM supportsLocale $ error "Current locale is notSupported."
+	_ <- setLocaleModifiers ""
 	dpy <- openDisplay ""
 	del <- internAtom dpy "WM_DELETE_WINDOW" True
 	let	scr = defaultScreen dpy
@@ -127,11 +134,14 @@ openField = do
 		depth = defaultDepth dpy scr
 	bufs <- replicateM 3 $ createPixmap dpy root rWidth rHeight depth
 	win <- createSimpleWindow dpy root 0 0 rWidth rHeight 1 black white
+	im <- openIM dpy Nothing Nothing Nothing
+	ic <- createIC im [XIMPreeditNothing, XIMStatusNothing] win
+	fevent <- getICValue ic "filterEvents"
 	[gc, gcBG] <- replicateM 2 $ createGC dpy win
 	setForeground dpy gcBG 0xffffff
 	forM_ bufs $ \bf -> fillRectangle dpy bf gcBG 0 0 rWidth rHeight
 	setWMProtocols dpy win [del]
-	selectInput dpy win $ exposureMask .|. keyPressMask .|. buttonPressMask
+	selectInput dpy win $ exposureMask .|. keyPressMask .|. buttonPressMask .|. fevent
 	mapWindow dpy win
 	[widthRef, heightRef] <- mapM newIORef [rWidth, rHeight]
 	buffActions <- newIORef []
@@ -169,17 +179,17 @@ openField = do
 		fKeypress = keypressRef,
 		fEnd = endRef
 	 }
-	_ <- forkIOX $ runLoop f
+	_ <- forkIOX $ runLoop ic f
 	flushWindow f
 	return f
 
-runLoop :: Field -> IO ()
-runLoop f = allocaXEvent $ \e -> do
+runLoop :: XIC -> Field -> IO ()
+runLoop ic f = allocaXEvent $ \e -> do
 	endc <- waitInput f
 	th1 <- forkIOX $ forever $ do
 		evN <- pending $ fDisplay f
 		replicateM_ (fromIntegral evN) $ do
-			nextEvent (fDisplay f) e
+			nextNotFilteredEvent (fDisplay f) e
 			ev <- getEvent e
 			writeChan (fEvent f) $ Just ev
 		end <- readChan endc
@@ -196,9 +206,10 @@ runLoop f = allocaXEvent $ \e -> do
 				redrawAll f
 				return True
 			Just ev@(KeyEvent{}) -> do
-				ch <- fmap (chr . fromEnum) $
-					keycodeToKeysym (fDisplay f) (ev_keycode ev) 0
-				readIORef (fKeypress f) >>= ($ ch)
+				(mstr, mks) <- utf8LookupString ic e
+				let	str = fromMaybe " " mstr
+					ks = fromMaybe xK_VoidSymbol mks
+				readIORef (fKeypress f) >>= fmap and . ($ str) . mapM
 			Just ev@ButtonEvent{} -> do
 				pos <- convertPosRev f (ev_x ev) (ev_y ev)
 				readIORef (fOnclick f) >>= ($ pos) . uncurry
@@ -453,3 +464,8 @@ withLock act f = do
 
 waitField :: Field -> IO ()
 waitField = readChan . fEnd
+
+nextNotFilteredEvent :: Display -> XEventPtr -> IO ()
+nextNotFilteredEvent dpy e = do
+	nextEvent dpy e
+	whenM (filterEvent e 0) $ nextNotFilteredEvent dpy e
