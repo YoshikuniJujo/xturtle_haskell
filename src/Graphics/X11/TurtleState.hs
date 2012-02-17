@@ -27,7 +27,7 @@ data Draw
 		pos :: (Double, Double),
 		contents :: String
 	 }
-	deriving Show
+	deriving (Show, Eq)
 
 pencolor :: TurtleState -> Word32
 pencolor t = c
