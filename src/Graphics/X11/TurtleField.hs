@@ -25,6 +25,7 @@ module Graphics.X11.TurtleField(
 
 	onclick,
 	onrelease,
+	ondrag,
 	onkeypress,
 
 	forkIOX,
@@ -47,6 +48,7 @@ import Graphics.X11(
 
 	setWMProtocols, selectInput, allocaXEvent, nextEvent, XEventPtr,
 	keyPressMask, exposureMask, buttonPressMask, buttonReleaseMask,
+	button1MotionMask,
 
 	getGeometry, initThreads, connectionNumber, pending, destroyWindow,
 
@@ -105,6 +107,8 @@ data Field = Field{
 	fRunning :: IORef [ThreadId],
 	fOnclick :: IORef (Double -> Double -> IO Bool),
 	fOnrelease :: IORef (Double -> Double -> IO Bool),
+	fOndrag :: IORef (Double -> Double -> IO ()),
+	fPress :: IORef Bool,
 	fKeypress :: IORef (Char -> IO Bool),
 	fEnd :: Chan ()
  }
@@ -144,7 +148,8 @@ openField = do
 	setWMProtocols dpy win [del]
 	selectInput dpy win $
 		exposureMask .|. keyPressMask .|.
-		buttonPressMask .|. buttonReleaseMask .|. fevent
+		buttonPressMask .|. buttonReleaseMask .|. button1MotionMask .|.
+		fevent
 	mapWindow dpy win
 	[widthRef, heightRef] <- mapM newIORef [rWidth, rHeight]
 	buffActions <- newIORef []
@@ -156,7 +161,9 @@ openField = do
 	closed <- newIORef False
 	running <- newIORef []
 	onclickRef <- newIORef $ const $ const $ return True
-	onreleaseRef <- newIORef $ const $ const $ return False
+	onreleaseRef <- newIORef $ const $ const $ return True
+	ondragRef <- newIORef $ const $ const $ return ()
+	pressRef <- newIORef False
 	keypressRef <- newIORef $ const $ return True
 	endRef <- newChan
 	writeChan wait ()
@@ -181,6 +188,8 @@ openField = do
 		fRunning = running,
 		fOnclick = onclickRef,
 		fOnrelease = onreleaseRef,
+		fOndrag = ondragRef,
+		fPress = pressRef,
 		fKeypress = keypressRef,
 		fEnd = endRef
 	 }
@@ -218,13 +227,20 @@ runLoop ic f = allocaXEvent $ \e -> do
 			Just ev@ButtonEvent{} -> do
 				pos <- convertPosRev f (ev_x ev) (ev_y ev)
 				case ev_event_type ev of
-					et	| et == buttonPress ->
+					et	| et == buttonPress -> do
+							writeIORef (fPress f) True
 							readIORef (fOnclick f) >>=
 								($ pos) . uncurry
-						| et == buttonRelease ->
+						| et == buttonRelease -> do
+							writeIORef (fPress f) False
 							readIORef (fOnrelease f) >>=
 								($ pos) . uncurry
 					_ -> error "not implement event"
+			Just ev@MotionEvent{} -> do
+				pos <- convertPosRev f (ev_x ev) (ev_y ev)
+				whenM (readIORef $ fPress f) $
+					readIORef (fOndrag f) >>= ($ pos) . uncurry
+				return True
 			Just ev@ClientMessageEvent{} ->
 				return $ convert (head $ ev_data ev) /= fDel f
 			Nothing -> killThread th1 >> return False
@@ -233,6 +249,9 @@ runLoop ic f = allocaXEvent $ \e -> do
 onclick, onrelease :: Field -> (Double -> Double -> IO Bool) -> IO ()
 onclick f = writeIORef $ fOnclick f
 onrelease f = writeIORef $ fOnrelease f
+
+ondrag :: Field -> (Double -> Double -> IO ()) -> IO ()
+ondrag f = writeIORef $ fOndrag f
 
 onkeypress :: Field -> (Char -> IO Bool) -> IO ()
 onkeypress f = writeIORef $ fKeypress f
