@@ -230,6 +230,5 @@ isdown t = fmap (getPendown . (states t !!)) $ readIORef $ stateIndex t
 isvisible :: Turtle -> IO Bool
 isvisible t = fmap (visible . (states t !!)) $ readIORef $ stateIndex t
 
-write :: Turtle -> String -> IO ()
-write t str = do
-	writeString (layer t) 10 (0, 0, 0, 0) str
+write :: Turtle -> String -> Double -> Double -> Double -> Double -> Double -> Double -> String -> IO ()
+write = writeString . layer

@@ -272,19 +272,27 @@ drawLine l@Layer{layerField = f} lw_ clr x1 y1 x2 y2 = runIfOpened f $ do
 	where
 	lw = round lw_
 
-writeString :: Layer -> Double -> (Int, Int, Int, Int) -> String -> IO ()
-writeString l@Layer{layerField = f} _size _clr str = do
+writeString :: Layer -> String -> Double -> Double -> Double -> Double ->
+	Double -> Double -> String -> IO ()
+writeString l@Layer{layerField = f} fname size r g b x y str = do
 	let	dpy = fDisplay f
 		scr = defaultScreen dpy
 		scrN = defaultScreenOfDisplay dpy
 		visual = defaultVisual dpy scr
 		colormap = defaultColormap dpy scr
 	xftDraw <- xftDrawCreate dpy (fBG f) visual colormap
-	xftFont <- xftFontOpen dpy scrN ""
-	withXftColorValue dpy visual colormap (XRenderColor 0xf200 0xf200 0xf200 0xffff) $ \c -> do
-		xftDrawString xftDraw c xftFont (10 :: Int) (40 :: Int) str
+	xftFont <- xftFontOpen dpy scrN $ fname ++ "-" ++ show (round size :: Int) -- "KochiGothic-20"
+	withXftColorValue dpy visual colormap color $ \c ->
+		xftDrawString xftDraw c xftFont (round x :: Int) (round y :: Int) str
 	redrawCharacters f
 	flushLayer l
+	where
+	color = XRenderColor {
+		xrendercolor_red = round $ r * 0xffff,
+		xrendercolor_green = round $ b * 0xffff,
+		xrendercolor_blue = round $ g * 0xffff,
+		xrendercolor_alpha = 0xffff
+	 }
 
 clearCharacter :: Character -> IO ()
 clearCharacter c = runIfOpened (characterField c) $

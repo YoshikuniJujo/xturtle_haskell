@@ -28,9 +28,9 @@ randomTurtle t = do
 	position t >>= print
 	sequence_ $ repeat $ do
 		d <- randomRIO (- 180, 180)
-		r <- randomWord8
-		g <- randomWord8
-		b <- randomWord8
+		r <- randomRIO (0, 1)
+		g <- randomRIO (0, 1)
+		b <- randomRIO (0, 1)
 		pencolor t r g b
 		left t d
 		forward t 15

@@ -11,11 +11,11 @@ initTurtle :: IO Turtle
 initTurtle = do
 	f <- openField
 	t <- newTurtle f
-	bgcolor f 127 127 127
+	bgcolor f 0.5 0.5 0.5
 	shape t "turtle"
 	shapesize t 2
 	pensize t 10
-	pencolor t 255 255 255
+	pencolor t 1 1 1
 	radians t
 	randomRIO (- pi, pi) >>= setheading t
 	onclick f $ \x y -> goto t x y >> return True
