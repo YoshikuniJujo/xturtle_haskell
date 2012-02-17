@@ -49,6 +49,7 @@ module Graphics.X11.Turtle (
 	windowWidth,
 	windowHeight,
 	onclick,
+	onkeypress,
 	waitField,
 
 	xturtleVersion,
@@ -59,7 +60,7 @@ import Graphics.X11.TurtleMove(
 	Field, Layer, Character,
 	forkIOX, openField, closeField,
 	addCharacter, addLayer, fieldSize, clearLayer, clearCharacter,
-	addThread, fieldColor, onclick, waitField, Color(..),
+	addThread, fieldColor, onclick, onkeypress, waitField, Color(..),
 	moveTurtle
  )
 import Graphics.X11.TurtleInput(
@@ -76,7 +77,7 @@ import Data.Bits(shift, (.|.))
 import Data.Fixed(mod')
 
 xturtleVersion :: (Int, String)
-xturtleVersion = (21, "0.0.12")
+xturtleVersion = (22, "0.0.12a")
 
 data Turtle = Turtle {
 	field :: Field,

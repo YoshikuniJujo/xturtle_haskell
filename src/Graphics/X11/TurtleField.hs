@@ -24,6 +24,7 @@ module Graphics.X11.TurtleField(
 	flushLayer,
 
 	onclick,
+	onkeypress,
 
 	forkIOX,
 	addThread,
@@ -48,7 +49,9 @@ import Graphics.X11(
 
 	getGeometry, initThreads, connectionNumber, pending, destroyWindow,
 
-	defaultVisual, defaultColormap, defaultScreenOfDisplay
+	defaultVisual, defaultColormap, defaultScreenOfDisplay,
+
+	keycodeToKeysym
  )
 import qualified Graphics.X11 as X (drawLine)
 import Graphics.X11.Xlib.Extras(Event(..), getEvent)
@@ -60,6 +63,7 @@ import Data.Bits((.|.))
 import Data.Convertible(convert)
 import Data.List.Tools(modifyAt, setAt)
 import Data.Bool.Tools(whether)
+import Data.Char
 
 import Control.Monad(replicateM, forM_, forever, replicateM_, when, unless)
 import Control.Monad.Tools(doWhile_)
@@ -96,6 +100,7 @@ data Field = Field{
 	fClosed :: IORef Bool,
 	fRunning :: IORef [ThreadId],
 	fOnclick :: IORef (Double -> Double -> IO Bool),
+	fKeypress :: IORef (Char -> IO Bool),
 	fEnd :: Chan ()
  }
 
@@ -138,6 +143,7 @@ openField = do
 	closed <- newIORef False
 	running <- newIORef []
 	onclickRef <- newIORef $ const $ const $ return True
+	keypressRef <- newIORef $ const $ return True
 	endRef <- newChan
 	writeChan wait ()
 	let f = Field{
@@ -160,6 +166,7 @@ openField = do
 		fClosed = closed,
 		fRunning = running,
 		fOnclick = onclickRef,
+		fKeypress = keypressRef,
 		fEnd = endRef
 	 }
 	_ <- forkIOX $ runLoop f
@@ -188,7 +195,10 @@ runLoop f = allocaXEvent $ \e -> do
 				writeIORef (fHeight f) height
 				redrawAll f
 				return True
-			Just (KeyEvent{}) -> return True
+			Just ev@(KeyEvent{}) -> do
+				ch <- fmap (chr . fromEnum) $
+					keycodeToKeysym (fDisplay f) (ev_keycode ev) 0
+				readIORef (fKeypress f) >>= ($ ch)
 			Just ev@ButtonEvent{} -> do
 				pos <- convertPosRev f (ev_x ev) (ev_y ev)
 				readIORef (fOnclick f) >>= ($ pos) . uncurry
@@ -198,7 +208,10 @@ runLoop f = allocaXEvent $ \e -> do
 			_ -> return True
 
 onclick :: Field -> (Double -> Double -> IO Bool) -> IO ()
-onclick f = writeIORef (fOnclick f)
+onclick f = writeIORef $ fOnclick f
+
+onkeypress :: Field -> (Char -> IO Bool) -> IO ()
+onkeypress f = writeIORef $ fKeypress f
 
 fieldColor :: Field -> Color -> IO ()
 fieldColor f clr = do

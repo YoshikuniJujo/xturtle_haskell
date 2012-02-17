@@ -1,13 +1,14 @@
 * refactoring
 
 Functions
+* get Mouse move event
+* change turtle speed
 * change turtle width and height separately
 * fill
-* get X events
 * get Key events
+(* get X events)
 * get timer event
 * raise exception if bad shape name
-* write string
 
 Bugs
 * repair closeField
