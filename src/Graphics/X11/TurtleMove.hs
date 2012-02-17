@@ -14,6 +14,7 @@ module Graphics.X11.TurtleMove (
 	addThread,
 	fieldColor,
 	onclick,
+	onrelease,
 	onkeypress,
 	waitField,
 	writeString,
@@ -30,7 +31,7 @@ import Graphics.X11.TurtleField(
 	drawLine, drawCharacter, drawCharacterAndLine, undoLayer,
 	drawLineNotFlush,
 	clearCharacter, addThread,
-	fieldColor, onkeypress, onclick, waitField, writeString, Color(..)
+	fieldColor, onkeypress, onclick, onrelease, waitField, writeString, Color(..)
  )
 
 import Control.Concurrent(threadDelay)

@@ -24,6 +24,7 @@ module Graphics.X11.TurtleField(
 	flushLayer,
 
 	onclick,
+	onrelease,
 	onkeypress,
 
 	forkIOX,
@@ -45,14 +46,14 @@ import Graphics.X11(
 	fillRectangle, fillPolygon, nonconvex, coordModeOrigin,
 
 	setWMProtocols, selectInput, allocaXEvent, nextEvent, XEventPtr,
-	keyPressMask, exposureMask, buttonPressMask,
+	keyPressMask, exposureMask, buttonPressMask, buttonReleaseMask,
 
 	getGeometry, initThreads, connectionNumber, pending, destroyWindow,
 
 	defaultVisual, defaultColormap, defaultScreenOfDisplay,
 
 	supportsLocale, setLocaleModifiers,
-	xK_VoidSymbol
+	xK_VoidSymbol, buttonPress, buttonRelease
  )
 import qualified Graphics.X11 as X (drawLine)
 import Graphics.X11.Xlib.Extras(Event(..), getEvent)
@@ -103,6 +104,7 @@ data Field = Field{
 	fClosed :: IORef Bool,
 	fRunning :: IORef [ThreadId],
 	fOnclick :: IORef (Double -> Double -> IO Bool),
+	fOnrelease :: IORef (Double -> Double -> IO Bool),
 	fKeypress :: IORef (Char -> IO Bool),
 	fEnd :: Chan ()
  }
@@ -140,7 +142,9 @@ openField = do
 	setForeground dpy gcBG 0xffffff
 	forM_ bufs $ \bf -> fillRectangle dpy bf gcBG 0 0 rWidth rHeight
 	setWMProtocols dpy win [del]
-	selectInput dpy win $ exposureMask .|. keyPressMask .|. buttonPressMask .|. fevent
+	selectInput dpy win $
+		exposureMask .|. keyPressMask .|.
+		buttonPressMask .|. buttonReleaseMask .|. fevent
 	mapWindow dpy win
 	[widthRef, heightRef] <- mapM newIORef [rWidth, rHeight]
 	buffActions <- newIORef []
@@ -152,6 +156,7 @@ openField = do
 	closed <- newIORef False
 	running <- newIORef []
 	onclickRef <- newIORef $ const $ const $ return True
+	onreleaseRef <- newIORef $ const $ const $ return False
 	keypressRef <- newIORef $ const $ return True
 	endRef <- newChan
 	writeChan wait ()
@@ -175,6 +180,7 @@ openField = do
 		fClosed = closed,
 		fRunning = running,
 		fOnclick = onclickRef,
+		fOnrelease = onreleaseRef,
 		fKeypress = keypressRef,
 		fEnd = endRef
 	 }
@@ -211,14 +217,22 @@ runLoop ic f = allocaXEvent $ \e -> do
 				readIORef (fKeypress f) >>= fmap and . ($ str) . mapM
 			Just ev@ButtonEvent{} -> do
 				pos <- convertPosRev f (ev_x ev) (ev_y ev)
-				readIORef (fOnclick f) >>= ($ pos) . uncurry
+				case ev_event_type ev of
+					et	| et == buttonPress ->
+							readIORef (fOnclick f) >>=
+								($ pos) . uncurry
+						| et == buttonRelease ->
+							readIORef (fOnrelease f) >>=
+								($ pos) . uncurry
+					_ -> error "not implement event"
 			Just ev@ClientMessageEvent{} ->
 				return $ convert (head $ ev_data ev) /= fDel f
 			Nothing -> killThread th1 >> return False
 			_ -> return True
 
-onclick :: Field -> (Double -> Double -> IO Bool) -> IO ()
+onclick, onrelease :: Field -> (Double -> Double -> IO Bool) -> IO ()
 onclick f = writeIORef $ fOnclick f
+onrelease f = writeIORef $ fOnrelease f
 
 onkeypress :: Field -> (Char -> IO Bool) -> IO ()
 onkeypress f = writeIORef $ fKeypress f

@@ -49,6 +49,7 @@ module Graphics.X11.Turtle (
 	windowWidth,
 	windowHeight,
 	onclick,
+	onrelease,
 	onkeypress,
 	waitField,
 
@@ -60,7 +61,7 @@ import Graphics.X11.TurtleMove(
 	Field, Layer, Character,
 	forkIOX, openField, closeField,
 	addCharacter, addLayer, fieldSize, clearLayer, clearCharacter,
-	addThread, fieldColor, onclick, onkeypress, waitField, Color(..),
+	addThread, fieldColor, onclick, onrelease, onkeypress, waitField, Color(..),
 	moveTurtle
  )
 import Graphics.X11.TurtleInput(
