@@ -1,9 +1,12 @@
 * refactoring
 
 Functions
+* save picture into svg file
+	- use YJSVG's data instead of Draw
 * get draw data to save
 	- test: turtle restart
 	- test: save as svg
+* save as png by pixmap
 * get Mouse move event
 * change turtle speed
 * change turtle width and height separately
@@ -11,6 +14,7 @@ Functions
 (* get X events)
 * get timer event
 * raise exception if bad shape name
+* scrolling
 
 Bugs
 * repair closeField

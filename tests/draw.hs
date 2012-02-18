@@ -33,7 +33,7 @@ main = do
 			3 -> clear t >> return True
 			2 -> modifyIORef bgclr (+ 1) >> readIORef bgclr >>=
 				(\(r, g, b) -> bgcolor f r g b) . (colors !!) >> return True
-			4 -> goto t x y >> modifyIORef clr (+ 5) >> readIORef clr >>=
+			4 -> goto t x y >> modifyIORef clr (+ 6) >> readIORef clr >>=
 				(\(r, g, b) -> pencolor t r g b >> pencolor clrT r g b) . (colors !!) >>
 				forward clrT 0 >> return True
 			5 -> goto t x y >> modifyIORef clr (+ 1) >> readIORef clr >>=
@@ -52,4 +52,4 @@ main = do
 	waitField f
 
 colors :: [(Double, Double, Double)]
-colors = cycle [(1, 0, 0), (0, 1, 0), (1, 1, 0), (0, 0, 1), (0.5, 0.3, 0), (0, 0, 0)]
+colors = cycle [(1, 0, 0), (0, 1, 0), (1, 1, 0), (0, 0, 1), (0.5, 0.3, 0), (1, 1, 1), (0, 0, 0)]
