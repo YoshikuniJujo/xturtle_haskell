@@ -18,7 +18,7 @@ initTurtle = do
 	pencolor t 1 1 1
 	radians t
 	randomRIO (- pi, pi) >>= setheading t
-	onclick f $ \x y -> goto t x y >> return True
+	onclick f $ \_ x y -> goto t x y >> return True
 	return t
 
 turnTop, turnBottom, turnLeft, turnRight :: Turtle -> IO ()

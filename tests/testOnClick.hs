@@ -10,6 +10,6 @@ main = do
 	shapesize t 2
 	pensize t 10
 	pencolor t 0 127 0
-	onclick f $ \x y -> goto t x y >> return True
+	onclick f $ \_ x y -> goto t x y >> return True
 	waitField f
 	putStrLn "end"

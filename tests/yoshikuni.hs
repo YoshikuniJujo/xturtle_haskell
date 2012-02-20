@@ -70,7 +70,7 @@ main = do
 	right t 40
 	forward t 30
 	write t "" 10 "by Yoshikuni Jujo"
-	onclick f $ \x y -> do
+	onclick f $ \_ x y -> do
 		goto t x y
 		pendown t
 		forward t 0
