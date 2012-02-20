@@ -19,12 +19,13 @@ module Graphics.X11.TurtleMove (
 	onkeypress,
 	waitField,
 	writeString,
-	Color(..),
+	Color'(..),
 
 	moveTurtle
 ) where
 
-import Graphics.X11.TurtleState(TurtleState(..), pencolor, Draw(..))
+import Graphics.X11.TurtleState(TurtleState(..), pencolor, SVG(..), Position(..),
+	colorToWord32, Color(..))
 import Graphics.X11.TurtleField(
 	Field, Layer, Character,
 	forkIOX, openField, closeField, flushLayer,
@@ -32,12 +33,14 @@ import Graphics.X11.TurtleField(
 	drawLine, drawCharacter, drawCharacterAndLine, undoLayer,
 	drawLineNotFlush,
 	clearCharacter, addThread,
-	fieldColor, onkeypress, onclick, onrelease, ondrag, waitField, writeString, Color(..)
+	fieldColor, onkeypress, onclick, onrelease, ondrag, waitField, writeString,
+	Color'(..)
  )
 
 import Control.Concurrent(threadDelay)
 import Control.Monad(when, unless, forM_)
 import Control.Arrow((***))
+import Data.Maybe
 
 type Pos = (Double, Double)
 
@@ -58,7 +61,7 @@ dir t = direction t / degrees t
 
 moveTurtle :: Character -> Layer -> TurtleState -> TurtleState -> IO ()
 moveTurtle c l t0 t1 = do
-	when (undo t1 && (line t0 || draw t0 /= NoDraw)) $ do
+	when (undo t1 && (line t0 || isJust (draw t0))) $ do
 		done <- undoLayer l
 		unless done $ clearLayer l >> drawLines l (drawed t1)
 	when (undo t1 && clear t0) $ drawLines l $ drawed t1
@@ -84,13 +87,20 @@ moveTurtle c l t0 t1 = do
 	p0@(x0, y0) = position t0
 	p1@(x1, y1) = position t1
 
-drawLines :: Layer -> [Draw] -> IO ()
-drawLines l = mapM_ (drawDraw l) . reverse
+drawLines :: Layer -> [SVG] -> IO ()
+drawLines l = mapM_ (drawDraw l . Just) . reverse
 
-drawDraw :: Layer -> Draw -> IO ()
-drawDraw _ NoDraw = return ()
-drawDraw l (Line clr lw (x0, y0) (x1, y1)) = drawLineNotFlush l lw (Color clr) x0 y0 x1 y1
-drawDraw l (Str (r, g, b) fnt sz (x, y) str) = writeString l fnt sz r g b x y str
+drawDraw :: Layer -> Maybe SVG -> IO ()
+drawDraw _ Nothing = return ()
+drawDraw l (Just (Line (Center x0 y0) (Center x1 y1) clr lw)) =
+	drawLineNotFlush l lw (Color $ colorToWord32 clr) x0 y0 x1 y1
+-- drawDraw l (Line clr lw (x0, y0) (x1, y1)) = drawLineNotFlush l lw (Color clr) x0 y0 x1 y1
+drawDraw l (Just (Text (Center x y) sz (RGB r_ g_ b_) fnt str)) =
+-- drawDraw l (Just (Text (r, g, b) fnt sz (x, y) str)) =
+	writeString l fnt sz r g b x y str
+	where
+	[r, g, b] = map ((/ 0xff) . fromIntegral) [r_, g_, b_]
+drawDraw _ _ = error "not implemented"
 
 getPositions :: Double -> Double -> Double -> Double -> [Pos]
 getPositions x0 y0 x1 y1 = take num $ zip [x0, x0 + dx .. ] [y0, y0 + dy .. ]
@@ -105,7 +115,7 @@ getDirections ds de = [ds, ds + dd .. de - dd]
 	where
 	dd = if de > ds then stepDir else - stepDir
 
-drawTurtle :: Character -> Color -> [Pos] -> Double -> Double -> Double ->
+drawTurtle :: Character -> Color' -> [Pos] -> Double -> Double -> Double ->
 	Pos -> Maybe Pos -> IO ()
 drawTurtle c clr sh s d lw (px, py) org = do
 	let sp = map (((+ px) *** (+ py)) . rotatePoint . ((* s) *** (* s))) sh

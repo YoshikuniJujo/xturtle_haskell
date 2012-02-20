@@ -1,15 +1,22 @@
 module Graphics.X11.TurtleState (
 	TurtleState(..),
 	initialTurtleState,
-	Color,
+--	Color,
+	pencolor',
 	pencolor,
 	setPencolor,
-	Draw(..)
+	SVG(..),
+--	Draw(..),
+	Position(..),
+	Color(..),
+	colorToWord32
 ) where
 
 import Data.Word(Word32)
 import Data.Bits
+import Text.XML.YJSVG
 
+{-
 type Color = Word32
 
 data Draw
@@ -28,12 +35,22 @@ data Draw
 		contents :: String
 	 }
 	deriving (Show, Eq)
+-}
+
+pencolor' :: TurtleState -> Color
+pencolor' t =
+	RGB (round $ red t * 0xff) (round $ green t * 0xff) (round $ blue t *  0xff)
 
 pencolor :: TurtleState -> Word32
 pencolor t = c
 	where
 	c = shift (round $ red t * 0xff) 16 .|.
 		shift (round $ green t * 0xff) 8 .|. round (blue t * 0xff)
+
+colorToWord32 :: Color -> Word32
+colorToWord32 (RGB r g b) =
+	shift (fromIntegral r) 16 .|. shift (fromIntegral g) 8 .|. fromIntegral b
+colorToWord32 _ = error "colorToWord32 (ColorName _) is not implemented"
 
 setPencolor :: TurtleState -> Word32 -> TurtleState
 setPencolor t c = t{red = r, green = g, blue = b}
@@ -59,8 +76,8 @@ data TurtleState = TurtleState {
 	undo :: Bool,
 	line :: Bool,
 	undonum :: Int,
-	draw :: Draw,
-	drawed :: [Draw]
+	draw :: Maybe SVG,
+	drawed :: [SVG]
  } deriving Show
 
 initialTurtleState :: [(Double, Double)] -> TurtleState
@@ -80,6 +97,6 @@ initialTurtleState sh = TurtleState {
 	undo = False,
 	line = False,
 	undonum = 1,
-	draw = NoDraw,
+	draw = Nothing,
 	drawed = []
  }

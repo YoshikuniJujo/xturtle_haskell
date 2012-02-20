@@ -134,3 +134,9 @@ Layer を独立した data とする。
 
 Layer への IO を TurtleState に入れることにする。
 undo buffer が必要かもしれない。
+
+2012.02.20 Mon.
+
+xturtle と yjsvg で採用している座標系が違う。
+それを合わせるかまたは変換する必要がある。
+しかし、

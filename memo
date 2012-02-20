@@ -36,3 +36,7 @@ getConnection = Fd . connectionNumber . fDisplay
 
 waitInput :: Field -> IO ()
 waitInput = threadWaitRead . getConnection
+
+2012.02.20 Mon.
+
+position for xturtle and svg are different

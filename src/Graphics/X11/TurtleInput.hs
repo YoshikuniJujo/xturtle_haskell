@@ -8,11 +8,15 @@ module Graphics.X11.TurtleInput (
 	undonum,
 	visible,
 	direction,
-	degrees
+	degrees,
+	drawed,
+
+	SVG
 ) where
 
-import Graphics.X11.TurtleState(TurtleState(..), initialTurtleState, pencolor,
-	Draw(..))
+import Graphics.X11.TurtleState(TurtleState(..), initialTurtleState,
+	pencolor',
+	SVG(..), Position(..))
 import Control.Concurrent.Chan(Chan, newChan, getChanContents)
 import Prelude hiding(Left)
 
@@ -52,8 +56,11 @@ nextTurtle :: TurtleState -> TurtleInput -> TurtleState
 nextTurtle t (Shape sh) = (clearState t){shape = sh}
 nextTurtle t (ShapeSize ss) = (clearState t){shapesize = ss}
 nextTurtle t (Goto x y) = (clearState t){position = (x, y), line = pendown t,
-	drawed = if pendown t
-		then Line (pencolor t) (pensize t) (position t) (x, y) : drawed t else drawed t} 
+	drawed = if pendown t then ln : drawed t else drawed t}
+--		then Line (pencolor t) (pensize t) (position t) (x, y) : drawed t else drawed t} 
+	where
+	ln = Line (uncurry Center $ position t) (Center x y) (pencolor' t)
+		(pensize t)
 nextTurtle t (Rotate d) = (clearState t){direction = d}
 nextTurtle t Pendown = (clearState t){pendown = True}
 nextTurtle t Penup = (clearState t){pendown = False}
@@ -67,13 +74,16 @@ nextTurtle t (Degrees ds) = (clearState t){
 	direction = direction t * ds / degrees t
  }
 nextTurtle t (Write fnt sz str) = (clearState t){
-	draw = Str (red t, green t, blue t) fnt sz (position t) str,
-	drawed = Str (red t, green t, blue t) fnt sz (position t) str : drawed t
+	draw = Just d, drawed = d : drawed t
  }
+	where
+	(x, y) = position t
+	d = Text (Center x y) sz (pencolor' t) fnt str
+--	d = Str (red t, green t, blue t) fnt sz (position t) str
 nextTurtle _ _ = error "not defined"
 
 clearState :: TurtleState -> TurtleState
-clearState t = t{line = False, undo = False, undonum = 1, clear = False, draw = NoDraw}
+clearState t = t{line = False, undo = False, undonum = 1, clear = False, draw = Nothing}
 
 inputToTurtle :: [TurtleState] -> TurtleState -> [TurtleInput] -> [TurtleState]
 inputToTurtle [] ts0 (Undo : tis) = ts0 : inputToTurtle [] ts0 tis

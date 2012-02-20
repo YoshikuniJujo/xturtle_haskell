@@ -3,11 +3,13 @@ module Main where
 import Graphics.X11.Turtle
 import Data.IORef
 import Control.Concurrent
+import Control.Monad
 import System.Environment
+import Text.XML.YJSVG
 
 main :: IO ()
 main = do
-	[fn] <- getArgs
+	[fn, save] <- getArgs
 	clr <- newIORef 0
 	bgclr <- newIORef 0
 	f <- openField
@@ -41,12 +43,15 @@ main = do
 				forward clrT 0 >> return True
 	onrelease f $ \_ _ -> penup t>> return True
 	onkeypress f $ \_ -> do
+{-
 		print "hello"
-		inputs <- getInputs t
 		print $ head inputs
 		print inputs
 		print $ length inputs
-		writeFile fn $ show $ drop 5 inputs
+-}
+		getSVG t >>= putStrLn . showSVG 1000 1000 . reverse
+		inputs <- getInputs t
+		when (read save) $ writeFile fn $ show $ drop 5 inputs
 		return False
 	ondrag f $ \x y -> goto t x y
 	waitField f
