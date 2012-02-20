@@ -85,7 +85,7 @@ import Data.Bits(shift, (.|.))
 import Data.Fixed(mod')
 
 xturtleVersion :: (Int, String)
-xturtleVersion = (24, "0.0.13")
+xturtleVersion = (25, "0.0.14")
 
 data Turtle = Turtle {
 	field :: Field,
