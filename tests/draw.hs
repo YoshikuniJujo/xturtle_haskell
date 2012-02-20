@@ -49,7 +49,7 @@ main = do
 		print inputs
 		print $ length inputs
 -}
-		getSVG t >>= putStrLn . showSVG 1000 1000 . reverse
+		getSVG t >>= putStrLn . showSVG 1000 1000
 		inputs <- getInputs t
 		when (read save) $ writeFile fn $ show $ drop 5 inputs
 		return False

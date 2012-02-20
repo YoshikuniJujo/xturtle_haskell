@@ -254,4 +254,4 @@ sendInputs t = mapM_ (sendCommand t)
 
 getSVG :: Turtle -> IO [SVG]
 getSVG t = do
-	fmap (drawed . (states t !!)) $ readIORef $ stateIndex t
+	fmap (reverse . drawed . (states t !!)) $ readIORef $ stateIndex t
