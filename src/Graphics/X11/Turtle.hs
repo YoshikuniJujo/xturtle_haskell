@@ -1,3 +1,6 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+
 module Graphics.X11.Turtle (
 	Field,
 	Turtle,
@@ -189,8 +192,17 @@ rgbToColor r g b = RGB (round $ r * 0xff) (round $ g * 0xff) (round $ b * 0xff)
 pencolor :: Turtle -> Color -> IO ()
 pencolor t c = sendCommand t $ Pencolor c
 
-bgcolor :: Field -> Color -> IO ()
-bgcolor = fieldColor
+class ColorClass a where
+	getColor :: a -> Color
+
+instance ColorClass String where
+	getColor = ColorName
+
+instance (Integral i0, Integral i1, Integral i2) => ColorClass (i0, i1, i2) where
+	getColor (r, g, b) = RGB (fromIntegral r) (fromIntegral g) (fromIntegral b)
+
+bgcolor :: ColorClass c => Field -> c -> IO ()
+bgcolor f = fieldColor f . getColor
 
 pensize :: Turtle -> Double -> IO ()
 pensize t = sendCommand t . Pensize
