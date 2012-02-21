@@ -19,7 +19,7 @@ module Graphics.X11.TurtleMove (
 	onkeypress,
 	waitField,
 	writeString,
-	Color'(..),
+--	Color'(..),
 
 	moveTurtle
 ) where
@@ -34,7 +34,7 @@ import Graphics.X11.TurtleField(
 	drawLineNotFlush,
 	clearCharacter, addThread,
 	fieldColor, onkeypress, onclick, onrelease, ondrag, waitField, writeString,
-	Color'(..)
+	Pixel -- Color'(..)
  )
 
 import Control.Concurrent(threadDelay)
@@ -67,18 +67,18 @@ moveTurtle c l t0 t1 = do
 	when (undo t1 && clear t0) $ drawLines l $ drawed t1
 	when (visible t1) $ do
 		forM_ (getDirections (dir t0) (dir t1)) $ \d -> do
-			drawTurtle c (Color $ pencolor_ t1) (shape t1) (shapesize t1) d
+			drawTurtle c (pencolor_ t1) (shape t1) (shapesize t1) d
 				(pensize t1) p0 Nothing
 			threadDelay rotateSpeed
 		forM_ (getPositions x0 y0 x1 y1) $ \p -> do
-			drawTurtle c (Color $ pencolor_ t1) (shape t1) (shapesize t1)
+			drawTurtle c (pencolor_ t1) (shape t1) (shapesize t1)
 				(dir t1) (pensize t1) p lineOrigin
 			threadDelay moveSpeed
-		drawTurtle c (Color $ pencolor_ t1) (shape t1) (shapesize t1) (dir t1)
+		drawTurtle c (pencolor_ t1) (shape t1) (shapesize t1) (dir t1)
 			(pensize t1) p1 lineOrigin
 	unless (visible t1) $ clearCharacter c
 	when (not (undo t1) && line t1) $
-		drawLine l (pensize t1) (Color $ pencolor_ t1) x0 y0 x1 y1 >> flushLayer l
+		drawLine l (pensize t1) (pencolor_ t1) x0 y0 x1 y1 >> flushLayer l
 	when (clear t1) $ clearLayer l >> flushLayer l
 	unless (undo t1) $ drawDraw l (draw t1) >> flushLayer l
 	where
@@ -93,8 +93,8 @@ drawLines l = mapM_ (drawDraw l . Just) . reverse
 drawDraw :: Layer -> Maybe SVG -> IO ()
 drawDraw _ Nothing = return ()
 drawDraw l (Just (Line (Center x0 y0) (Center x1 y1) clr lw)) =
-	drawLineNotFlush l lw (Color $ colorToWord32 clr) x0 y0 x1 y1
--- drawDraw l (Line clr lw (x0, y0) (x1, y1)) = drawLineNotFlush l lw (Color clr) x0 y0 x1 y1
+	drawLineNotFlush l lw (colorToWord32 clr) x0 y0 x1 y1
+-- drawDraw l (Line clr lw (x0, y0) (x1, y1)) = drawLineNotFlush l lw (clr) x0 y0 x1 y1
 drawDraw l (Just (Text (Center x y) sz (RGB r_ g_ b_) fnt str)) =
 -- drawDraw l (Just (Text (r, g, b) fnt sz (x, y) str)) =
 	writeString l fnt sz r g b x y str
@@ -115,7 +115,7 @@ getDirections ds de = [ds, ds + dd .. de - dd]
 	where
 	dd = if de > ds then stepDir else - stepDir
 
-drawTurtle :: Character -> Color' -> [Pos] -> Double -> Double -> Double ->
+drawTurtle :: Character -> Pixel -> [Pos] -> Double -> Double -> Double ->
 	Pos -> Maybe Pos -> IO ()
 drawTurtle c clr sh s d lw (px, py) org = do
 	let sp = map (((+ px) *** (+ py)) . rotatePoint . ((* s) *** (* s))) sh

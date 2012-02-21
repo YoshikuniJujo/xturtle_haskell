@@ -69,7 +69,6 @@ import Graphics.X11.TurtleMove(
 	forkIOX, openField, closeField,
 	addCharacter, addLayer, fieldSize, clearLayer, clearCharacter,
 	addThread, fieldColor, onclick, onrelease, ondrag, onkeypress, waitField,
-	Color'(..),
 	moveTurtle
  )
 import Graphics.X11.TurtleInput(
@@ -192,7 +191,7 @@ pencolor :: Turtle -> Color -> IO ()
 pencolor t c = sendCommand t $ Pencolor c
 
 bgcolor :: Field -> Double -> Double -> Double -> IO ()
-bgcolor f r_ g_ b_ = fieldColor f $ Color c
+bgcolor f r_ g_ b_ = fieldColor f c
 	where
 	c = shift r 16 .|. shift g 8 .|. b
 	[r, g, b] = map (round . (* 255)) [r_, g_, b_]
