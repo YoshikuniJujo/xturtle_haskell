@@ -1,4 +1,4 @@
-module Graphics.X11.TurtleState (
+module TurtleState (
 	TurtleState(..),
 	initialTurtleState,
 	pencolor',

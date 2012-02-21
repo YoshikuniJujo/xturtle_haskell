@@ -1,4 +1,4 @@
-module Graphics.X11.TurtleInput (
+module TurtleInput (
 	TurtleState,
 	TurtleInput(..),
 
@@ -14,7 +14,7 @@ module Graphics.X11.TurtleInput (
 	SVG
 ) where
 
-import Graphics.X11.TurtleState(TurtleState(..), initialTurtleState,
+import TurtleState(TurtleState(..), initialTurtleState,
 	pencolor',
 	SVG(..), Position(..), Color(..))
 import Control.Concurrent.Chan(Chan, newChan, getChanContents)

@@ -24,7 +24,7 @@ module Graphics.X11.TurtleMove (
 	moveTurtle
 ) where
 
-import Graphics.X11.TurtleState(TurtleState(..), pencolor, SVG(..), Position(..),
+import Graphics.X11.TurtleState(TurtleState(..), pencolor_, SVG(..), Position(..),
 	colorToWord32, Color(..))
 import Graphics.X11.TurtleField(
 	Field, Layer, Character,
@@ -67,18 +67,18 @@ moveTurtle c l t0 t1 = do
 	when (undo t1 && clear t0) $ drawLines l $ drawed t1
 	when (visible t1) $ do
 		forM_ (getDirections (dir t0) (dir t1)) $ \d -> do
-			drawTurtle c (Color $ pencolor t1) (shape t1) (shapesize t1) d
+			drawTurtle c (Color $ pencolor_ t1) (shape t1) (shapesize t1) d
 				(pensize t1) p0 Nothing
 			threadDelay rotateSpeed
 		forM_ (getPositions x0 y0 x1 y1) $ \p -> do
-			drawTurtle c (Color $ pencolor t1) (shape t1) (shapesize t1)
+			drawTurtle c (Color $ pencolor_ t1) (shape t1) (shapesize t1)
 				(dir t1) (pensize t1) p lineOrigin
 			threadDelay moveSpeed
-		drawTurtle c (Color $ pencolor t1) (shape t1) (shapesize t1) (dir t1)
+		drawTurtle c (Color $ pencolor_ t1) (shape t1) (shapesize t1) (dir t1)
 			(pensize t1) p1 lineOrigin
 	unless (visible t1) $ clearCharacter c
 	when (not (undo t1) && line t1) $
-		drawLine l (pensize t1) (Color $ pencolor t1) x0 y0 x1 y1 >> flushLayer l
+		drawLine l (pensize t1) (Color $ pencolor_ t1) x0 y0 x1 y1 >> flushLayer l
 	when (clear t1) $ clearLayer l >> flushLayer l
 	unless (undo t1) $ drawDraw l (draw t1) >> flushLayer l
 	where
