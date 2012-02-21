@@ -58,7 +58,6 @@ nextTurtle t (Shape sh) = (clearState t){shape = sh}
 nextTurtle t (ShapeSize ss) = (clearState t){shapesize = ss}
 nextTurtle t (Goto x y) = (clearState t){position = (x, y), line = pendown t,
 	drawed = if pendown t then ln : drawed t else drawed t}
---		then Line (pencolor t) (pensize t) (position t) (x, y) : drawed t else drawed t} 
 	where
 	ln = Line (uncurry Center $ position t) (Center x y) (pencolor' t)
 		(pensize t)
@@ -68,7 +67,11 @@ nextTurtle t Penup = (clearState t){pendown = False}
 nextTurtle t (SetVisible v) = (clearState t){visible = v}
 nextTurtle t (Undonum un) = (clearState t){undonum = un}
 nextTurtle t (Clear) = (clearState t){clear = True, drawed = []}
-nextTurtle t (Pencolor r g b) = (clearState t){red = r, green = g, blue = b}-- setPencolor (clearState t) c
+nextTurtle t (Pencolor r_ g_ b_) = (clearState t){pencolor = RGB r g b}
+	where
+	r = round $ r_ * 0xff
+	g = round $ g_ * 0xff
+	b = round $ b_ * 0xff
 nextTurtle t (Pensize ps) = (clearState t){pensize = ps}
 nextTurtle t (Degrees ds) = (clearState t){
 	degrees = ds,
@@ -80,7 +83,6 @@ nextTurtle t (Write fnt sz str) = (clearState t){
 	where
 	(x, y) = position t
 	d = Text (Center x y) sz (pencolor' t) fnt str
---	d = Str (red t, green t, blue t) fnt sz (position t) str
 nextTurtle _ _ = error "not defined"
 
 clearState :: TurtleState -> TurtleState
