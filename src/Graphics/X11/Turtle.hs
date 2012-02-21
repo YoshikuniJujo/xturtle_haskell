@@ -82,7 +82,6 @@ import Control.Concurrent(Chan, writeChan, threadDelay, ThreadId, killThread)
 import Control.Monad(replicateM_, zipWithM_)
 import Prelude hiding(Left)
 import Data.IORef(IORef, newIORef, readIORef, modifyIORef)
-import Data.Bits(shift, (.|.))
 import Data.Fixed(mod')
 
 xturtleVersion :: (Int, String)
@@ -190,11 +189,8 @@ rgbToColor r g b = RGB (round $ r * 0xff) (round $ g * 0xff) (round $ b * 0xff)
 pencolor :: Turtle -> Color -> IO ()
 pencolor t c = sendCommand t $ Pencolor c
 
-bgcolor :: Field -> Double -> Double -> Double -> IO ()
-bgcolor f r_ g_ b_ = fieldColor f c
-	where
-	c = shift r 16 .|. shift g 8 .|. b
-	[r, g, b] = map (round . (* 255)) [r_, g_, b_]
+bgcolor :: Field -> Color -> IO ()
+bgcolor = fieldColor
 
 pensize :: Turtle -> Double -> IO ()
 pensize t = sendCommand t . Pensize

@@ -11,7 +11,7 @@ initTurtle :: IO Turtle
 initTurtle = do
 	f <- openField
 	t <- newTurtle f
-	bgcolor f 0.5 0.5 0.5
+	bgcolor f $ rgbToColor 0.5 0.5 0.5
 	shape t "turtle"
 	shapesize t 2
 	pensize t 10

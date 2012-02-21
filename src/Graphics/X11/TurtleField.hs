@@ -64,7 +64,7 @@ import Graphics.X11.Xrender
 import Graphics.X11.Xim
 
 import Data.IORef(IORef, newIORef, readIORef, writeIORef, modifyIORef)
-import Data.Bits((.|.))
+import Data.Bits((.|.), shift)
 import Data.Convertible(convert)
 import Data.List.Tools(modifyAt, setAt)
 import Data.Bool.Tools(whether)
@@ -80,6 +80,8 @@ import Control.Concurrent(
 import System.Posix.Types
 import System.Locale.SetLocale
 import Foreign.C.Types
+
+import Text.XML.YJSVG(Color(..))
 
 data Field = Field{
 	fDisplay :: Display,
@@ -253,14 +255,17 @@ ondrag f = writeIORef $ fOndrag f
 onkeypress :: Field -> (Char -> IO Bool) -> IO ()
 onkeypress f = writeIORef $ fKeypress f
 
-fieldColor :: Field -> Pixel -> IO ()
-fieldColor f clr = do
+fieldColor :: Field -> Color -> IO ()
+fieldColor f (RGB r g b) = do
+	let	clr = shift (fromIntegral r) 16 .|. shift (fromIntegral g) 8 .|.
+			fromIntegral b
 	setForeground (fDisplay f) (fGCBG f) clr
 	let bufs = [fUndoBuf f, fBG f, fBuf f]
 	width <- readIORef $ fWidth f
 	height <- readIORef $ fHeight f
 	forM_ bufs $ \bf -> fillRectangle (fDisplay f) bf (fGCBG f) 0 0 width height
 	redrawAll f
+fieldColor _ (ColorName _) = error "not implemented"
 
 getConnection :: Field -> Fd
 getConnection = Fd . connectionNumber . fDisplay
