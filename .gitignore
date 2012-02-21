@@ -4,6 +4,7 @@
 /src/*.js
 /src/*.css
 /src/*.gif
+/src/*.png
 /*.bak
 /*.png
 /*.svg

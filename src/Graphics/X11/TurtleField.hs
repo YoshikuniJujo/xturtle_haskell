@@ -29,9 +29,7 @@ module Graphics.X11.TurtleField(
 	onkeypress,
 
 	forkIOX,
-	addThread,
-
-	Pixel
+	addThread
 ) where
 
 import Graphics.X11(
@@ -258,20 +256,21 @@ onkeypress f = writeIORef $ fKeypress f
 
 fieldColor :: Field -> Color -> IO ()
 fieldColor f@Field{fDisplay = dpy} c = do
-	let	scr = defaultScreen dpy
-		colormap = defaultColormap dpy scr
-	clr <- case c of
-		RGB r g b -> return $ shift (fromIntegral r) 16 .|.
-			shift (fromIntegral g) 8 .|. fromIntegral b
-		ColorName cn -> fmap (X.color_pixel . fst) $
-			allocNamedColor dpy colormap cn
+	clr <- getColorPixel dpy c
 	setForeground (fDisplay f) (fGCBG f) clr
 	let bufs = [fUndoBuf f, fBG f, fBuf f]
 	width <- readIORef $ fWidth f
 	height <- readIORef $ fHeight f
 	forM_ bufs $ \bf -> fillRectangle (fDisplay f) bf (fGCBG f) 0 0 width height
 	redrawAll f
--- fieldColor _ (ColorName _) = error "not implemented"
+
+getColorPixel :: Display -> Color -> IO Pixel
+getColorPixel _ (RGB r g b) = return $ shift (fromIntegral r) 16 .|.
+	shift (fromIntegral g) 8 .|. fromIntegral b
+getColorPixel dpy (ColorName cn) = do
+	let	scr = defaultScreen dpy
+		colormap = defaultColormap dpy scr
+	fmap (X.color_pixel . fst) $ allocNamedColor dpy colormap cn
 
 getConnection :: Field -> Fd
 getConnection = Fd . connectionNumber . fDisplay
@@ -318,7 +317,7 @@ runIfOpened f act = do
 	unless cl $ act >> return ()
 
 drawLineNotFlush ::
-	Layer -> Double -> Pixel -> Double -> Double -> Double -> Double -> IO ()
+	Layer -> Double -> Color -> Double -> Double -> Double -> Double -> IO ()
 drawLineNotFlush l@Layer{layerField = f} lw_ clr x1 y1 x2 y2 = runIfOpened f $ do
 	drawLineBuf f lw clr fBG x1 y1 x2 y2
 	addLayerAction l $ whether
@@ -327,7 +326,7 @@ drawLineNotFlush l@Layer{layerField = f} lw_ clr x1 y1 x2 y2 = runIfOpened f $ d
 	where
 	lw = round lw_
 
-drawLine :: Layer -> Double -> Pixel -> Double -> Double -> Double -> Double -> IO ()
+drawLine :: Layer -> Double -> Color -> Double -> Double -> Double -> Double -> IO ()
 drawLine l@Layer{layerField = f} lw_ clr x1 y1 x2 y2 = runIfOpened f $ do
 	drawLineBuf f lw clr fBG x1 y1 x2 y2 >> redrawCharacters f
 	addLayerAction l $ whether
@@ -370,18 +369,20 @@ clearCharacter :: Character -> IO ()
 clearCharacter c = runIfOpened (characterField c) $
 	setCharacter c $ return ()
 
-drawCharacter :: Character -> Pixel -> [(Double, Double)] -> IO ()
-drawCharacter c@Character{characterField = f} clr sh =
+drawCharacter :: Character -> Color -> [(Double, Double)] -> IO ()
+drawCharacter c@Character{characterField = f} cl sh =
 	runIfOpened (characterField c) $ setCharacter c $ do
+		clr <- getColorPixel (fDisplay f) cl
 		setForeground (fDisplay f) (fGC f) clr
 		fillPolygonBuf (characterField c) sh
 
-drawCharacterAndLine ::	Character -> Pixel -> [(Double, Double)] -> Double ->
+drawCharacterAndLine ::	Character -> Color -> [(Double, Double)] -> Double ->
 	Double -> Double -> Double -> Double -> IO ()
-drawCharacterAndLine c@Character{characterField = f} clr ps lw_ x1 y1 x2 y2 =
+drawCharacterAndLine c@Character{characterField = f} cl ps lw_ x1 y1 x2 y2 =
 	runIfOpened f $ setCharacter c $ do
+		clr <- getColorPixel (fDisplay f) cl
 		setForeground (fDisplay f) (fGC f) clr
-		fillPolygonBuf f ps >> drawLineBuf f lw clr fBuf x1 y1 x2 y2
+		fillPolygonBuf f ps >> drawLineBuf f lw cl fBuf x1 y1 x2 y2
 	where
 	lw = round lw_
 
@@ -435,9 +436,10 @@ fillPolygonBuf f ps_ = do
 	fillPolygon (fDisplay f) (fBuf f) (fGC f) (map (uncurry Point) ps)
 		nonconvex coordModeOrigin
 
-drawLineBuf :: Field -> Int -> Pixel -> (Field -> Pixmap) ->
+drawLineBuf :: Field -> Int -> Color -> (Field -> Pixmap) ->
 	Double -> Double -> Double -> Double -> IO ()
-drawLineBuf f@Field{fDisplay = dpy, fGC = gc} lw clr bf x1_ y1_ x2_ y2_ = do
+drawLineBuf f@Field{fDisplay = dpy, fGC = gc} lw c bf x1_ y1_ x2_ y2_ = do
+	clr <- getColorPixel dpy c
 	setForeground (fDisplay f) (fGC f) clr
 	setLineAttributes (fDisplay f) (fGC f) (fromIntegral lw) lineSolid capRound joinRound
 	[(x1, y1), (x2, y2)] <- convertPos f [(x1_, y1_), (x2_, y2_)]
