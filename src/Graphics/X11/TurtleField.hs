@@ -125,7 +125,7 @@ data Character = Character{
 
 openField :: IO Field
 openField = do
-	setLocale LC_CTYPE Nothing >>= maybe (error "Can't set locale.") return
+	_ <- setLocale LC_CTYPE Nothing >>= maybe (error "Can't set locale.") return
 	_ <- initThreads
 	unlessM supportsLocale $ error "Current locale is notSupported."
 	_ <- setLocaleModifiers ""
@@ -247,7 +247,8 @@ runLoop ic f = allocaXEvent $ \e -> do
 			Nothing -> killThread th1 >> return False
 			_ -> return True
 
--- onclick, onrelease :: Field -> (Double -> Double -> IO Bool) -> IO ()
+onclick :: Field -> (Int -> Double -> Double -> IO Bool) -> IO ()
+onrelease :: Field -> (Double -> Double -> IO Bool) -> IO ()
 onclick f = writeIORef $ fOnclick f
 onrelease f = writeIORef $ fOnrelease f
 

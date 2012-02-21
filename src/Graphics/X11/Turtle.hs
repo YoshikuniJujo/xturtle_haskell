@@ -85,7 +85,7 @@ import Data.Bits(shift, (.|.))
 import Data.Fixed(mod')
 
 xturtleVersion :: (Int, String)
-xturtleVersion = (25, "0.0.14")
+xturtleVersion = (26, "0.0.14a")
 
 data Turtle = Turtle {
 	field :: Field,
@@ -253,5 +253,4 @@ sendInputs :: Turtle -> [TurtleInput] -> IO ()
 sendInputs t = mapM_ (sendCommand t)
 
 getSVG :: Turtle -> IO [SVG]
-getSVG t = do
-	fmap (reverse . drawed . (states t !!)) $ readIORef $ stateIndex t
+getSVG t = fmap (reverse . drawed . (states t !!)) $ readIORef $ stateIndex t
