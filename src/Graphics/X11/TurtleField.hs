@@ -55,9 +55,10 @@ import Graphics.X11(
 	defaultVisual, defaultColormap, defaultScreenOfDisplay,
 
 	supportsLocale, setLocaleModifiers,
-	xK_VoidSymbol, buttonPress, buttonRelease
+	xK_VoidSymbol, buttonPress, buttonRelease,
+	allocNamedColor
  )
-import qualified Graphics.X11 as X (drawLine)
+import qualified Graphics.X11 as X (drawLine, Color(..))
 import Graphics.X11.Xlib.Extras(Event(..), getEvent)
 import Graphics.X11.Xft
 import Graphics.X11.Xrender
@@ -256,16 +257,21 @@ onkeypress :: Field -> (Char -> IO Bool) -> IO ()
 onkeypress f = writeIORef $ fKeypress f
 
 fieldColor :: Field -> Color -> IO ()
-fieldColor f (RGB r g b) = do
-	let	clr = shift (fromIntegral r) 16 .|. shift (fromIntegral g) 8 .|.
-			fromIntegral b
+fieldColor f@Field{fDisplay = dpy} c = do
+	let	scr = defaultScreen dpy
+		colormap = defaultColormap dpy scr
+	clr <- case c of
+		RGB r g b -> return $ shift (fromIntegral r) 16 .|.
+			shift (fromIntegral g) 8 .|. fromIntegral b
+		ColorName cn -> fmap (X.color_pixel . fst) $
+			allocNamedColor dpy colormap cn
 	setForeground (fDisplay f) (fGCBG f) clr
 	let bufs = [fUndoBuf f, fBG f, fBuf f]
 	width <- readIORef $ fWidth f
 	height <- readIORef $ fHeight f
 	forM_ bufs $ \bf -> fillRectangle (fDisplay f) bf (fGCBG f) 0 0 width height
 	redrawAll f
-fieldColor _ (ColorName _) = error "not implemented"
+-- fieldColor _ (ColorName _) = error "not implemented"
 
 getConnection :: Field -> Fd
 getConnection = Fd . connectionNumber . fDisplay
