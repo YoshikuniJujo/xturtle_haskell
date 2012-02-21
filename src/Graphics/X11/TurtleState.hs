@@ -1,7 +1,6 @@
 module Graphics.X11.TurtleState (
 	TurtleState(..),
 	initialTurtleState,
-	pencolor',
 	pencolor_,
 	setPencolor,
 	SVG(..),
@@ -13,9 +12,6 @@ module Graphics.X11.TurtleState (
 import Data.Word(Word32)
 import Data.Bits
 import Text.XML.YJSVG
-
-pencolor' :: TurtleState -> Color
-pencolor' = pencolor
 
 pencolor_ :: TurtleState -> Word32
 pencolor_ TurtleState{pencolor = RGB r g b} = c'

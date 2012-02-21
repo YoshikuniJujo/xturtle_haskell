@@ -87,7 +87,7 @@ import Data.Bits(shift, (.|.))
 import Data.Fixed(mod')
 
 xturtleVersion :: (Int, String)
-xturtleVersion = (26, "0.0.14a")
+xturtleVersion = (27, "0.0.14b")
 
 data Turtle = Turtle {
 	field :: Field,
@@ -188,10 +188,8 @@ pendown = flip sendCommand Pendown
 rgbToColor :: Double -> Double -> Double -> Color
 rgbToColor r g b = RGB (round $ r * 0xff) (round $ g * 0xff) (round $ b * 0xff)
 
--- pencolor :: Turtle -> Double -> Double -> Double -> IO ()
--- pencolor t r_ g_ b_ = sendCommand t $ Pencolor r_ g_ b_ -- c
 pencolor :: Turtle -> Color -> IO ()
-pencolor t c = sendCommand t $ Pencolor' c
+pencolor t c = sendCommand t $ Pencolor c
 
 bgcolor :: Field -> Double -> Double -> Double -> IO ()
 bgcolor f r_ g_ b_ = fieldColor f $ Color c

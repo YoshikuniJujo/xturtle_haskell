@@ -1,7 +1,12 @@
 * refactoring
 
 Functions
+* TurtleField may should use yjsvg's Color
 * set color by color name
+* bgcolor should use Color data type
+* bgcolor may should be Turtle -> Color -> IO () instead of Field -> ...
+	-- Because change bg color is drawing element
+	-- How do I make in SVG
 * fill
 (* save as png by pixmap)
 * get Mouse move event
