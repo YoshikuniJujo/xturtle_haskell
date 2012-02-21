@@ -64,7 +64,8 @@ module Graphics.X11.Turtle (
 
 	getInputs,
 	sendInputs,
-	getSVG
+	getSVG,
+	ColorClass
 ) where
 
 import Graphics.X11.TurtleMove(
