@@ -22,7 +22,7 @@ main = do
 
 turtleWrite :: Turtle -> Double -> (Double, Double, Double, String) -> IO ()
 turtleWrite t h (r, g, b, s) = do
-	pencolor t r g b
+	pencolor t $ rgbToColor r g b
 	setheading t $ - 90
 	forward t 10
 	(_, y) <- position t

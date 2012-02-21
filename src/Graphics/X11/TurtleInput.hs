@@ -11,7 +11,8 @@ module Graphics.X11.TurtleInput (
 	degrees,
 	drawed,
 
-	SVG
+	SVG,
+	Color(..)
 ) where
 
 import Graphics.X11.TurtleState(TurtleState(..), initialTurtleState,
@@ -72,6 +73,7 @@ nextTurtle t (Pencolor r_ g_ b_) = (clearState t){pencolor = RGB r g b}
 	r = round $ r_ * 0xff
 	g = round $ g_ * 0xff
 	b = round $ b_ * 0xff
+nextTurtle t (Pencolor' c) = (clearState t){pencolor = c}
 nextTurtle t (Pensize ps) = (clearState t){pensize = ps}
 nextTurtle t (Degrees ds) = (clearState t){
 	degrees = ds,

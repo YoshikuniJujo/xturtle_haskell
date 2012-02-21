@@ -36,10 +36,12 @@ main = do
 			2 -> modifyIORef bgclr (+ 1) >> readIORef bgclr >>=
 				(\(r, g, b) -> bgcolor f r g b) . (colors !!) >> return True
 			4 -> goto t x y >> modifyIORef clr (+ 6) >> readIORef clr >>=
-				(\(r, g, b) -> pencolor t r g b >> pencolor clrT r g b) . (colors !!) >>
+				(\(r, g, b) -> let c = rgbToColor r g b in
+					pencolor t c >> pencolor clrT c) . (colors !!) >>
 				forward clrT 0 >> return True
 			5 -> goto t x y >> modifyIORef clr (+ 1) >> readIORef clr >>=
-				(\(r, g, b) -> pencolor t r g b >> pencolor clrT r g b) . (colors !!) >>
+				(\(r, g, b) -> let c = rgbToColor r g b in
+					 pencolor t c >> pencolor clrT c) . (colors !!) >>
 				forward clrT 0 >> return True
 	onrelease f $ \_ _ -> penup t>> return True
 	onkeypress f $ \_ -> do

@@ -31,7 +31,7 @@ randomTurtle t = do
 		r <- randomRIO (0, 1)
 		g <- randomRIO (0, 1)
 		b <- randomRIO (0, 1)
-		pencolor t r g b
+		pencolor t $ rgbToColor r g b
 		left t d
 		forward t 15
 		d <- distance t 0 0

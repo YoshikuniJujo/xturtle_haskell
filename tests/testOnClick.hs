@@ -9,7 +9,7 @@ main = do
 	shape t "turtle"
 	shapesize t 2
 	pensize t 10
-	pencolor t 0 127 0
+	pencolor t $ RGB 0 127 0
 	onclick f $ \_ x y -> goto t x y >> return True
 	waitField f
 	putStrLn "end"
