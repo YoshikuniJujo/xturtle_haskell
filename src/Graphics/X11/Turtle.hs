@@ -2,71 +2,71 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 
 module Graphics.X11.Turtle (
+	-- * meta data
 	xturtleVersion,
 
+	-- * types and classes
 	Field,
 	Turtle,
+	ColorClass,
 
+	-- * beginings and endings
 	openField,
 	closeField,
+	waitField,
 	newTurtle,
 	killTurtle,
 
+	-- * move turtle
 	forward,
 	backward,
-	right,
-	left,
 	goto,
 	setx,
 	sety,
+	right,
+	left,
 	setheading,
-	home,
 	circle,
+	write,
+	home,
+	clear,
 	undo,
 
+	-- * change turtle state
+	shape,
+	shapesize,
+	showturtle,
+	hideturtle,
+	pendown,
+	penup,
+	pencolor,
+	bgcolor,
+	pensize,
+	degrees,
+	radians,
+
+	-- * turtle information
 	position,
 	xcor,
 	ycor,
 	heading,
 	towards,
 	distance,
-
-	pendown,
-	penup,
 	isdown,
-
-	bgcolor,
---	rgbToColor,
-	pencolor,
---	Color(..),
-	pensize,
-
-	clear,
-
-	showturtle,
-	hideturtle,
 	isvisible,
-
-	shape,
-	shapesize,
-
-	degrees,
-	radians,
-
 	windowWidth,
 	windowHeight,
+
+	-- * on events
 	onclick,
 	onrelease,
 	ondrag,
 	onkeypress,
-	waitField,
 
-	write,
-
+	-- * save and load
 	getInputs,
 	sendInputs,
-	getSVG,
-	ColorClass
+	getSVG
 ) where
 
 import Graphics.X11.TurtleMove(
@@ -187,9 +187,6 @@ getDegrees Turtle{stateIndex = si, states = s} =
 penup, pendown :: Turtle -> IO ()
 penup = flip sendCommand Penup
 pendown = flip sendCommand Pendown
-
-rgbToColor :: Double -> Double -> Double -> Color
-rgbToColor r g b = RGB (round $ r * 0xff) (round $ g * 0xff) (round $ b * 0xff)
 
 pencolor :: ColorClass c => Turtle -> c -> IO ()
 pencolor t c = sendCommand t $ Pencolor $ getColor c
