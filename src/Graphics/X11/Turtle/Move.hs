@@ -1,4 +1,4 @@
-module Graphics.X11.TurtleMove (
+module Graphics.X11.Turtle.Move (
 	Field,
 	Layer,
 	Character,
@@ -24,9 +24,9 @@ module Graphics.X11.TurtleMove (
 	moveTurtle
 ) where
 
-import Graphics.X11.TurtleState(TurtleState(..), SVG(..), Position(..),
+import Graphics.X11.Turtle.State(TurtleState(..), SVG(..), Position(..),
 	Color(..))
-import Graphics.X11.TurtleField(
+import Graphics.X11.Turtle.Field(
 	Field, Layer, Character,
 	forkIOX, openField, closeField, flushLayer,
 	addLayer, addCharacter, fieldSize, clearLayer,

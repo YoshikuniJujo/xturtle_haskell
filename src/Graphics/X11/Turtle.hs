@@ -69,20 +69,20 @@ module Graphics.X11.Turtle (
 	getSVG
 ) where
 
-import Graphics.X11.TurtleMove(
+import Graphics.X11.Turtle.Move(
 	Field, Layer, Character,
 	forkIOX, openField, closeField,
 	addCharacter, addLayer, fieldSize, clearLayer, clearCharacter,
 	addThread, fieldColor, onclick, onrelease, ondrag, onkeypress, waitField,
 	moveTurtle
  )
-import Graphics.X11.TurtleInput(
+import Graphics.X11.Turtle.Input(
 	TurtleInput(..), TurtleState,
 	getTurtleStates, getPosition, getPendown, undonum, visible, direction,
 	SVG, drawed, Color(..)
  )
-import qualified Graphics.X11.TurtleInput as S(degrees)
-import Graphics.X11.TurtleShape(lookupShape)
+import qualified Graphics.X11.Turtle.Input as S(degrees)
+import Graphics.X11.Turtle.Shape(lookupShape)
 import Control.Concurrent(Chan, writeChan, threadDelay, ThreadId, killThread)
 import Control.Monad(replicateM_, zipWithM_)
 import Prelude hiding(Left)
@@ -90,7 +90,7 @@ import Data.IORef(IORef, newIORef, readIORef, modifyIORef)
 import Data.Fixed(mod')
 
 xturtleVersion :: (Int, String)
-xturtleVersion = (30, "0.0.15a")
+xturtleVersion = (31, "0.0.15b")
 
 data Turtle = Turtle {
 	field :: Field,

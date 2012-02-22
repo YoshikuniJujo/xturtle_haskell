@@ -1,4 +1,4 @@
-module Graphics.X11.TurtleField(
+module Graphics.X11.Turtle.Field(
 	Field,
 	Layer,
 	Character,

@@ -1,4 +1,4 @@
-module Graphics.X11.TurtleShape(lookupShape) where
+module Graphics.X11.Turtle.Shape(lookupShape) where
 
 import Control.Arrow(second, (&&&))
 

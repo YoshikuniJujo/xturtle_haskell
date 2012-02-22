@@ -1,4 +1,4 @@
-module Graphics.X11.TurtleInput (
+module Graphics.X11.Turtle.Input (
 	TurtleState,
 	TurtleInput(..),
 
@@ -15,7 +15,7 @@ module Graphics.X11.TurtleInput (
 	Color(..)
 ) where
 
-import Graphics.X11.TurtleState(TurtleState(..), initialTurtleState,
+import Graphics.X11.Turtle.State(TurtleState(..), initialTurtleState,
 	SVG(..), Position(..), Color(..))
 import Control.Concurrent.Chan(Chan, newChan, getChanContents)
 import Prelude hiding(Left)
