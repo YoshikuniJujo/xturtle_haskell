@@ -1,9 +1,6 @@
 * refactoring
 
 Functions
-* pencolor should use ColorClass
-* TurtleField may should use yjsvg's Color
-* set color by color name
 * bgcolor may should be Turtle -> Color -> IO () instead of Field -> ...
 	-- Because change bg color is drawing element
 	-- How do I make in SVG
@@ -19,3 +16,6 @@ Functions
 
 Bugs
 * repair closeField
+
+?
+* should modules be under Graphics.X11.Turtle or not
