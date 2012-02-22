@@ -3,28 +3,19 @@ module Graphics.X11.Turtle.Input (
 	TurtleInput(..),
 
 	getTurtleStates,
-	getPosition,
-	getPendown,
+	position,
+	pendown,
 	undonum,
 	visible,
 	direction,
 	degrees,
 	drawed,
-
-	SVG,
-	Color(..)
 ) where
 
-import Graphics.X11.Turtle.State(TurtleState(..), initialTurtleState,
-	SVG(..), Position(..), Color(..))
+import Graphics.X11.Turtle.State(TurtleState(..), initialTurtleState)
 import Control.Concurrent.Chan(Chan, newChan, getChanContents)
 import Prelude hiding(Left)
-
-getPosition :: TurtleState -> (Double, Double)
-getPosition = position
-
-getPendown :: TurtleState -> Bool
-getPendown = pendown
+import Text.XML.YJSVG(SVG(..), Color(..), Position(..))
 
 data TurtleInput
 	= Shape [(Double, Double)]

@@ -78,11 +78,12 @@ import Graphics.X11.Turtle.Move(
  )
 import Graphics.X11.Turtle.Input(
 	TurtleInput(..), TurtleState,
-	getTurtleStates, getPosition, getPendown, undonum, visible, direction,
-	SVG, drawed, Color(..)
+	getTurtleStates, undonum, visible, direction,
+	drawed
  )
-import qualified Graphics.X11.Turtle.Input as S(degrees)
+import qualified Graphics.X11.Turtle.Input as S(degrees, pendown, position)
 import Graphics.X11.Turtle.Shape(lookupShape)
+import Text.XML.YJSVG(SVG(..), Color(..))
 import Control.Concurrent(Chan, writeChan, threadDelay, ThreadId, killThread)
 import Control.Monad(replicateM_, zipWithM_)
 import Prelude hiding(Left)
@@ -225,7 +226,7 @@ windowHeight = fmap snd . fieldSize . field
 
 position :: Turtle -> IO (Double, Double)
 position Turtle{stateIndex = si, states = s} =
-	fmap (getPosition . (s !!)) $ readIORef si
+	fmap (S.position . (s !!)) $ readIORef si
 
 xcor, ycor :: Turtle -> IO Double
 xcor = fmap fst . position
@@ -250,7 +251,7 @@ distance t x0 y0 = do
 	return $ ((x - x0) ** 2 + (y - y0) ** 2) ** (1 / 2)
 
 isdown :: Turtle -> IO Bool
-isdown t = fmap (getPendown . (states t !!)) $ readIORef $ stateIndex t
+isdown t = fmap (S.pendown . (states t !!)) $ readIORef $ stateIndex t
 
 isvisible :: Turtle -> IO Bool
 isvisible t = fmap (visible . (states t !!)) $ readIORef $ stateIndex t
