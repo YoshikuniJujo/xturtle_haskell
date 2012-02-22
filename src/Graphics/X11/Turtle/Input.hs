@@ -46,8 +46,9 @@ getTurtleStates sh = do
 nextTurtle :: TurtleState -> TurtleInput -> TurtleState
 nextTurtle t (Shape sh) = (clearState t){shape = sh}
 nextTurtle t (ShapeSize ss) = (clearState t){shapesize = ss}
-nextTurtle t (Goto x y) = (clearState t){position = (x, y), line = pendown t,
-	drawed = if pendown t then ln : drawed t else drawed t}
+nextTurtle t (Goto x y) = (clearState t){position = (x, y),
+	drawed = if pendown t then ln : drawed t else drawed t,
+	draw = if pendown t then Just ln else Nothing}
 	where
 	ln = Line (uncurry Center $ position t) (Center x y) (pencolor t)
 		(pensize t)
@@ -72,7 +73,7 @@ nextTurtle t (Write fnt sz str) = (clearState t){
 nextTurtle _ _ = error "not defined"
 
 clearState :: TurtleState -> TurtleState
-clearState t = t{line = False, undo = False, undonum = 1, clear = False, draw = Nothing}
+clearState t = t{undo = False, undonum = 1, clear = False, draw = Nothing}
 
 inputToTurtle :: [TurtleState] -> TurtleState -> [TurtleInput] -> [TurtleState]
 inputToTurtle [] ts0 (Undo : tis) = ts0 : inputToTurtle [] ts0 tis

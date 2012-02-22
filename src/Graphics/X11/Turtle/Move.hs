@@ -60,7 +60,7 @@ dir t = direction t / degrees t
 
 moveTurtle :: Character -> Layer -> TurtleState -> TurtleState -> IO ()
 moveTurtle c l t0 t1 = do
-	when (undo t1 && (line t0 || isJust (draw t0))) $ do
+	when (undo t1 && isJust (draw t0)) $ do
 		done <- undoLayer l
 		unless done $ clearLayer l >> drawLines l (drawed t1)
 	when (undo t1 && clear t0) $ drawLines l $ drawed t1
@@ -76,13 +76,15 @@ moveTurtle c l t0 t1 = do
 		drawTurtle c (pencolor t1) (shape t1) (shapesize t1) (dir t1)
 			(pensize t1) p1 lineOrigin
 	unless (visible t1) $ clearCharacter c
+{-
 	when (not (undo t1) && line t1) $
 		drawLine l (pensize t1) (pencolor t1) x0 y0 x1 y1 >> flushLayer l
+-}
 	when (clear t1) $ clearLayer l >> flushLayer l
 	unless (undo t1) $ drawDraw l (draw t1) >> flushLayer l
 	where
 	(tl, to) = if undo t1 then (t0, t1) else (t1, t0)
-	lineOrigin = if line tl then Just $ position to else Nothing
+	lineOrigin = if pendown tl then Just $ position to else Nothing
 	p0@(x0, y0) = position t0
 	p1@(x1, y1) = position t1
 

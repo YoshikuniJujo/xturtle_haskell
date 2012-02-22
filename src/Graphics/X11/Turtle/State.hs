@@ -3,7 +3,7 @@ module Graphics.X11.Turtle.State (
 	initialTurtleState,
 ) where
 
-import Text.XML.YJSVG
+import Text.XML.YJSVG(SVG, Color(RGB))
 
 data TurtleState = TurtleState {
 	position :: (Double, Double),
@@ -17,7 +17,6 @@ data TurtleState = TurtleState {
 	visible :: Bool,
 	clear :: Bool,
 	undo :: Bool,
-	line :: Bool,
 	undonum :: Int,
 	draw :: Maybe SVG,
 	drawed :: [SVG]
@@ -36,7 +35,6 @@ initialTurtleState sh = TurtleState {
 	visible = True,
 	clear = False,
 	undo = False,
-	line = False,
 	undonum = 1,
 	draw = Nothing,
 	drawed = []
