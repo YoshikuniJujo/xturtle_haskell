@@ -37,13 +37,13 @@ twoFlowers = do
 
 flower :: Turtle -> Double -> IO ()
 flower t s = do
-	pencolor t $ rgbToColor 1 0 0
+	pencolor t "red"
 	left t 90
 	forward t $ 5 * s
 	clear t
 	replicateM_ 9 $ leaf t s >> right t 10
 	right t 180
-	pencolor t $ rgbToColor 0 1 0
+	pencolor t "green"
 	forward t $ 20 * s
 	right t 180
 	forward t $ 3 * s

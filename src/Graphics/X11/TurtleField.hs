@@ -51,6 +51,7 @@ import Graphics.X11(
 	getGeometry, initThreads, connectionNumber, pending, destroyWindow,
 
 	defaultVisual, defaultColormap, defaultScreenOfDisplay,
+	Visual, Colormap,
 
 	supportsLocale, setLocaleModifiers,
 	xK_VoidSymbol, buttonPress, buttonRelease,
@@ -335,18 +336,22 @@ drawLine l@Layer{layerField = f} lw_ clr x1 y1 x2 y2 = runIfOpened f $ do
 	where
 	lw = round lw_
 
-writeString :: Layer -> String -> Double -> Double -> Double -> Double ->
+writeString :: Layer -> String -> Double -> Color ->
 	Double -> Double -> String -> IO ()
-writeString l@Layer{layerField = f} fname size r g b x y str = do
-	writeStringBuf f fBG fname size r g b x y str
+writeString l@Layer{layerField = f} fname size clr x y str = do
+	writeStringBuf f fBG fname size clr x y str
 	redrawCharacters f
 	addLayerAction l $ whether
-		(writeStringBuf f fUndoBuf fname size r g b x y str)
-		(writeStringBuf f fBG fname size r g b x y str)
+		(writeStringBuf f fUndoBuf fname size clr x y str)
+		(writeStringBuf f fBG fname size clr x y str)
+{-
+	where
+	clr = RGB (round $ r * 0xff) (round $ g * 0xff) (round $ b * 0xff)
+-}
 
-writeStringBuf :: Field -> (Field -> Pixmap) -> String -> Double -> Double -> Double -> Double ->
-	Double -> Double -> String -> IO ()
-writeStringBuf f buf fname size r g b x_ y_ str = do
+writeStringBuf :: Field -> (Field -> Pixmap) -> String -> Double ->
+	Color -> Double -> Double -> String -> IO ()
+writeStringBuf f buf fname size clr x_ y_ str = do
 	let	dpy = fDisplay f
 		scr = defaultScreen dpy
 		scrN = defaultScreenOfDisplay dpy
@@ -355,15 +360,22 @@ writeStringBuf f buf fname size r g b x_ y_ str = do
 	xftDraw <- xftDrawCreate dpy (buf f) visual colormap
 	xftFont <- xftFontOpen dpy scrN $ fname ++ "-" ++ show (round size :: Int) -- "KochiGothic-20"
 	[(x, y)] <- convertPos f [(x_, y_)]
-	withXftColorValue dpy visual colormap color $ \c ->
+	withXftColor dpy visual colormap clr $ \c ->
 		xftDrawString xftDraw c xftFont x y str
+
+withXftColor ::
+	Display -> Visual -> Colormap -> Color -> (XftColor -> IO a) -> IO a
+withXftColor dpy visual colormap (RGB r g b) action =
+	withXftColorValue dpy visual colormap color action
 	where
 	color = XRenderColor {
-		xrendercolor_red = round $ r * 0xffff,
-		xrendercolor_green = round $ b * 0xffff,
-		xrendercolor_blue = round $ g * 0xffff,
+		xrendercolor_red = fromIntegral r * 0x100,
+		xrendercolor_green = fromIntegral b * 0x100,
+		xrendercolor_blue = fromIntegral g * 0x100,
 		xrendercolor_alpha = 0xffff
 	 }
+withXftColor dpy visual colormap (ColorName cn) action =
+	withXftColorName dpy visual colormap cn action
 
 clearCharacter :: Character -> IO ()
 clearCharacter c = runIfOpened (characterField c) $
@@ -392,6 +404,7 @@ undoLayer Layer{layerField = f, layerId = lid} = do
 	if null $ ls !! lid then return False else do
 		writeIORef (fLayers f) $ modifyAt ls lid init
 		redraw f
+		flushWindow f
 		return True
 
 clearLayer :: Layer -> IO ()

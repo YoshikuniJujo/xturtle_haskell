@@ -6,6 +6,7 @@ import Control.Concurrent
 import Control.Monad
 import System.Environment
 import Text.XML.YJSVG
+import Data.Word
 
 main :: IO ()
 main = do
@@ -34,17 +35,12 @@ main = do
 			1 -> goto t x y >> pendown t >> forward t 0 >> return True
 			3 -> clear t >> return True
 			2 -> modifyIORef bgclr (+ 1) >> readIORef bgclr >>=
-				(\(r_, g_, b_) -> let	r = round $ r_ * 0xff
-							g = round $ g_ * 0xff
-							b = round $ b_ * 0xff in
-					bgcolor f (r, g, b)) . (colors !!) >> return True
+				(\c -> bgcolor f c) . (colors !!) >> return True
 			4 -> goto t x y >> modifyIORef clr (+ 6) >> readIORef clr >>=
-				(\(r, g, b) -> let c = rgbToColor r g b in
-					pencolor t c >> pencolor clrT c) . (colors !!) >>
+				(\c -> pencolor t c >> pencolor clrT c) . (colors !!) >>
 				forward clrT 0 >> return True
 			5 -> goto t x y >> modifyIORef clr (+ 1) >> readIORef clr >>=
-				(\(r, g, b) -> let c = rgbToColor r g b in
-					 pencolor t c >> pencolor clrT c) . (colors !!) >>
+				(\c -> pencolor t c >> pencolor clrT c) . (colors !!) >>
 				forward clrT 0 >> return True
 	onrelease f $ \_ _ -> penup t>> return True
 	onkeypress f $ \_ -> do
@@ -61,5 +57,7 @@ main = do
 	ondrag f $ \x y -> goto t x y
 	waitField f
 
-colors :: [(Double, Double, Double)]
-colors = cycle [(1, 0, 0), (0, 1, 0), (1, 1, 0), (0, 0, 1), (0.5, 0.3, 0), (1, 1, 1), (0, 0, 0)]
+colors :: [(Word8, Word8, Word8)]
+colors = cycle [
+	(255, 0, 0), (0, 255, 0), (255, 255, 0), (0, 0, 255),
+	(128, 76, 0), (255, 255, 255), (0, 0, 0)]

@@ -15,7 +15,7 @@ initTurtle = do
 	shape t "turtle"
 	shapesize t 2
 	pensize t 10
-	pencolor t $ rgbToColor 1 1 1
+	pencolor t "white"
 	radians t
 	randomRIO (- pi, pi) >>= setheading t
 	onclick f $ \_ x y -> goto t x y >> return True

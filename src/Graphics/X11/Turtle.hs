@@ -2,6 +2,8 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 
 module Graphics.X11.Turtle (
+	xturtleVersion,
+
 	Field,
 	Turtle,
 
@@ -34,9 +36,9 @@ module Graphics.X11.Turtle (
 	isdown,
 
 	bgcolor,
-	rgbToColor,
+--	rgbToColor,
 	pencolor,
-	Color(..),
+--	Color(..),
 	pensize,
 
 	clear,
@@ -59,7 +61,6 @@ module Graphics.X11.Turtle (
 	onkeypress,
 	waitField,
 
-	xturtleVersion,
 	write,
 
 	getInputs,
@@ -89,7 +90,7 @@ import Data.IORef(IORef, newIORef, readIORef, modifyIORef)
 import Data.Fixed(mod')
 
 xturtleVersion :: (Int, String)
-xturtleVersion = (29, "0.0.15")
+xturtleVersion = (30, "0.0.15a")
 
 data Turtle = Turtle {
 	field :: Field,

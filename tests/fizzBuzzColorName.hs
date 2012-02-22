@@ -6,7 +6,7 @@ import Control.Concurrent
 import Control.Monad
 import Data.Word
 
-type Color = (Word8, Word8, Word8)
+type Color = String
 
 main :: IO ()
 main = do
@@ -38,14 +38,9 @@ turtleWrite t h (c, s) = do
 fizzBuzz :: Int -> [(Color, String)]
 fizzBuzz n = map fizzBuzzOne [1 .. n]
 
-black = (0, 0, 0)
-red = (255, 0, 0)
-blue = (0, 0, 255)
-purple = (255, 0, 255)
-
 fizzBuzzOne :: Int -> (Color, String)
 fizzBuzzOne n
-	| n `mod` 5 /= 0 && n `mod` 3 /= 0 = (black, show n)
-	| n `mod` 5 /= 0 = (red, "Fizz")
-	| n `mod` 3 /= 0 = (blue, "Buzz")
-	| otherwise = (purple, "FizzBuzz")
+	| n `mod` 5 /= 0 && n `mod` 3 /= 0 = ("black", show n)
+	| n `mod` 5 /= 0 = ("red", "Fizz")
+	| n `mod` 3 /= 0 = ("blue", "Buzz")
+	| otherwise = ("violet", "FizzBuzz")

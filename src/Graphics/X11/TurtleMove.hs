@@ -94,11 +94,13 @@ drawDraw _ Nothing = return ()
 drawDraw l (Just (Line (Center x0 y0) (Center x1 y1) clr lw)) =
 	drawLineNotFlush l lw clr x0 y0 x1 y1
 -- drawDraw l (Line clr lw (x0, y0) (x1, y1)) = drawLineNotFlush l lw (clr) x0 y0 x1 y1
-drawDraw l (Just (Text (Center x y) sz (RGB r_ g_ b_) fnt str)) =
--- drawDraw l (Just (Text (r, g, b) fnt sz (x, y) str)) =
-	writeString l fnt sz r g b x y str
+drawDraw l (Just (Text (Center x y) sz clr fnt str)) =
+-- drawDraw l (Just (Text clr fnt sz (x, y) str)) =
+	writeString l fnt sz clr x y str
+{-
 	where
 	[r, g, b] = map ((/ 0xff) . fromIntegral) [r_, g_, b_]
+-}
 drawDraw _ _ = error "not implemented"
 
 getPositions :: Double -> Double -> Double -> Double -> [Pos]
