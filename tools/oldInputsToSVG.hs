@@ -6,8 +6,8 @@ import Text.XML.YJSVG
 import System.Environment
 
 width, height :: Double
-width = 1000
-height = 700
+width = 1200
+height = 800
 
 main :: IO ()
 main = do
