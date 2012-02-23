@@ -108,7 +108,7 @@ newTurtle :: Field -> IO Turtle
 newTurtle f = do
 	ch <- addCharacter f
 	l <- addLayer f
-	(ic, tis, sts) <- getTurtleStates $ nameToShape "classic"
+	(ic, tis, sts) <- getTurtleStates
 	si <- newIORef 1
 	let	t = Turtle {
 			field = f,
@@ -122,6 +122,7 @@ newTurtle f = do
 		 }
 	tid <- forkIOX $ zipWithM_ (moveTurtle ch l) sts $ tail sts
 	addThread f tid
+	shape t "classic"
 	return t{thread = tid}
 
 killTurtle :: Turtle -> IO ()

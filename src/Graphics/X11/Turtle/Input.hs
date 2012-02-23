@@ -36,9 +36,9 @@ data TurtleInput
 	| Write String Double String
 	deriving (Show, Read)
 
-getTurtleStates :: [(Double, Double)] -> IO (Chan TurtleInput, [TurtleInput], [TurtleState])
-getTurtleStates sh = do
-	let	ts0 = initialTurtleState sh
+getTurtleStates :: IO (Chan TurtleInput, [TurtleInput], [TurtleState])
+getTurtleStates = do
+	let	ts0 = initialTurtleState
 	c <- newChan
 	tis <- getChanContents c
 	return (c, tis, ts0 : ts0 : inputToTurtle [] ts0 tis)

@@ -22,15 +22,15 @@ data TurtleState = TurtleState {
 	drawed :: [SVG]
  } deriving Show
 
-initialTurtleState :: [(Double, Double)] -> TurtleState
-initialTurtleState sh = TurtleState {
+initialTurtleState :: TurtleState
+initialTurtleState = TurtleState {
 	position = (0, 0),
 	direction = 0,
 	degrees = 360,
 	pendown = True,
-	pensize = 0,
+	pensize = 1,
 	pencolor = RGB 0 0 0,
-	shape = sh,
+	shape = [],
 	shapesize = 1,
 	visible = True,
 	clear = False,
