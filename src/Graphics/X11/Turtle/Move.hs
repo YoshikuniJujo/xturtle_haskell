@@ -29,8 +29,8 @@ import Graphics.X11.Turtle.Field(
 	Field, Layer, Character,
 	forkIOX, openField, closeField, flushLayer,
 	addLayer, addCharacter, fieldSize, clearLayer,
-	drawLine, drawCharacter, drawCharacterAndLine, undoLayer,
-	drawLineNotFlush,
+	drawCharacter, drawCharacterAndLine, undoLayer,
+	drawLine,
 	clearCharacter, addThread,
 	fieldColor, onkeypress, onclick, onrelease, ondrag, waitField, writeString
  )
@@ -76,10 +76,6 @@ moveTurtle c l t0 t1 = do
 		drawTurtle c (pencolor t1) (shape t1) (shapesize t1) (dir t1)
 			(pensize t1) p1 lineOrigin
 	unless (visible t1) $ clearCharacter c
-{-
-	when (not (undo t1) && line t1) $
-		drawLine l (pensize t1) (pencolor t1) x0 y0 x1 y1 >> flushLayer l
--}
 	when (clear t1) $ clearLayer l >> flushLayer l
 	unless (undo t1) $ drawDraw l (draw t1) >> flushLayer l
 	where
@@ -94,8 +90,8 @@ drawLines l = mapM_ (drawDraw l . Just) . reverse
 drawDraw :: Layer -> Maybe SVG -> IO ()
 drawDraw _ Nothing = return ()
 drawDraw l (Just (Line (Center x0 y0) (Center x1 y1) clr lw)) =
-	drawLineNotFlush l lw clr x0 y0 x1 y1
--- drawDraw l (Line clr lw (x0, y0) (x1, y1)) = drawLineNotFlush l lw (clr) x0 y0 x1 y1
+	drawLine l lw clr x0 y0 x1 y1
+-- drawDraw l (Line clr lw (x0, y0) (x1, y1)) = drawLine l lw (clr) x0 y0 x1 y1
 drawDraw l (Just (Text (Center x y) sz clr fnt str)) =
 -- drawDraw l (Just (Text clr fnt sz (x, y) str)) =
 	writeString l fnt sz clr x y str

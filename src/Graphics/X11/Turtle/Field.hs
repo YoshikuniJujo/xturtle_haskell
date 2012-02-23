@@ -13,7 +13,6 @@ module Graphics.X11.Turtle.Field(
 	addCharacter,
 
 	drawLine,
-	drawLineNotFlush,
 	writeString,
 	drawCharacter,
 	drawCharacterAndLine,
@@ -317,19 +316,10 @@ runIfOpened f act = do
 	cl <- readIORef $ fClosed f
 	unless cl $ act >> return ()
 
-drawLineNotFlush ::
+drawLine ::
 	Layer -> Double -> Color -> Double -> Double -> Double -> Double -> IO ()
-drawLineNotFlush l@Layer{layerField = f} lw_ clr x1 y1 x2 y2 = runIfOpened f $ do
-	drawLineBuf f lw clr fBG x1 y1 x2 y2
-	addLayerAction l $ whether
-		(drawLineBuf f lw clr fUndoBuf x1 y1 x2 y2)
-		(drawLineBuf f lw clr fBG x1 y1 x2 y2)
-	where
-	lw = round lw_
-
-drawLine :: Layer -> Double -> Color -> Double -> Double -> Double -> Double -> IO ()
 drawLine l@Layer{layerField = f} lw_ clr x1 y1 x2 y2 = runIfOpened f $ do
-	drawLineBuf f lw clr fBG x1 y1 x2 y2 >> redrawCharacters f
+	drawLineBuf f lw clr fBG x1 y1 x2 y2
 	addLayerAction l $ whether
 		(drawLineBuf f lw clr fUndoBuf x1 y1 x2 y2)
 		(drawLineBuf f lw clr fBG x1 y1 x2 y2)
@@ -404,7 +394,6 @@ undoLayer Layer{layerField = f, layerId = lid} = do
 	if null $ ls !! lid then return False else do
 		writeIORef (fLayers f) $ modifyAt ls lid init
 		redraw f
-		flushWindow f
 		return True
 
 clearLayer :: Layer -> IO ()
