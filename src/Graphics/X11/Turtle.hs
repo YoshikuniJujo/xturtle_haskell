@@ -82,7 +82,7 @@ import Graphics.X11.Turtle.Input(
 	drawed
  )
 import qualified Graphics.X11.Turtle.Input as S(degrees, pendown, position)
-import Graphics.X11.Turtle.Shape(lookupShape)
+import Graphics.X11.Turtle.Shape(nameToShape)
 import Text.XML.YJSVG(SVG(..), Color(..))
 import Control.Concurrent(Chan, writeChan, threadDelay, ThreadId, killThread)
 import Control.Monad(replicateM_, zipWithM_)
@@ -108,7 +108,7 @@ newTurtle :: Field -> IO Turtle
 newTurtle f = do
 	ch <- addCharacter f
 	l <- addLayer f
-	(ic, tis, sts) <- getTurtleStates $ lookupShape "classic"
+	(ic, tis, sts) <- getTurtleStates $ nameToShape "classic"
 	si <- newIORef 1
 	let	t = Turtle {
 			field = f,
@@ -141,7 +141,7 @@ sendCommand Turtle{inputChan = c, stateIndex = si} ti = do
 	threadDelay 10000
 
 shape :: Turtle -> String -> IO ()
-shape t = sendCommand t . Shape . lookupShape
+shape t = sendCommand t . Shape . nameToShape
 
 shapesize :: Turtle -> Double -> IO ()
 shapesize t = sendCommand t . ShapeSize
