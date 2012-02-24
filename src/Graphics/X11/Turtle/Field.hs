@@ -204,8 +204,7 @@ runLoop ic f = allocaXEvent $ \e -> do
 			writeChan (fEvent f) $ Just ev
 		end <- readChan endc
 		when end $ writeChan (fEvent f) Nothing
-	(>> (closeDisplay (fDisplay f) >> writeChan (fEnd f) ())) $
-		(>> destroyWindow (fDisplay f) (fWindow f)) $ doWhile_ $ do
+	doWhile_ $ do
 		mev <- readChan $ fEvent f
 		case mev of
 			Just (ExposeEvent{}) -> do
@@ -242,6 +241,9 @@ runLoop ic f = allocaXEvent $ \e -> do
 				return $ convert (head $ ev_data ev) /= fDel f
 			Nothing -> killThread th1 >> return False
 			_ -> return True
+	destroyWindow (fDisplay f) (fWindow f)
+	closeDisplay $ fDisplay f
+	writeChan (fEnd f) ()
 
 onclick :: Field -> (Int -> Double -> Double -> IO Bool) -> IO ()
 onrelease :: Field -> (Double -> Double -> IO Bool) -> IO ()
@@ -334,10 +336,6 @@ writeString l@Layer{layerField = f} fname size clr x y str = do
 	addLayerAction l $ whether
 		(writeStringBuf f fUndoBuf fname size clr x y str)
 		(writeStringBuf f fBG fname size clr x y str)
-{-
-	where
-	clr = RGB (round $ r * 0xff) (round $ g * 0xff) (round $ b * 0xff)
--}
 
 writeStringBuf :: Field -> (Field -> Pixmap) -> String -> Double ->
 	Color -> Double -> Double -> String -> IO ()
