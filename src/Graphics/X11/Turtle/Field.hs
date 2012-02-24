@@ -31,6 +31,8 @@ module Graphics.X11.Turtle.Field(
 	addThread
 ) where
 
+import GHC.Conc(closeFdWith)
+
 import Graphics.X11(
 	Display, Window, Pixmap, Atom, GC, Point(..), Dimension, Position, Pixel,
 
@@ -74,7 +76,7 @@ import Control.Monad.Tools(doWhile_, whenM, unlessM)
 import Control.Arrow((***))
 import Control.Concurrent(
 	forkIO, ThreadId, Chan, newChan, writeChan, readChan, threadWaitRead,
-	killThread)
+	killThread, threadDelay)
 
 import System.Posix.Types
 import System.Locale.SetLocale
@@ -204,7 +206,8 @@ runLoop ic f = allocaXEvent $ \e -> do
 			writeChan (fEvent f) $ Just ev
 		end <- readChan endc
 		when end $ writeChan (fEvent f) Nothing
-	(>> (closeDisplay (fDisplay f) >> writeChan (fEnd f) ())) $
+--	modifyIORef (fRunning f) (th1 :)
+	(>> (flip closeFdWith (getConnection f) (const $ closeDisplay (fDisplay f)) >> writeChan (fEnd f) ())) $
 		(>> destroyWindow (fDisplay f) (fWindow f)) $ doWhile_ $ do
 		mev <- readChan $ fEvent f
 		case mev of
@@ -278,9 +281,13 @@ getConnection = Fd . connectionNumber . fDisplay
 waitInput :: Field -> IO (Chan Bool)
 waitInput f = do
 	c <- newChan
-	_ <- forkIOX $ forever $ do
-		threadWaitRead $ getConnection f
-		writeChan c False
+	tid <- forkIOX $ doWhile_ $ do
+		closed <- readIORef $ fClosed f
+		if closed then return False else do
+--			threadWaitRead $ getConnection f
+			writeChan c False
+			return True
+	modifyIORef (fRunning f) (tid :)
 	_ <- forkIO $ do
 		readChan $ fClose f
 		writeChan c True
@@ -288,9 +295,10 @@ waitInput f = do
 
 closeField :: Field -> IO ()
 closeField f = do
+	writeIORef (fClosed f) True
+	threadDelay 1000000
 	readIORef (fRunning f) >>= mapM_ killThread
 	writeChan (fClose f) ()
-	writeIORef (fClosed f) True
 
 addThread :: Field -> ThreadId -> IO ()
 addThread f tid = modifyIORef (fRunning f) (tid :)
@@ -334,10 +342,6 @@ writeString l@Layer{layerField = f} fname size clr x y str = do
 	addLayerAction l $ whether
 		(writeStringBuf f fUndoBuf fname size clr x y str)
 		(writeStringBuf f fBG fname size clr x y str)
-{-
-	where
-	clr = RGB (round $ r * 0xff) (round $ g * 0xff) (round $ b * 0xff)
--}
 
 writeStringBuf :: Field -> (Field -> Pixmap) -> String -> Double ->
 	Color -> Double -> Double -> String -> IO ()

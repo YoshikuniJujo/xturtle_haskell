@@ -25,7 +25,7 @@ module Graphics.X11.Turtle.Move (
 ) where
 
 import Graphics.X11.Turtle.State(TurtleState(..))
-import Graphics.X11.Turtle.Field(
+import Graphics.X11.Turtle.Field2(
 	Field, Layer, Character,
 	forkIOX, openField, closeField, flushLayer,
 	addLayer, addCharacter, fieldSize, clearLayer,
