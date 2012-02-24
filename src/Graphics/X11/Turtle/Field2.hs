@@ -25,30 +25,41 @@ module Graphics.X11.Turtle.Field2(
 	addThread
 ) where
 
-import Graphics.X11 hiding (Color, drawLine)
-import Text.XML.YJSVG
+import Graphics.X11.Turtle.X11
+import Graphics.X11.Turtle.Layers
+import Text.XML.YJSVG(Color)
 import Control.Concurrent
+import Data.IORef
+import Control.Arrow
 
 data Field = Field{
-	fDisplay :: Display
+	fDisplay :: Display,
+	fWindow :: Window,
+	fGC :: GC,
+	fCharacters :: IORef [IO ()]
  }
 
 data Layer = Layer
 
-data Character = Character
+data Character = Character{characterField :: Field, characterId :: Int}
 
 openField :: IO Field
 openField = do
+	charsRef <- newIORef []
 	dpy <- openDisplay ""
 	let	scr = defaultScreen dpy
 		black = blackPixel dpy scr
 		white = whitePixel dpy scr
 	root <- rootWindow dpy scr
 	win <- createSimpleWindow dpy root 0 0 100 100 1 black white
+	gc <- createGC dpy win
 	mapWindow dpy win
 	flush dpy
 	return Field{
-		fDisplay = dpy
+		fDisplay = dpy,
+		fWindow = win,
+		fGC = gc,
+		fCharacters = charsRef
 	 }
 
 closeField :: Field -> IO ()
@@ -68,7 +79,10 @@ addLayer :: Field -> IO Layer
 addLayer f = return Layer
 
 addCharacter :: Field -> IO Character
-addCharacter f = return Character
+addCharacter f = do
+	cs <- readIORef $ fCharacters f
+	writeIORef (fCharacters f) (cs ++ [return ()])
+	return Character{characterField = f, characterId = length cs}
 
 drawLine :: Layer -> Double -> Color -> Double -> Double -> Double -> Double -> IO ()
 drawLine l w c x0 y0 x1 y1 = return ()
@@ -77,11 +91,27 @@ writeString :: Layer -> String -> Double -> Color -> Double -> Double -> String 
 writeString l font size c x y str = return ()
 
 drawCharacter :: Character -> Color -> [(Double, Double)] -> IO ()
-drawCharacter c clr sh = return ()
+drawCharacter c@Character{characterField = f} clr sh = do
+	ps <- mapM (convertPos f) sh
+	fillPolygon (fDisplay f) (fWindow f) (fGC f) (map (uncurry Point) ps)
+		nonconvex coordModeOrigin
+	flush $ fDisplay f
+
+{-
+setCharacter :: Character -> IO () -> IO ()
+setCharacter Character{characterField = f, characterId = cid} act = do
+	cs <- readIORef $ fCharacters f
+-}
+
+convertPos :: Field -> (Double, Double) -> IO (Position, Position)
+convertPos f p = do
+	(_, _, _, width, height, _, _) <- getGeometry (fDisplay f) (fWindow f)
+	return $ (round . (+ fromIntegral width / 2) *** round . (+ fromIntegral height / 2) . negate) p
 
 drawCharacterAndLine :: Character -> Color -> [(Double, Double)] -> Double -> Double ->
 	Double -> Double -> Double -> IO ()
-drawCharacterAndLine c clr sh w x0 y0 x1 y1 = return ()
+drawCharacterAndLine c clr sh w x0 y0 x1 y1 = do
+	drawCharacter c clr sh
 
 clearCharacter :: Character -> IO ()
 clearCharacter c = return ()
@@ -108,7 +138,7 @@ onkeypress :: Field -> (Char -> IO Bool) -> IO ()
 onkeypress f act = return ()
 
 forkIOX :: IO () -> IO ThreadId
-forkIOX act = myThreadId
+forkIOX = (initThreads >>) . forkIO
 
 addThread :: Field -> ThreadId -> IO ()
 addThread f tid = return ()

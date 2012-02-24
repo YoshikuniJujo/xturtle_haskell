@@ -140,3 +140,24 @@ undo buffer が必要かもしれない。
 xturtle と yjsvg で採用している座標系が違う。
 それを合わせるかまたは変換する必要がある。
 しかし、
+
+2012.02.24 Fri.
+
+Field を X11 と Layers とに分けようと思う。
+Layers の方はもっと抽象化できるはずだ。
+つまり、Layer を重ねた上に Character を重ねていくということは、
+単純に IO だけの話にできる。
+つまり X 固有の話にする必要がない。
+
+2つの buffer がある。
+undoBuf と bg だ。
+
+addLayer, addCharacter, addLayerAction, setCharacter,
+undoLayer
+といったところだ。
+
+addLayerAction --> redrawCharacter
+setCharacter --> redrawCharacter
+
+Layers :: [[(IO (), IO ())]]
+Characters :: [IO ()]
