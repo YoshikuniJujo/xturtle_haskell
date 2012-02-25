@@ -140,3 +140,12 @@ undo buffer が必要かもしれない。
 xturtle と yjsvg で採用している座標系が違う。
 それを合わせるかまたは変換する必要がある。
 しかし、
+
+2012.02.24 Fri.
+
+Layer と Character の扱いを別 module で定義したい。
+
+addLayer, addCharacter, addLayerAction, setCharacter, undoLayer 等
+
+Layers :: [[(IO (), IO ())]]
+Characters :: [IO ()]

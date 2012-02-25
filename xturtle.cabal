@@ -34,4 +34,5 @@ library
     X11-xft <= 3.1, x11-xim, setlocale, yjsvg >= 0.1.11
   Ghc-options:		-Wall
   Other-modules:	Graphics.X11.Turtle.Field, Graphics.X11.Turtle.Input,
-    Graphics.X11.Turtle.Move, Graphics.X11.Turtle.State, Graphics.X11.Turtle.Shape
+    Graphics.X11.Turtle.Move, Graphics.X11.Turtle.State, Graphics.X11.Turtle.Shape,
+    Graphics.X11.Turtle.Layers

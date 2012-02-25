@@ -61,6 +61,7 @@ import Graphics.X11.Xlib.Extras(Event(..), getEvent)
 import Graphics.X11.Xft
 import Graphics.X11.Xrender
 import Graphics.X11.Xim
+import Graphics.X11.Turtle.Layers
 
 import Data.IORef(IORef, newIORef, readIORef, writeIORef, modifyIORef)
 import Data.Bits((.|.), shift)
