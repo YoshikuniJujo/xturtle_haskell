@@ -1,7 +1,5 @@
 module Graphics.X11.Turtle.Field(
 	Field,
---	Layer,
---	Character,
 
 	L.Layer,
 	L.Character,
@@ -69,7 +67,6 @@ import qualified Graphics.X11.Turtle.Layers as L
 import Data.IORef(IORef, newIORef, readIORef, writeIORef, modifyIORef)
 import Data.Bits((.|.), shift)
 import Data.Convertible(convert)
-import Data.List.Tools(modifyAt, setAt)
 import Data.Bool.Tools(whether)
 import Data.Maybe
 
@@ -100,10 +97,6 @@ data Field = Field{
 
 	fLLayers :: IORef L.Layers,
 
---	fBuffed :: IORef [IO ()],
---	fLayers :: IORef [[Bool -> IO ()]],
---	fCharacters :: IORef [IO ()],
-
 	fWait :: Chan (),
 	fEvent :: Chan (Maybe Event),
 	fClose :: Chan (),
@@ -115,16 +108,6 @@ data Field = Field{
 	fPress :: IORef Bool,
 	fKeypress :: IORef (Char -> IO Bool),
 	fEnd :: Chan ()
- }
-
-data Layer = Layer{
-	layerField :: Field,
-	layerId :: Int
- }
-
-data Character = Character{
-	characterField :: Field,
-	characterId :: Int
  }
 
 openField :: IO Field
@@ -156,9 +139,6 @@ openField = do
 		fevent
 	mapWindow dpy win
 	[widthRef, heightRef] <- mapM newIORef [rWidth, rHeight]
-	buffActions <- newIORef []
-	layerActions <- newIORef []
-	characterActions <- newIORef []
 	wait <- newChan
 	event <- newChan
 	close <- newChan
@@ -232,7 +212,6 @@ runLoop ic f = allocaXEvent $ \e -> do
 					getGeometry (fDisplay f) (fWindow f)
 				writeIORef (fWidth f) width
 				writeIORef (fHeight f) height
---				redrawAll f
 				return True
 			Just (KeyEvent{}) -> do
 				(mstr, mks) <- utf8LookupString ic e
@@ -284,7 +263,6 @@ fieldColor f@Field{fDisplay = dpy} c = do
 	width <- readIORef $ fWidth f
 	height <- readIORef $ fHeight f
 	forM_ bufs $ \bf -> fillRectangle (fDisplay f) bf (fGCBG f) 0 0 width height
---	redrawAll f
 
 getColorPixel :: Display -> Color -> IO Pixel
 getColorPixel _ (RGB r g b) = return $ shift (fromIntegral r) 16 .|.
@@ -366,7 +344,7 @@ writeStringBuf f buf fname size clr x_ y_ str = do
 		visual = defaultVisual dpy scr
 		colormap = defaultColormap dpy scr
 	xftDraw <- xftDrawCreate dpy (buf f) visual colormap
-	xftFont <- xftFontOpen dpy scrN $ fname ++ "-" ++ show (round size :: Int) -- "KochiGothic-20"
+	xftFont <- xftFontOpen dpy scrN $ fname ++ "-" ++ show (round size :: Int)
 	[(x, y)] <- convertPos f [(x_, y_)]
 	withXftColor dpy visual colormap clr $ \c ->
 		xftDrawString xftDraw c xftFont x y str
@@ -428,9 +406,6 @@ forkIOX :: IO () -> IO ThreadId
 forkIOX = (initThreads >>) . forkIO
 
 --------------------------------------------------------------------------------
-
-undoN :: Int
-undoN = 100
 
 addLayerAction :: Field -> L.Layer -> (Bool -> IO ()) -> IO ()
 addLayerAction f l act = do

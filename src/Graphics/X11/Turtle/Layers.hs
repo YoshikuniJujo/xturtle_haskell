@@ -69,7 +69,7 @@ addLayerAction ls l acts@(_, act) = do
 	act
 	clearCharactersAction ls
 	sequence_ $ characters ls
-	if actNum < undoNum ls then do
+	if actNum < undoNum ls then
 			return ls{layers =
 				modifyAt (layers ls) (layerId l) (++ [acts])}
 		else do	fst $ head $ layers ls !! layerId l
