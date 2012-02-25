@@ -19,3 +19,11 @@ Pixmap0 に layer を重ねる。
 cursor を draw する。
 
 動く物を置くための layer と、軌跡を描くための layer とを分けるべきか。
+
+2012.02.25 Sat.
+
+Field module を Layers module に分けたのはうまくいった。
+ただし、flush するべきところでしていない部分がいくつか残っている。
+
+次は Field の refactoring。まだ大きいので、Layers へと移動させるべきものが、
+あるかもしれないし、または、さらにもうひとつ module を作るべきかもしれない。
