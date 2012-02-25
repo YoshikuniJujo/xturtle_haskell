@@ -120,6 +120,7 @@ drawTurtle f c clr sh s d lw (px, py) org = do
 	let sp = map (((+ px) *** (+ py)) . rotatePoint . ((* s) *** (* s))) sh
 	maybe (drawCharacter f c clr sp)
 		(\(x0, y0) -> (drawCharacterAndLine f c clr sp lw x0 y0 px py)) org
+	flushLayer f
 	where
 	rotatePoint (x, y) = let rad = d * 2 * pi in
 		(x * cos rad - y * sin rad, x * sin rad + y * cos rad)
