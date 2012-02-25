@@ -94,9 +94,13 @@ data Field = Field{
 	fBuf :: Pixmap,
 	fWidth :: IORef Dimension,
 	fHeight :: IORef Dimension,
+
+	fLLayers :: IORef L.Layers,
+
 	fBuffed :: IORef [IO ()],
 	fLayers :: IORef [[Bool -> IO ()]],
 	fCharacters :: IORef [IO ()],
+
 	fWait :: Chan (),
 	fEvent :: Chan (Maybe Event),
 	fClose :: Chan (),
@@ -164,6 +168,7 @@ openField = do
 	keypressRef <- newIORef $ const $ return True
 	endRef <- newChan
 	writeChan wait ()
+	fllRef <- newIORef undefined
 	let f = Field{
 		fDisplay = dpy,
 		fWindow = win,
@@ -188,11 +193,20 @@ openField = do
 		fOndrag = ondragRef,
 		fPress = pressRef,
 		fKeypress = keypressRef,
-		fEnd = endRef
+		fEnd = endRef,
+		fLLayers = fllRef
 	 }
 	_ <- forkIOX $ runLoop ic f
 	flushWindow f
-	return f
+	fll <- L.newLayers 50 
+		(winSize f >>= \(width, height) ->
+			copyArea (fDisplay f) (fUndoBuf f) (fBG f) (fGC f) 0 0 width height 0 0)
+		(winSize f >>=
+			uncurry (fillRectangle (fDisplay f) (fUndoBuf f) (fGCBG f) 0 0))
+		(winSize f >>= \(width, height) ->
+			copyArea (fDisplay f) (fBG f) (fBuf f) (fGC f) 0 0 width height 0 0)
+	writeIORef fllRef fll
+	return f{fLLayers = fllRef}
 
 runLoop :: XIC -> Field -> IO ()
 runLoop ic f = allocaXEvent $ \e -> do
