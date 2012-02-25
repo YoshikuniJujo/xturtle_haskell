@@ -120,15 +120,15 @@ newTurtle f = do
 			stateIndex = si,
 			thread = undefined
 		 }
-	tid <- forkIOX $ zipWithM_ (moveTurtle ch l) sts $ tail sts
+	tid <- forkIOX $ zipWithM_ (moveTurtle f ch l) sts $ tail sts
 	addThread f tid
 	shape t "classic"
 	return t{thread = tid}
 
-killTurtle :: Turtle -> IO ()
-killTurtle t = do
-	clearLayer $ layer t
-	clearCharacter $ character t
+killTurtle :: Field -> Turtle -> IO ()
+killTurtle f t = do
+	clearLayer f $ layer t
+	clearCharacter f $ character t
 	killThread $ thread t
 
 hideturtle, showturtle :: Turtle -> IO ()

@@ -1,7 +1,10 @@
 module Graphics.X11.Turtle.Field(
 	Field,
-	Layer,
-	Character,
+--	Layer,
+--	Character,
+
+	L.Layer,
+	L.Character,
 
 	openField,
 	closeField,
@@ -97,9 +100,9 @@ data Field = Field{
 
 	fLLayers :: IORef L.Layers,
 
-	fBuffed :: IORef [IO ()],
-	fLayers :: IORef [[Bool -> IO ()]],
-	fCharacters :: IORef [IO ()],
+--	fBuffed :: IORef [IO ()],
+--	fLayers :: IORef [[Bool -> IO ()]],
+--	fCharacters :: IORef [IO ()],
 
 	fWait :: Chan (),
 	fEvent :: Chan (Maybe Event),
@@ -180,9 +183,11 @@ openField = do
 		fBuf = bufs !! 2,
 		fWidth = widthRef,
 		fHeight = heightRef,
+{-
 		fBuffed = buffActions,
 		fLayers = layerActions,
 		fCharacters = characterActions,
+-}
 		fWait = wait,
 		fEvent = event,
 		fClose = close,
@@ -227,7 +232,7 @@ runLoop ic f = allocaXEvent $ \e -> do
 					getGeometry (fDisplay f) (fWindow f)
 				writeIORef (fWidth f) width
 				writeIORef (fHeight f) height
-				redrawAll f
+--				redrawAll f
 				return True
 			Just (KeyEvent{}) -> do
 				(mstr, mks) <- utf8LookupString ic e
@@ -279,7 +284,7 @@ fieldColor f@Field{fDisplay = dpy} c = do
 	width <- readIORef $ fWidth f
 	height <- readIORef $ fHeight f
 	forM_ bufs $ \bf -> fillRectangle (fDisplay f) bf (fGCBG f) 0 0 width height
-	redrawAll f
+--	redrawAll f
 
 getColorPixel :: Display -> Color -> IO Pixel
 getColorPixel _ (RGB r g b) = return $ shift (fromIntegral r) 16 .|.
@@ -312,45 +317,45 @@ closeField f = do
 addThread :: Field -> ThreadId -> IO ()
 addThread f tid = modifyIORef (fRunning f) (tid :)
 
-flushLayer :: Layer -> IO ()
-flushLayer = flushWindow . layerField
+flushLayer :: Field -> IO ()
+flushLayer = flushWindow
 
-addLayer :: Field -> IO Layer
+addLayer :: Field -> IO L.Layer
 addLayer f = do
-	ls <- readIORef $ fLayers f
-	writeIORef (fLayers f) (ls ++ [[]])
-	modifyIORef (fBuffed f) (++ [return ()])
-	return Layer{layerField = f, layerId = length ls}
+	ls <- readIORef $ fLLayers f
+	let (l, nls) = L.addLayer ls
+	writeIORef (fLLayers f) nls
+	return l
 
-addCharacter :: Field -> IO Character
+addCharacter :: Field -> IO L.Character
 addCharacter f = do
-	cs <- readIORef $ fCharacters f
-	writeIORef (fCharacters f) (cs ++ [return ()])
-	return Character{characterField = f, characterId = length cs}
+	ls <- readIORef $ fLLayers f
+	let (c, nls) = L.addCharacter ls
+	writeIORef (fLLayers f) nls
+	return c
 
 runIfOpened :: Field -> IO a -> IO ()
 runIfOpened f act = do
 	cl <- readIORef $ fClosed f
 	unless cl $ act >> return ()
 
-drawLine ::
-	Layer -> Double -> Color -> Double -> Double -> Double -> Double -> IO ()
-drawLine l@Layer{layerField = f} lw_ clr x1 y1 x2 y2 = runIfOpened f $ do
+drawLine :: Field ->
+	L.Layer -> Double -> Color -> Double -> Double -> Double -> Double -> IO ()
+drawLine f l lw_ clr x1 y1 x2 y2 = runIfOpened f $ do
 	drawLineBuf f lw clr fBG x1 y1 x2 y2
-	addLayerAction l $ whether
+	addLayerAction f l $ whether
 		(drawLineBuf f lw clr fUndoBuf x1 y1 x2 y2)
 		(drawLineBuf f lw clr fBG x1 y1 x2 y2)
 	where
 	lw = round lw_
 
-writeString :: Layer -> String -> Double -> Color ->
+writeString :: Field -> L.Layer -> String -> Double -> Color ->
 	Double -> Double -> String -> IO ()
-writeString l@Layer{layerField = f} fname size clr x y str = do
-	writeStringBuf f fBG fname size clr x y str
-	redrawCharacters f
-	addLayerAction l $ whether
-		(writeStringBuf f fUndoBuf fname size clr x y str)
-		(writeStringBuf f fBG fname size clr x y str)
+writeString f l fname size clr x y str = do
+	ls <- readIORef $fLLayers f
+	nls <- L.addLayerAction ls l (writeStringBuf f fUndoBuf fname size clr x y str,
+		writeStringBuf f fBG fname size clr x y str)
+	writeIORef (fLLayers f) nls
 
 writeStringBuf :: Field -> (Field -> Pixmap) -> String -> Double ->
 	Color -> Double -> Double -> String -> IO ()
@@ -380,43 +385,44 @@ withXftColor dpy visual colormap (RGB r g b) action =
 withXftColor dpy visual colormap (ColorName cn) action =
 	withXftColorName dpy visual colormap cn action
 
-clearCharacter :: Character -> IO ()
-clearCharacter c = runIfOpened (characterField c) $
-	setCharacter c $ return ()
+clearCharacter :: Field -> L.Character -> IO ()
+clearCharacter f c = runIfOpened f $ do
+	ls <- readIORef $ fLLayers f
+	nls <- L.setCharacter ls c $ return ()
+	writeIORef (fLLayers f) nls
 
-drawCharacter :: Character -> Color -> [(Double, Double)] -> IO ()
-drawCharacter c@Character{characterField = f} cl sh =
-	runIfOpened (characterField c) $ setCharacter c $ do
+drawCharacter :: Field -> L.Character -> Color -> [(Double, Double)] -> IO ()
+drawCharacter f c cl sh =
+	runIfOpened f $ setCharacter f c $ do
 		clr <- getColorPixel (fDisplay f) cl
 		setForeground (fDisplay f) (fGC f) clr
-		fillPolygonBuf (characterField c) sh
+		fillPolygonBuf f sh
 
-drawCharacterAndLine ::	Character -> Color -> [(Double, Double)] -> Double ->
+drawCharacterAndLine ::	Field -> L.Character -> Color -> [(Double, Double)] -> Double ->
 	Double -> Double -> Double -> Double -> IO ()
-drawCharacterAndLine c@Character{characterField = f} cl ps lw_ x1 y1 x2 y2 =
-	runIfOpened f $ setCharacter c $ do
+drawCharacterAndLine f c cl ps lw_ x1 y1 x2 y2 =
+	runIfOpened f $ setCharacter f c $ do
 		clr <- getColorPixel (fDisplay f) cl
 		setForeground (fDisplay f) (fGC f) clr
 		fillPolygonBuf f ps >> drawLineBuf f lw cl fBuf x1 y1 x2 y2
 	where
 	lw = round lw_
 
-undoLayer :: Layer -> IO Bool
-undoLayer Layer{layerField = f, layerId = lid} = do
-	ls <- readIORef $ fLayers f
-	if null $ ls !! lid then return False else do
-		writeIORef (fLayers f) $ modifyAt ls lid init
-		redraw f
-		return True
+undoLayer :: Field -> L.Layer -> IO Bool
+undoLayer f l = do
+	ls <- readIORef $ fLLayers f
+	mnls <- L.undoLayer ls l
+	case mnls of
+		Just nls -> do
+			writeIORef (fLLayers f) nls
+			return True
+		Nothing -> return False
 
-clearLayer :: Layer -> IO ()
-clearLayer Layer{layerField = f, layerId = lid} = do
-	ls <- readIORef $ fLayers f
-	writeIORef (fLayers f) $ setAt ls lid []
-	buffed <- readIORef $ fBuffed f
-	writeIORef (fBuffed f) $ setAt buffed lid $ return ()
-	redrawBuf f
-	redraw f
+clearLayer :: Field -> L.Layer -> IO ()
+clearLayer f l = do
+	ls <- readIORef $ fLLayers f
+	nls <- L.clearLayer ls l
+	writeIORef (fLLayers f) nls
 
 forkIOX :: IO () -> IO ThreadId
 forkIOX = (initThreads >>) . forkIO
@@ -426,24 +432,17 @@ forkIOX = (initThreads >>) . forkIO
 undoN :: Int
 undoN = 100
 
-addLayerAction :: Layer -> (Bool -> IO ()) -> IO ()
-addLayerAction Layer{layerField = f, layerId = lid} act = do
-	ls <- readIORef $ fLayers f
-	if length (ls !! lid) > undoN
-		then do	head (ls !! lid) True
-			buffed <- readIORef $ fBuffed f
-			writeIORef (fBuffed f) $ 
-				modifyAt buffed lid (>> head (ls !! lid) True)
-			writeIORef (fLayers f) $
-				modifyAt ls lid $ (++ [act]) . tail
-		else writeIORef (fLayers f) $ modifyAt ls lid (++ [act])
+addLayerAction :: Field -> L.Layer -> (Bool -> IO ()) -> IO ()
+addLayerAction f l act = do
+	ls <- readIORef $ fLLayers f
+	nls <- L.addLayerAction ls l (act True, act False)
+	writeIORef (fLLayers f) nls
 
-setCharacter :: Character -> IO () -> IO ()
-setCharacter Character{characterField = f, characterId = cid} act = do
-	cs <- readIORef $ fCharacters f
-	writeIORef (fCharacters f) $ setAt cs cid act
-	redrawCharacters f
-	flushWindow f
+setCharacter :: Field -> L.Character -> IO () -> IO ()
+setCharacter f c act = do
+	ls <- readIORef $ fLLayers f
+	nls <- L.setCharacter ls c act
+	writeIORef (fLLayers f) nls
 
 fillPolygonBuf :: Field -> [(Double, Double)] -> IO ()
 fillPolygonBuf f ps_ = do
@@ -480,6 +479,7 @@ winSize f = do
 	height <- readIORef $ fHeight f
 	return (width, height)
 
+{-
 redrawAll :: Field -> IO ()
 redrawAll f = do
 	redrawBuf f
@@ -505,6 +505,7 @@ redrawCharacters = withLock $ \f -> do
 	(width, height) <- winSize f
 	copyArea (fDisplay f) (fBG f) (fBuf f) (fGC f) 0 0 width height 0 0
 	readIORef (fCharacters f) >>= sequence_
+-}
 
 flushWindow :: Field -> IO ()
 flushWindow = withLock $ \f -> do

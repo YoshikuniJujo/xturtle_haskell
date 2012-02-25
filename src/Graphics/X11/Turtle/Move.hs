@@ -58,48 +58,48 @@ rotateSpeed = 10000
 dir :: TurtleState -> Double
 dir t = direction t / degrees t
 
-moveTurtle :: Character -> Layer -> TurtleState -> TurtleState -> IO ()
-moveTurtle c l t0 t1 = do
+moveTurtle :: Field -> Character -> Layer -> TurtleState -> TurtleState -> IO ()
+moveTurtle f c l t0 t1 = do
 	when (undo t1 && isJust (draw t0)) $ do
-		done <- undoLayer l
-		unless done $ clearLayer l >> drawLines l (drawed t1)
-	when (undo t1 && clear t0) $ drawLines l $ drawed t1
+		done <- undoLayer f l
+		unless done $ clearLayer f l >> drawLines f l (drawed t1)
+	when (undo t1 && clear t0) $ drawLines f l $ drawed t1
 	when (visible t1) $ do
 		forM_ (getDirections (dir t0) (dir t1)) $ \d -> do
-			drawTurtle c (pencolor t1) (shape t1) (shapesize t1) d
+			drawTurtle f c (pencolor t1) (shape t1) (shapesize t1) d
 				(pensize t1) p0 Nothing
 			threadDelay rotateSpeed
 		forM_ (getPositions x0 y0 x1 y1) $ \p -> do
-			drawTurtle c (pencolor t1) (shape t1) (shapesize t1)
+			drawTurtle f c (pencolor t1) (shape t1) (shapesize t1)
 				(dir t1) (pensize t1) p lineOrigin
 			threadDelay moveSpeed
-		drawTurtle c (pencolor t1) (shape t1) (shapesize t1) (dir t1)
+		drawTurtle f c (pencolor t1) (shape t1) (shapesize t1) (dir t1)
 			(pensize t1) p1 lineOrigin
-	unless (visible t1) $ clearCharacter c
-	when (clear t1) $ clearLayer l >> flushLayer l
-	unless (undo t1) $ drawDraw l (draw t1) >> flushLayer l
+	unless (visible t1) $ clearCharacter f c
+	when (clear t1) $ clearLayer f l >> flushLayer f
+	unless (undo t1) $ drawDraw f l (draw t1) >> flushLayer f
 	where
 	(tl, to) = if undo t1 then (t0, t1) else (t1, t0)
 	lineOrigin = if pendown tl then Just $ position to else Nothing
 	p0@(x0, y0) = position t0
 	p1@(x1, y1) = position t1
 
-drawLines :: Layer -> [SVG] -> IO ()
-drawLines l = mapM_ (drawDraw l . Just) . reverse
+drawLines :: Field -> Layer -> [SVG] -> IO ()
+drawLines f l = mapM_ (drawDraw f l . Just) . reverse
 
-drawDraw :: Layer -> Maybe SVG -> IO ()
-drawDraw _ Nothing = return ()
-drawDraw l (Just (Line (Center x0 y0) (Center x1 y1) clr lw)) =
-	drawLine l lw clr x0 y0 x1 y1
+drawDraw :: Field -> Layer -> Maybe SVG -> IO ()
+drawDraw _ _ Nothing = return ()
+drawDraw f l (Just (Line (Center x0 y0) (Center x1 y1) clr lw)) =
+	drawLine f l lw clr x0 y0 x1 y1
 -- drawDraw l (Line clr lw (x0, y0) (x1, y1)) = drawLine l lw (clr) x0 y0 x1 y1
-drawDraw l (Just (Text (Center x y) sz clr fnt str)) =
+drawDraw f l (Just (Text (Center x y) sz clr fnt str)) =
 -- drawDraw l (Just (Text clr fnt sz (x, y) str)) =
-	writeString l fnt sz clr x y str
+	writeString f l fnt sz clr x y str
 {-
 	where
 	[r, g, b] = map ((/ 0xff) . fromIntegral) [r_, g_, b_]
 -}
-drawDraw _ _ = error "not implemented"
+drawDraw _ _ _ = error "not implemented"
 
 getPositions :: Double -> Double -> Double -> Double -> [Pos]
 getPositions x0 y0 x1 y1 = take num $ zip [x0, x0 + dx .. ] [y0, y0 + dy .. ]
@@ -114,12 +114,12 @@ getDirections ds de = [ds, ds + dd .. de - dd]
 	where
 	dd = if de > ds then stepDir else - stepDir
 
-drawTurtle :: Character -> Color -> [Pos] -> Double -> Double -> Double ->
+drawTurtle :: Field -> Character -> Color -> [Pos] -> Double -> Double -> Double ->
 	Pos -> Maybe Pos -> IO ()
-drawTurtle c clr sh s d lw (px, py) org = do
+drawTurtle f c clr sh s d lw (px, py) org = do
 	let sp = map (((+ px) *** (+ py)) . rotatePoint . ((* s) *** (* s))) sh
-	maybe (drawCharacter c clr sp)
-		(\(x0, y0) -> (drawCharacterAndLine c clr sp lw x0 y0 px py)) org
+	maybe (drawCharacter f c clr sp)
+		(\(x0, y0) -> (drawCharacterAndLine f c clr sp lw x0 y0 px py)) org
 	where
 	rotatePoint (x, y) = let rad = d * 2 * pi in
 		(x * cos rad - y * sin rad, x * sin rad + y * cos rad)
