@@ -49,8 +49,8 @@ import Graphics.X11.Turtle.Layers(redrawLayers)
 import Data.Convertible(convert)
 import Data.Maybe
 
-import Control.Monad(forever, replicateM_, when)
-import Control.Monad.Tools(doWhile_, whenM, unlessM)
+import Control.Monad(forever, replicateM_, when, replicateM, unless)
+import Control.Monad.Tools(doWhile_, whenM, unlessM, ifM)
 import Control.Concurrent(
 	forkIO, ThreadId, Chan, newChan, writeChan, readChan, threadWaitRead,
 	killThread)
@@ -90,39 +90,47 @@ waitInput f t = do
 	where
 	getConnection = Fd . connectionNumber . fDisplay
 
-makeInput :: Field -> XEventPtr -> Chan Bool -> Chan () -> IO ThreadId
-makeInput f e endc t = do
-	forkIOX $ forever $ do
+makeInput :: Field -> XIC -> XEventPtr -> Chan Bool -> Chan () -> IO ()
+makeInput f ic e endc t = do
+--	forkIOX $ forever $ do
+	doWhile_ $ do
 		end <- readChan endc
 		evN <- pending $ fDisplay f
-		replicateM_ (fromIntegral evN) $ do
+		conts <- replicateM (fromIntegral evN) $ do
 --			putStrLn "before nextEvent"
 			nextEvent (fDisplay f) e
-			unlessM (filterEvent e 0) $ do
+			ifM (filterEvent e 0) (do
 				ev <- getEvent e
-				writeChan (fEvent f) $ Just ev
-		when end $ writeChan (fEvent f) Nothing
+				eventFun f ic e ev)
+--				writeChan (fEvent f) $ Just ev)
+				(return True)
 		writeChan t ()
+		unless (not end && and conts) $
+			readIORef (fRunning f) >>= mapM_ killThread
+		return $ not end && and conts -- writeChan (fEvent f) Nothing
 
 runLoop :: XIC -> Field -> IO ()
 runLoop ic f = allocaXEvent $ \e -> do
 	timing <- newChan
 	endc <- waitInput f timing
-	th1 <- makeInput f e endc timing
+	th1 <- makeInput f ic e endc timing
+{-
 	doWhile_ $ do
 		mev <- readChan $ fEvent f
-		case mev of
-			Just (ExposeEvent{}) -> exposeFun f
-			Just (KeyEvent{}) -> keyFun f ic e
-			Just ev@ButtonEvent{} -> buttonFun f ev
-			Just ev@MotionEvent{} -> motionFun f ev
-			Just ev@ClientMessageEvent{} ->
-				return $ convert (head $ ev_data ev) /= fDel f
-			Nothing -> killThread th1 >> return False
-			_ -> return True
+		maybe (killThread th1 >> return False) (eventFun f ic e) mev
+-}
 	destroyWindow (fDisplay f) (fWindow f)
 	closeDisplay $ fDisplay f
 	writeChan (fEnd f) ()
+
+eventFun :: Field -> XIC -> XEventPtr -> Event -> IO Bool
+eventFun f ic e ev = case ev of
+	ExposeEvent{} -> exposeFun f
+	KeyEvent{} -> keyFun f ic e
+	ButtonEvent{} -> buttonFun f ev
+	MotionEvent{} -> motionFun f ev
+	ClientMessageEvent{} -> return $ convert (head $ ev_data ev) /= fDel f
+	_ -> return True
 
 exposeFun :: Field -> IO Bool
 exposeFun f = do
