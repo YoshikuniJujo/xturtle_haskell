@@ -94,7 +94,7 @@ addLayer_ ls =
 		ls{layers = layers ls ++ [[]], buffed = buffed ls ++ [return ()]})
 
 addLayerAction :: Layer -> (IO (), IO ()) -> IO ()
-addLayerAction Layer{layerId = lid, layerLayers = rls} acts = withLock2 $ do
+addLayerAction Layer{layerId = lid, layerLayers = rls} acts = withLock2 $
 	readIORef rls >>= flip withLock (\ls -> do
 		nls <- addLayerAction_ ls lid acts
 		writeIORef rls nls)
@@ -116,7 +116,7 @@ addLayerAction_ ls l acts@(_, act) = do
 					(>> fst (head $ layers ls !! l))}
 
 undoLayer :: Layer -> IO Bool
-undoLayer Layer{layerId = lid, layerLayers = rls} = withLock2 $ do
+undoLayer Layer{layerId = lid, layerLayers = rls} = withLock2 $
 	readIORef rls >>= flip withLock (\ls -> do
 		mnls <- undoLayer_ ls lid
 		maybe (return False)
@@ -162,7 +162,7 @@ addCharacter_ ls =
 		ls{characters = characters ls ++ [return ()]})
 
 setCharacter :: Character -> IO () -> IO ()
-setCharacter Character{characterId = cid, characterLayers = rls} act = withLock2 $ do
+setCharacter Character{characterId = cid, characterLayers = rls} act = withLock2 $
 	readIORef rls >>= flip withLock (\ls -> do
 	nls <- setCharacter_ ls cid act
 	writeIORef rls nls
