@@ -1,27 +1,22 @@
 module Graphics.X11.Turtle.Layers(
 	Layers,
-	LayerRef,
-	CharacterRef,
+	Layer,
+	Character,
 	
-	newLayersRef,
-	addLayerRef,
-	addCharacterRef,
+	newLayers,
+	addLayer,
+	addCharacter,
 
-	addLayerActionRef,
-	undoLayerRef,
-	clearLayerRef,
-	setCharacterRef,
+	addLayerAction,
+	undoLayer,
+	clearLayer,
+	setCharacter,
 ) where
 
-import System.IO.Unsafe
 import Data.IORef
 import Data.List.Tools
 
-layersNum :: IORef Int
-layersNum = unsafePerformIO $ newIORef 0
-
 data Layers = Layers{
-	layersId :: Int,
 	undoNum :: Int,
 	undoLayersAction :: IO (),
 	clearLayersAction :: IO (),
@@ -31,17 +26,14 @@ data Layers = Layers{
 	characters :: [IO ()]
  }
 
-newLayersRef :: Int -> IO () -> IO () -> IO () -> IO (IORef Layers)
-newLayersRef un ula cla cca = do
-	ls <- newLayers un ula cla cca
+newLayers :: Int -> IO () -> IO () -> IO () -> IO (IORef Layers)
+newLayers un ula cla cca = do
+	ls <- newLayers_ un ula cla cca
 	newIORef ls
 
-newLayers :: Int -> IO () -> IO () -> IO () -> IO Layers
-newLayers un ula cla cca = do
-	i <- readIORef layersNum
-	writeIORef layersNum (i + 1)
+newLayers_ :: Int -> IO () -> IO () -> IO () -> IO Layers
+newLayers_ un ula cla cca = do
 	return Layers{
-		layersId = i,
 		undoNum = un,
 		undoLayersAction = ula,
 		clearLayersAction = cla,
@@ -51,115 +43,101 @@ newLayers un ula cla cca = do
 		characters = []
 	 }
 
-data LayerRef = LayerRef{
-	layerRefId :: Int,
-	layerLayersRef :: IORef Layers
- }
-
-data CharacterRef = CharacterRef{
-	characterRefId :: Int,
-	characterLayersRef :: IORef Layers
- }
-
 data Layer = Layer{
-	layerId :: Int
---	layerLayers :: Int
+	layerId :: Int,
+	layerLayers :: IORef Layers
  }
 
 data Character = Character{
-	characterId :: Int
---	characterLayers :: Int
+	characterId :: Int,
+	characterLayers :: IORef Layers
  }
 
-addLayerRef :: IORef Layers -> IO LayerRef
-addLayerRef rls = do
+addLayer :: IORef Layers -> IO Layer
+addLayer rls = do
 	ls <- readIORef rls
-	let	(Layer{layerId = lid}, nls) = addLayer ls
+	let	(lid, nls) = addLayer_ ls
 	writeIORef rls nls
-	return LayerRef{layerRefId = lid, layerLayersRef = rls}
+	return Layer{layerId = lid, layerLayers = rls}
 
-addLayer :: Layers -> (Layer, Layers)
-addLayer ls =
-	(Layer{layerId = length $ layers ls}, -- , layerLayers = layersId ls},
+addLayer_ :: Layers -> (Int, Layers)
+addLayer_ ls =
+	(length $ layers ls,
 		ls{layers = layers ls ++ [[]], buffed = buffed ls ++ [return ()]})
 
-addLayerActionRef :: LayerRef -> (IO (), IO ()) -> IO ()
-addLayerActionRef LayerRef{layerRefId = lid, layerLayersRef = rls} acts = do
+addLayerAction :: Layer -> (IO (), IO ()) -> IO ()
+addLayerAction Layer{layerId = lid, layerLayers = rls} acts = do
 	ls <- readIORef rls
-	nls <- addLayerAction ls Layer{layerId = lid} acts
+	nls <- addLayerAction_ ls lid acts
 	writeIORef rls nls
 
-addLayerAction :: Layers -> Layer -> (IO (), IO ()) -> IO Layers
-addLayerAction ls l acts@(_, act) = do
---	when (layersId ls /= layerLayers l) $ error "layer and layers not matched"
-	let actNum = length $ layers ls !! layerId l
+addLayerAction_ :: Layers -> Int -> (IO (), IO ()) -> IO Layers
+addLayerAction_ ls l acts@(_, act) = do
+	let actNum = length $ layers ls !! l
 	act
 	clearCharactersAction ls
 	sequence_ $ characters ls
 	if actNum < undoNum ls then
 			return ls{layers =
-				modifyAt (layers ls) (layerId l) (++ [acts])}
-		else do	fst $ head $ layers ls !! layerId l
+				modifyAt (layers ls) l (++ [acts])}
+		else do	fst $ head $ layers ls !! l
 			return ls{
-				layers = modifyAt (layers ls) (layerId l)
+				layers = modifyAt (layers ls) l
 					((++ [acts]) . tail),
-				buffed = modifyAt (buffed ls) (layerId l)
-					(>> fst (head $ layers ls !! layerId l))}
+				buffed = modifyAt (buffed ls) l
+					(>> fst (head $ layers ls !! l))}
 
-undoLayerRef :: LayerRef -> IO Bool
-undoLayerRef LayerRef{layerRefId = lid, layerLayersRef = rls} = do
+undoLayer :: Layer -> IO Bool
+undoLayer Layer{layerId = lid, layerLayers = rls} = do
 	ls <- readIORef rls
-	mnls <- undoLayer ls Layer{layerId = lid}
+	mnls <- undoLayer_ ls lid
 	maybe (return False) ((>> return True) . writeIORef rls) mnls
 
-undoLayer :: Layers -> Layer -> IO (Maybe Layers)
-undoLayer ls l =
-	if null $ layers ls !! layerId l then return Nothing else do
-		let nls = modifyAt (layers ls) (layerId l) init
+undoLayer_ :: Layers -> Int -> IO (Maybe Layers)
+undoLayer_ ls l =
+	if null $ layers ls !! l then return Nothing else do
+		let nls = modifyAt (layers ls) l init
 		undoLayersAction ls
 		mapM_ snd $ concat nls
 		return $ Just ls{layers = nls}
 
-clearLayerRef :: LayerRef -> IO ()
-clearLayerRef LayerRef{layerRefId = lid, layerLayersRef = rls} = do
+clearLayer :: Layer -> IO ()
+clearLayer Layer{layerId = lid, layerLayers = rls} = do
 	ls <- readIORef rls
-	nls <- clearLayer ls Layer{layerId = lid}
+	nls <- clearLayer_ ls lid
 	writeIORef rls nls
 
-clearLayer :: Layers -> Layer -> IO Layers
-clearLayer ls l = do
---	when (layersId ls /= layerLayers l) $ error "layer and layers not matched"
-	let	nls = setAt (layers ls) (layerId l) []
-		nbf = setAt (buffed ls) (layerId l) $ return ()
+clearLayer_ :: Layers -> Int -> IO Layers
+clearLayer_ ls l = do
+	let	nls = setAt (layers ls) l []
+		nbf = setAt (buffed ls) l $ return ()
 	clearLayersAction ls
 	sequence_ nbf
 	undoLayersAction ls
 	mapM_ snd $ concat nls
 	return ls{layers = nls, buffed = nbf}
 
-addCharacterRef :: IORef Layers -> IO CharacterRef
-addCharacterRef rls = do
+addCharacter :: IORef Layers -> IO Character
+addCharacter rls = do
 	ls <- readIORef rls
-	let (Character{characterId = cid}, nls) = addCharacter ls
+	let (cid, nls) = addCharacter_ ls
 	writeIORef rls nls
-	return CharacterRef{characterRefId = cid, characterLayersRef = rls}
+	return Character{characterId = cid, characterLayers = rls}
 
-addCharacter :: Layers -> (Character, Layers)
-addCharacter ls =
-	(Character{characterId = length $ characters ls}, -- ,
---			characterLayers = layersId ls},
+addCharacter_ :: Layers -> (Int, Layers)
+addCharacter_ ls =
+	(length $ characters ls,
 		ls{characters = characters ls ++ [return ()]})
 
-setCharacterRef :: CharacterRef -> IO () -> IO ()
-setCharacterRef CharacterRef{characterRefId = cid, characterLayersRef = rls} act = do
+setCharacter :: Character -> IO () -> IO ()
+setCharacter Character{characterId = cid, characterLayers = rls} act = do
 	ls <- readIORef rls
-	nls <- setCharacter ls Character{characterId = cid} act
+	nls <- setCharacter_ ls cid act
 	writeIORef rls nls
 
-setCharacter :: Layers -> Character -> IO () -> IO Layers
-setCharacter ls c act = do
---	when (layersId ls /= characterLayers c) $ error "character and layers not matched"
-	let cs = setAt (characters ls) (characterId c) act
+setCharacter_ :: Layers -> Int -> IO () -> IO Layers
+setCharacter_ ls c act = do
+	let cs = setAt (characters ls) c act
 	clearCharactersAction ls
 	sequence_ cs
 	return ls{characters = cs}

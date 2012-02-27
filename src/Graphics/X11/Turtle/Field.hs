@@ -1,8 +1,8 @@
 module Graphics.X11.Turtle.Field(
 	Field,
 
-	LayerRef,
-	CharacterRef,
+	Layer,
+	Character,
 
 	openField,
 	closeField,
@@ -62,10 +62,10 @@ import Graphics.X11.Xlib.Extras(Event(..), getEvent)
 import Graphics.X11.Xft
 import Graphics.X11.Xrender
 import Graphics.X11.Xim
-import Graphics.X11.Turtle.Layers(
-	Layers, LayerRef, CharacterRef, newLayersRef, setCharacterRef, addLayerActionRef)
+import Graphics.X11.Turtle.Layers(undoLayer, clearLayer,
+	Layers, Layer, Character, newLayers, setCharacter, addLayerAction)
 import qualified Graphics.X11.Turtle.Layers as L(
-	addLayerRef, addCharacterRef, clearLayerRef, undoLayerRef)
+	addLayer, addCharacter)
 
 import Data.IORef(IORef, newIORef, readIORef, writeIORef, modifyIORef)
 import Data.Bits((.|.), shift)
@@ -180,7 +180,7 @@ openField = do
 	 }
 	_ <- forkIOX $ runLoop ic f
 	flushWindow f
-	fll <- newLayersRef 50 
+	fll <- newLayers 50 
 		(winSize f >>= \(width, height) ->
 			copyArea (fDisplay f) (fUndoBuf f) (fBG f) (fGC f) 0 0 width height 0 0)
 		(winSize f >>=
@@ -295,11 +295,11 @@ addThread f tid = modifyIORef (fRunning f) (tid :)
 flushLayer :: Field -> IO ()
 flushLayer = flushWindow
 
-addLayer :: Field -> IO LayerRef
-addLayer = L.addLayerRef . fLLayers
+addLayer :: Field -> IO Layer
+addLayer = L.addLayer . fLLayers
 
-addCharacter :: Field -> IO CharacterRef
-addCharacter = L.addCharacterRef . fLLayers
+addCharacter :: Field -> IO Character
+addCharacter = L.addCharacter . fLLayers
 
 runIfOpened :: Field -> IO a -> IO ()
 runIfOpened f act = do
@@ -307,17 +307,17 @@ runIfOpened f act = do
 	unless cl $ act >> return ()
 
 drawLine :: Field ->
-	LayerRef -> Double -> Color -> Double -> Double -> Double -> Double -> IO ()
+	Layer -> Double -> Color -> Double -> Double -> Double -> Double -> IO ()
 drawLine f l lw_ clr x1 y1 x2 y2 = runIfOpened f $ -- withFLLayers f $ \ls ->
-	addLayerActionRef l (drawLineBuf f lw clr fUndoBuf x1 y1 x2 y2,
+	addLayerAction l (drawLineBuf f lw clr fUndoBuf x1 y1 x2 y2,
 		drawLineBuf f lw clr fBG x1 y1 x2 y2)
 	where
 	lw = round lw_
 
-writeString :: Field -> LayerRef -> String -> Double -> Color ->
+writeString :: Field -> Layer -> String -> Double -> Color ->
 	Double -> Double -> String -> IO ()
 writeString f l fname size clr x y str = -- withFLLayers f $ \ls ->
-	addLayerActionRef l (writeStringBuf f fUndoBuf fname size clr x y str,
+	addLayerAction l (writeStringBuf f fUndoBuf fname size clr x y str,
 		writeStringBuf f fBG fname size clr x y str)
 
 writeStringBuf :: Field -> (Field -> Pixmap) -> String -> Double ->
@@ -348,32 +348,26 @@ withXftColor dpy visual colormap (RGB r g b) action =
 withXftColor dpy visual colormap (ColorName cn) action =
 	withXftColorName dpy visual colormap cn action
 
-clearCharacter :: Field -> CharacterRef -> IO ()
+clearCharacter :: Field -> Character -> IO ()
 clearCharacter f c = runIfOpened f $ -- withFLLayers f $ \ls ->
-	setCharacterRef c $ return ()
+	setCharacter c $ return ()
 
-drawCharacter :: Field -> CharacterRef -> Color -> [(Double, Double)] -> IO ()
+drawCharacter :: Field -> Character -> Color -> [(Double, Double)] -> IO ()
 drawCharacter f c cl sh = runIfOpened f $
-	setCharacterRef c $ do
+	setCharacter c $ do
 	clr <- getColorPixel (fDisplay f) cl
 	setForeground (fDisplay f) (fGC f) clr
 	fillPolygonBuf f sh
 
-drawCharacterAndLine ::	Field -> CharacterRef -> Color -> [(Double, Double)] -> Double ->
+drawCharacterAndLine ::	Field -> Character -> Color -> [(Double, Double)] -> Double ->
 	Double -> Double -> Double -> Double -> IO ()
 drawCharacterAndLine f c cl ps lw x1 y1 x2 y2 =
 	runIfOpened f $ -- withFLLayers f $ \ls -> do
-		setCharacterRef c $ do
+		setCharacter c $ do
 		clr <- getColorPixel (fDisplay f) cl
 		setForeground (fDisplay f) (fGC f) clr
 		fillPolygonBuf f ps >>
 			drawLineBuf f (round lw) cl fBuf x1 y1 x2 y2
-
-undoLayer :: LayerRef -> IO Bool
-undoLayer = L.undoLayerRef
-
-clearLayer :: LayerRef -> IO ()
-clearLayer = L.clearLayerRef
 
 forkIOX :: IO () -> IO ThreadId
 forkIOX = (initThreads >>) . forkIO

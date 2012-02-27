@@ -1,7 +1,7 @@
 module Graphics.X11.Turtle.Move (
 	Field,
-	LayerRef,
-	CharacterRef,
+	Layer,
+	Character,
 
 	forkIOX,
 	openField,
@@ -26,7 +26,7 @@ module Graphics.X11.Turtle.Move (
 
 import Graphics.X11.Turtle.State(TurtleState(..))
 import Graphics.X11.Turtle.Field(
-	Field, LayerRef, CharacterRef,
+	Field, Layer, Character,
 	forkIOX, openField, closeField, flushLayer,
 	addLayer, addCharacter, fieldSize, clearLayer,
 	drawCharacter, drawCharacterAndLine, undoLayer,
@@ -58,7 +58,7 @@ rotateSpeed = 10000
 dir :: TurtleState -> Double
 dir t = direction t / degrees t
 
-moveTurtle :: Field -> CharacterRef -> LayerRef -> TurtleState -> TurtleState -> IO ()
+moveTurtle :: Field -> Character -> Layer -> TurtleState -> TurtleState -> IO ()
 moveTurtle f c l t0 t1 = do
 	when (undo t1 && isJust (draw t0)) $ do
 		done <- undoLayer l
@@ -84,10 +84,10 @@ moveTurtle f c l t0 t1 = do
 	p0@(x0, y0) = position t0
 	p1@(x1, y1) = position t1
 
-drawLines :: Field -> LayerRef -> [SVG] -> IO ()
+drawLines :: Field -> Layer -> [SVG] -> IO ()
 drawLines f l = mapM_ (drawDraw f l . Just) . reverse
 
-drawDraw :: Field -> LayerRef -> Maybe SVG -> IO ()
+drawDraw :: Field -> Layer -> Maybe SVG -> IO ()
 drawDraw _ _ Nothing = return ()
 drawDraw f l (Just (Line (Center x0 y0) (Center x1 y1) clr lw)) =
 	drawLine f l lw clr x0 y0 x1 y1
@@ -114,7 +114,7 @@ getDirections ds de = [ds, ds + dd .. de - dd]
 	where
 	dd = if de > ds then stepDir else - stepDir
 
-drawTurtle :: Field -> CharacterRef -> Color -> [Pos] -> Double -> Double -> Double ->
+drawTurtle :: Field -> Character -> Color -> [Pos] -> Double -> Double -> Double ->
 	Pos -> Maybe Pos -> IO ()
 drawTurtle f c clr sh s d lw (px, py) org = do
 	let sp = map (((+ px) *** (+ py)) . rotatePoint . ((* s) *** (* s))) sh
