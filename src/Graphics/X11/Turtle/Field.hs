@@ -49,8 +49,8 @@ import Graphics.X11.Turtle.Layers(redrawLayers)
 import Data.Convertible(convert)
 import Data.Maybe
 
-import Control.Monad(forever, replicateM_, when, replicateM, unless)
-import Control.Monad.Tools(doWhile_, whenM, unlessM, ifM)
+import Control.Monad(forever, replicateM, unless)
+import Control.Monad.Tools(doWhile_, whenM, ifM)
 import Control.Concurrent(
 	forkIO, ThreadId, Chan, newChan, writeChan, readChan, threadWaitRead,
 	killThread)
@@ -67,7 +67,7 @@ openField = do
 		return (w, h)
 	fll <- newLayers 50 
 		(size >>= \(w, h) -> copyArea dpy undoBuf bg gc 0 0 w h 0 0)
-		(size >>= \(w, h) -> fillRectangle dpy undoBuf gcBG 0 0 w h)
+		(size >>= uncurry (fillRectangle dpy undoBuf gcBG 0 0))
 		(size >>= \(w, h) -> copyArea dpy bg buf gc 0 0 w h 0 0)
 	f <- initialField dpy win gc gcBG del widthRef heightRef bufs fll
 	_ <- forkIOX $ runLoop ic f
@@ -78,7 +78,6 @@ waitInput :: Field -> Chan () -> IO (Chan Bool)
 waitInput f t = do
 	c <- newChan
 	tid <- forkIOX $ forever $ do
---		putStrLn "before threadWaitRead"
 		threadWaitRead $ getConnection f
 		writeChan c False
 		readChan t
@@ -91,34 +90,25 @@ waitInput f t = do
 	getConnection = Fd . connectionNumber . fDisplay
 
 makeInput :: Field -> XIC -> XEventPtr -> Chan Bool -> Chan () -> IO ()
-makeInput f ic e endc t = do
---	forkIOX $ forever $ do
-	doWhile_ $ do
-		end <- readChan endc
-		evN <- pending $ fDisplay f
-		conts <- replicateM (fromIntegral evN) $ do
---			putStrLn "before nextEvent"
-			nextEvent (fDisplay f) e
-			ifM (filterEvent e 0) (do
-				ev <- getEvent e
-				eventFun f ic e ev)
---				writeChan (fEvent f) $ Just ev)
-				(return True)
-		writeChan t ()
-		unless (not end && and conts) $
-			readIORef (fRunning f) >>= mapM_ killThread
-		return $ not end && and conts -- writeChan (fEvent f) Nothing
+makeInput f ic e endc t = doWhile_ $ do
+	end <- readChan endc
+	evN <- pending $ fDisplay f
+	conts <- replicateM (fromIntegral evN) $ do
+		nextEvent (fDisplay f) e
+		ifM (filterEvent e 0) (do
+			ev <- getEvent e
+			eventFun f ic e ev)
+			(return True)
+	writeChan t ()
+	unless (not end && and conts) $
+		readIORef (fRunning f) >>= mapM_ killThread
+	return $ not end && and conts
 
 runLoop :: XIC -> Field -> IO ()
 runLoop ic f = allocaXEvent $ \e -> do
 	timing <- newChan
 	endc <- waitInput f timing
-	th1 <- makeInput f ic e endc timing
-{-
-	doWhile_ $ do
-		mev <- readChan $ fEvent f
-		maybe (killThread th1 >> return False) (eventFun f ic e) mev
--}
+	makeInput f ic e endc timing
 	destroyWindow (fDisplay f) (fWindow f)
 	closeDisplay $ fDisplay f
 	writeChan (fEnd f) ()
