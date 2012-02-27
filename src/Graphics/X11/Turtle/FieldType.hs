@@ -1,6 +1,26 @@
 module Graphics.X11.Turtle.FieldType(
-	Field(..),
+	Field,
 	initialField,
+
+	fDisplay,
+	fWindow,
+	fGC,
+	fGCBG,
+	fDel,
+	fEnd,
+	fClose,
+	fRunning,
+	fUndoBuf,
+	fBG,
+	fBuf,
+
+	fLayers,
+	fKeypress,
+	fOnclick,
+	fOnrelease,
+	fOndrag,
+	fPress,
+	setWinSize,
 
 	onclick,
 	onrelease,
@@ -72,6 +92,11 @@ onkeypress f = writeIORef $ fKeypress f
 
 addThread :: Field -> ThreadId -> IO ()
 addThread f tid = modifyIORef (fRunning f) (tid :)
+
+setWinSize :: Field -> Dimension -> Dimension -> IO ()
+setWinSize f w h = do
+	writeIORef (fWidth f) w
+	writeIORef (fHeight f) h
 
 winSize :: Field -> IO (Dimension, Dimension)
 winSize f = do

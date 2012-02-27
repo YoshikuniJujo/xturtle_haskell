@@ -128,8 +128,7 @@ eventFun f ic e ev = case ev of
 exposeFun :: Field -> IO Bool
 exposeFun f = do
 	(_, _, _, width, height, _, _) <- getGeometry (fDisplay f) (fWindow f)
-	writeIORef (fWidth f) width
-	writeIORef (fHeight f) height
+	setWinSize f width height
 	redrawLayers $ fLayers f
 	flushWindow f
 	return True
@@ -161,14 +160,81 @@ motionFun f ev = do
 	whenM (readIORef $ fPress f) $ readIORef (fOndrag f) >>= ($ pos) . uncurry
 	return True
 
-forkIOX :: IO () -> IO ThreadId
-forkIOX = (initThreads >>) . forkIO
-
 flushWindow :: Field -> IO ()
 flushWindow = withLock $ \f -> do
 	(width, height) <- winSize f
 	copyArea (fDisplay f) (fBuf f) (fWindow f) (fGC f) 0 0 width height 0 0
 	flush $ fDisplay f
+
+drawLine :: Field ->
+	Layer -> Double -> Color -> Double -> Double -> Double -> Double -> IO ()
+drawLine f l lw clr x1 y1 x2 y2 =
+	addLayerAction l (drawLineBuf f (round lw) clr fUndoBuf x1 y1 x2 y2,
+		drawLineBuf f (round lw) clr fBG x1 y1 x2 y2)
+
+writeString :: Field -> Layer -> String -> Double -> Color ->
+	Double -> Double -> String -> IO ()
+writeString f l fname size clr x y str =
+	addLayerAction l (writeStringBuf f fUndoBuf fname size clr x y str,
+		writeStringBuf f fBG fname size clr x y str)
+
+drawCharacter :: Field -> Character -> Color -> [(Double, Double)] -> IO ()
+drawCharacter f c cl sh = setCharacter c $ do
+	clr <- getColorPixel (fDisplay f) cl
+	setForeground (fDisplay f) (fGC f) clr
+	fillPolygonBuf f sh
+
+drawCharacterAndLine ::	Field -> Character -> Color -> [(Double, Double)] -> Double ->
+	Double -> Double -> Double -> Double -> IO ()
+drawCharacterAndLine f c cl ps lw x1 y1 x2 y2 = setCharacter c $ do
+	clr <- getColorPixel (fDisplay f) cl
+	setForeground (fDisplay f) (fGC f) clr
+	fillPolygonBuf f ps >> drawLineBuf f (round lw) cl fBuf x1 y1 x2 y2
+
+drawLineBuf :: Field -> Int -> Color -> (Field -> Pixmap) ->
+	Double -> Double -> Double -> Double -> IO ()
+drawLineBuf f lw c bf x1_ y1_ x2_ y2_ = do
+	let	dpy = fDisplay f
+		gc = fGC f
+	clr <- getColorPixel dpy c
+	setForeground (fDisplay f) (fGC f) clr
+	setLineAttributes (fDisplay f) (fGC f) (fromIntegral lw) lineSolid capRound joinRound
+	[(x1, y1), (x2, y2)] <- convertPos f [(x1_, y1_), (x2_, y2_)]
+	X.drawLine dpy (bf f) gc x1 y1 x2 y2
+
+fillPolygonBuf :: Field -> [(Double, Double)] -> IO ()
+fillPolygonBuf f ps_ = do
+	ps <- convertPos f ps_
+	fillPolygon (fDisplay f) (fBuf f) (fGC f) (map (uncurry Point) ps)
+		nonconvex coordModeOrigin
+
+fieldColor :: Field -> Color -> IO ()
+fieldColor f c = do
+	let dpy = fDisplay f
+	clr <- getColorPixel dpy c
+	setForeground (fDisplay f) (fGCBG f) clr
+	let bufs = [fUndoBuf f, fBG f, fBuf f]
+	(width, height) <- winSize f
+	forM_ bufs $ \bf -> fillRectangle (fDisplay f) bf (fGCBG f) 0 0 width height
+
+writeStringBuf :: Field -> (Field -> Pixmap) -> String -> Double ->
+	Color -> Double -> Double -> String -> IO ()
+writeStringBuf f buf fname size clr x_ y_ str = do
+	let	dpy = fDisplay f
+		scr = defaultScreen dpy
+		scrN = defaultScreenOfDisplay dpy
+		visual = defaultVisual dpy scr
+		colormap = defaultColormap dpy scr
+	xftDraw <- xftDrawCreate dpy (buf f) visual colormap
+	xftFont <- xftFontOpen dpy scrN $ fname ++ "-" ++ show (round size :: Int)
+	[(x, y)] <- convertPos f [(x_, y_)]
+	withXftColor dpy visual colormap clr $ \c ->
+		xftDrawString xftDraw c xftFont x y str
+
+---------------------------------------------------------------------------
+
+forkIOX :: IO () -> IO ThreadId
+forkIOX = (initThreads >>) . forkIO
 
 openWindow :: IO (Display, Window, GC, GC, [Pixmap], XIC, Atom,
 	IORef Dimension, IORef Dimension)
@@ -202,55 +268,6 @@ openWindow = do
 	[widthRef, heightRef] <- mapM newIORef [rWidth, rHeight]
 	return (dpy, win, gc, gcBG, bufs, ic, del, widthRef, heightRef)
 
-drawLine :: Field ->
-	Layer -> Double -> Color -> Double -> Double -> Double -> Double -> IO ()
-drawLine f l lw clr x1 y1 x2 y2 =
-	addLayerAction l (drawLineBuf f (round lw) clr fUndoBuf x1 y1 x2 y2,
-		drawLineBuf f (round lw) clr fBG x1 y1 x2 y2)
-
-writeString :: Field -> Layer -> String -> Double -> Color ->
-	Double -> Double -> String -> IO ()
-writeString f l fname size clr x y str =
-	addLayerAction l (writeStringBuf f fUndoBuf fname size clr x y str,
-		writeStringBuf f fBG fname size clr x y str)
-
-drawCharacter :: Field -> Character -> Color -> [(Double, Double)] -> IO ()
-drawCharacter f c cl sh = setCharacter c $ do
-	clr <- getColorPixel (fDisplay f) cl
-	setForeground (fDisplay f) (fGC f) clr
-	fillPolygonBuf f sh
-
-drawCharacterAndLine ::	Field -> Character -> Color -> [(Double, Double)] -> Double ->
-	Double -> Double -> Double -> Double -> IO ()
-drawCharacterAndLine f c cl ps lw x1 y1 x2 y2 = setCharacter c $ do
-	clr <- getColorPixel (fDisplay f) cl
-	setForeground (fDisplay f) (fGC f) clr
-	fillPolygonBuf f ps >> drawLineBuf f (round lw) cl fBuf x1 y1 x2 y2
-
-drawLineBuf :: Field -> Int -> Color -> (Field -> Pixmap) ->
-	Double -> Double -> Double -> Double -> IO ()
-drawLineBuf f@Field{fDisplay = dpy, fGC = gc} lw c bf x1_ y1_ x2_ y2_ = do
-	clr <- getColorPixel dpy c
-	setForeground (fDisplay f) (fGC f) clr
-	setLineAttributes (fDisplay f) (fGC f) (fromIntegral lw) lineSolid capRound joinRound
-	[(x1, y1), (x2, y2)] <- convertPos f [(x1_, y1_), (x2_, y2_)]
-	X.drawLine dpy (bf f) gc x1 y1 x2 y2
-
-fillPolygonBuf :: Field -> [(Double, Double)] -> IO ()
-fillPolygonBuf f ps_ = do
-	ps <- convertPos f ps_
-	fillPolygon (fDisplay f) (fBuf f) (fGC f) (map (uncurry Point) ps)
-		nonconvex coordModeOrigin
-
-fieldColor :: Field -> Color -> IO ()
-fieldColor f@Field{fDisplay = dpy} c = do
-	clr <- getColorPixel dpy c
-	setForeground (fDisplay f) (fGCBG f) clr
-	let bufs = [fUndoBuf f, fBG f, fBuf f]
-	width <- readIORef $ fWidth f
-	height <- readIORef $ fHeight f
-	forM_ bufs $ \bf -> fillRectangle (fDisplay f) bf (fGCBG f) 0 0 width height
-
 getColorPixel :: Display -> Color -> IO Pixel
 getColorPixel _ (RGB r g b) = return $ shift (fromIntegral r) 16 .|.
 	shift (fromIntegral g) 8 .|. fromIntegral b
@@ -258,20 +275,6 @@ getColorPixel dpy (ColorName cn) = do
 	let	scr = defaultScreen dpy
 		colormap = defaultColormap dpy scr
 	fmap (X.color_pixel . fst) $ allocNamedColor dpy colormap cn
-
-writeStringBuf :: Field -> (Field -> Pixmap) -> String -> Double ->
-	Color -> Double -> Double -> String -> IO ()
-writeStringBuf f buf fname size clr x_ y_ str = do
-	let	dpy = fDisplay f
-		scr = defaultScreen dpy
-		scrN = defaultScreenOfDisplay dpy
-		visual = defaultVisual dpy scr
-		colormap = defaultColormap dpy scr
-	xftDraw <- xftDrawCreate dpy (buf f) visual colormap
-	xftFont <- xftFontOpen dpy scrN $ fname ++ "-" ++ show (round size :: Int)
-	[(x, y)] <- convertPos f [(x_, y_)]
-	withXftColor dpy visual colormap clr $ \c ->
-		xftDrawString xftDraw c xftFont x y str
 
 withXftColor ::
 	Display -> Visual -> Colormap -> Color -> (XftColor -> IO a) -> IO a
