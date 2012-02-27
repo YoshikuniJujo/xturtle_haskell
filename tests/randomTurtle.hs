@@ -9,6 +9,11 @@ import Data.Word
 main :: IO ()
 main = do
 	putStrLn "testNewTurtle"
+	f <- openField
+	t <- newTurtle f
+	forkIO $ randomTurtle t
+	threadDelay 30000000
+	closeField f
 
 randomWord8 :: IO Word8
 randomWord8 = fmap fromIntegral $ (randomRIO (0, 255) :: IO Int)

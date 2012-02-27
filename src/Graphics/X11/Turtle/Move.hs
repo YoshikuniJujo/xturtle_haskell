@@ -59,29 +59,35 @@ rotateSpeed = 10000
 dir :: TurtleState -> Double
 dir t = direction t / degrees t
 
+lock :: Field -> IO a -> IO a
+lock f = flip withLock2 f . const
+
 moveTurtle :: Field -> Character -> Layer -> TurtleState -> TurtleState -> IO ()
-moveTurtle f c l t0 t1 = flip withLock2 f $ const $ do
-	when (undo t1 && isJust (draw t0)) $ do
+moveTurtle f c l t0 t1 = do
+	when (undo t1 && clear t0) $ lock f $ drawLines f l $ drawed t1
+	when (undo t1 && isJust (draw t0)) $ lock f $ do
 		done <- undoLayer l
 		unless done $ clearLayer l >> drawLines f l (drawed t1)
-	when (undo t1 && clear t0) $ drawLines f l $ drawed t1
+		drawTurtle f c (pencolor t1) (shape t1) (shapesize t1)
+			(dir t1) (pensize t1) (x0, y0) lineOrigin
 	when (visible t1) $ do
-		forM_ (getDirections (dir t0) (dir t1)) $ \d -> do
+		forM_ (getDirections (dir t0) (dir t1)) $ \d -> lock f $ do
 			drawTurtle f c (pencolor t1) (shape t1) (shapesize t1) d
 				(pensize t1) p0 Nothing
 			flushLayer f
 			threadDelay rotateSpeed
-		forM_ (getPositions x0 y0 x1 y1) $ \p -> do
+		forM_ (getPositions x0 y0 x1 y1) $ \p -> lock f $ do
 			drawTurtle f c (pencolor t1) (shape t1) (shapesize t1)
 				(dir t1) (pensize t1) p lineOrigin
 			flushLayer f
 			threadDelay moveSpeed
-		drawTurtle f c (pencolor t1) (shape t1) (shapesize t1) (dir t1)
-			(pensize t1) p1 lineOrigin
+		lock f $ do
+			drawTurtle f c (pencolor t1) (shape t1) (shapesize t1) (dir t1)
+				(pensize t1) p1 lineOrigin
+			flushLayer f
 	unless (visible t1) $ clearCharacter f c
-	when (clear t1) $ clearLayer l -- >> flushLayer f
-	unless (undo t1) $ drawDraw f l (draw t1) -- >> flushLayer f
-	flushLayer f
+	when (clear t1) $ lock f $ clearLayer l >> flushLayer f
+	unless (undo t1) $ lock f $ drawDraw f l (draw t1) >> flushLayer f
 	where
 	(tl, to) = if undo t1 then (t0, t1) else (t1, t0)
 	lineOrigin = if pendown tl then Just $ position to else Nothing
