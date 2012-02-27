@@ -35,7 +35,7 @@ module Graphics.X11.Turtle.Field(
 
 import Data.IORef
 import Graphics.X11(
-	Display, Pixmap, Point(..), Pixel,
+	Display, Pixmap, Point(..), Pixel, Window, GC, Atom, Dimension,
 
 	setLineAttributes, lineSolid, capRound, joinRound,
 
@@ -64,8 +64,6 @@ import Graphics.X11.Xlib.Extras(Event(..), getEvent)
 import Graphics.X11.Xft
 import Graphics.X11.Xrender
 import Graphics.X11.Xim
-import Graphics.X11.Turtle.Layers(undoLayer, clearLayer,
-	Layer, Character, newLayers, setCharacter, addLayerAction)
 import Graphics.X11.Turtle.FieldType
 
 import Data.Bits((.|.), shift)
@@ -85,34 +83,8 @@ import Text.XML.YJSVG(Color(..))
 
 openField :: IO Field
 openField = do
-	_ <- setLocale LC_CTYPE Nothing >>= maybe (error "Can't set locale.") return
-	_ <- initThreads
-	unlessM supportsLocale $ error "Current locale is notSupported."
-	_ <- setLocaleModifiers ""
-	dpy <- openDisplay ""
-	del <- internAtom dpy "WM_DELETE_WINDOW" True
-	let	scr = defaultScreen dpy
-	root <- rootWindow dpy scr
-	(_, _, _, rWidth, rHeight, _, _) <- getGeometry dpy root
-	let	black = blackPixel dpy scr
-		white = whitePixel dpy scr
-		depth = defaultDepth dpy scr
-	bufs@[undoBuf, bg, buf] <-
-		replicateM 3 $ createPixmap dpy root rWidth rHeight depth
-	win <- createSimpleWindow dpy root 0 0 rWidth rHeight 1 black white
-	im <- openIM dpy Nothing Nothing Nothing
-	ic <- createIC im [XIMPreeditNothing, XIMStatusNothing] win
-	fevent <- getICValue ic "filterEvents"
-	[gc, gcBG] <- replicateM 2 $ createGC dpy win
-	setForeground dpy gcBG 0xffffff
-	forM_ bufs $ \bf -> fillRectangle dpy bf gcBG 0 0 rWidth rHeight
-	setWMProtocols dpy win [del]
-	selectInput dpy win $
-		exposureMask .|. keyPressMask .|.
-		buttonPressMask .|. buttonReleaseMask .|. button1MotionMask .|.
-		fevent
-	mapWindow dpy win
-	[widthRef, heightRef] <- mapM newIORef [rWidth, rHeight]
+	(dpy, win, gc, gcBG, bufs@[undoBuf, bg, buf], ic, del, widthRef, heightRef)
+		<- openWindow
 	let size = do
 		w <- readIORef widthRef
 		h <- readIORef heightRef
@@ -295,3 +267,35 @@ withXftColor dpy visual colormap (RGB r g b) action =
 	 }
 withXftColor dpy visual colormap (ColorName cn) action =
 	withXftColorName dpy visual colormap cn action
+
+openWindow :: IO (Display, Window, GC, GC, [Pixmap], XIC, Atom,
+	IORef Dimension, IORef Dimension)
+openWindow = do
+	_ <- setLocale LC_CTYPE Nothing >>= maybe (error "Can't set locale.") return
+	_ <- initThreads
+	unlessM supportsLocale $ error "Current locale is notSupported."
+	_ <- setLocaleModifiers ""
+	dpy <- openDisplay ""
+	del <- internAtom dpy "WM_DELETE_WINDOW" True
+	let	scr = defaultScreen dpy
+	root <- rootWindow dpy scr
+	(_, _, _, rWidth, rHeight, _, _) <- getGeometry dpy root
+	let	black = blackPixel dpy scr
+		white = whitePixel dpy scr
+		depth = defaultDepth dpy scr
+	bufs <- replicateM 3 $ createPixmap dpy root rWidth rHeight depth
+	win <- createSimpleWindow dpy root 0 0 rWidth rHeight 1 black white
+	im <- openIM dpy Nothing Nothing Nothing
+	ic <- createIC im [XIMPreeditNothing, XIMStatusNothing] win
+	fevent <- getICValue ic "filterEvents"
+	[gc, gcBG] <- replicateM 2 $ createGC dpy win
+	setForeground dpy gcBG 0xffffff
+	forM_ bufs $ \bf -> fillRectangle dpy bf gcBG 0 0 rWidth rHeight
+	setWMProtocols dpy win [del]
+	selectInput dpy win $
+		exposureMask .|. keyPressMask .|.
+		buttonPressMask .|. buttonReleaseMask .|. button1MotionMask .|.
+		fevent
+	mapWindow dpy win
+	[widthRef, heightRef] <- mapM newIORef [rWidth, rHeight]
+	return (dpy, win, gc, gcBG, bufs, ic, del, widthRef, heightRef)

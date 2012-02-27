@@ -17,14 +17,18 @@ module Graphics.X11.Turtle.FieldType(
 	closeField,
 	convertPos,
 	convertPosRev,
-	fieldSize
+	fieldSize,
+
+	module Graphics.X11.Turtle.Layers
 ) where
 
 import Data.IORef
 import Control.Concurrent
 import Graphics.X11
 import Graphics.X11.Xlib.Extras
-import Graphics.X11.Turtle.Layers(Layers, Layer, Character, setCharacter)
+import Graphics.X11.Turtle.Layers(
+	Layers, Layer, Character, setCharacter, newLayers, addLayerAction,
+	undoLayer, clearLayer)
 import qualified Graphics.X11.Turtle.Layers as L
 import Foreign.C.Types
 import Control.Arrow((***))
