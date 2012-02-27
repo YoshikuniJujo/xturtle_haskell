@@ -70,7 +70,7 @@ module Graphics.X11.Turtle (
 ) where
 
 import Graphics.X11.Turtle.Move(
-	Field, Layer, Character,
+	Field, LayerRef, CharacterRef,
 	forkIOX, openField, closeField,
 	addCharacter, addLayer, fieldSize, clearLayer, clearCharacter,
 	addThread, fieldColor, onclick, onrelease, ondrag, onkeypress, waitField,
@@ -95,8 +95,8 @@ xturtleVersion = (33, "0.0.15d")
 
 data Turtle = Turtle {
 	field :: Field,
-	layer :: Layer,
-	character :: Character,
+	layer :: LayerRef,
+	character :: CharacterRef,
 	inputChan :: Chan TurtleInput,
 	states :: [TurtleState],
 	inputs :: [TurtleInput],
@@ -127,7 +127,7 @@ newTurtle f = do
 
 killTurtle :: Field -> Turtle -> IO ()
 killTurtle f t = do
-	clearLayer f $ layer t
+	clearLayer $ layer t
 	clearCharacter f $ character t
 	killThread $ thread t
 
