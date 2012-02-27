@@ -35,26 +35,16 @@ module Graphics.X11.Turtle.Field(
 
 import Data.IORef
 import Graphics.X11(
-	Display,
-
-	closeDisplay, flush,
-
-	copyArea,
-	fillRectangle,
-
+	Display, closeDisplay, flush,
+	copyArea, fillRectangle,
 	allocaXEvent, nextEvent, XEventPtr,
-
 	getGeometry, initThreads, connectionNumber, pending, destroyWindow,
-
 	xK_VoidSymbol, buttonPress, buttonRelease
  )
--- import qualified Graphics.X11 as X (drawLine, Color(..))
 import Graphics.X11.Xlib.Extras(Event(..), getEvent)
 import Graphics.X11.Xim
-import Graphics.X11.Turtle.FieldType
 import Graphics.X11.Turtle.FieldTools
 
--- import Data.Bits((.|.), shift)
 import Data.Convertible(convert)
 import Data.Maybe
 
@@ -65,9 +55,6 @@ import Control.Concurrent(
 	killThread)
 
 import System.Posix.Types
--- import System.Locale.SetLocale
-
--- import Text.XML.YJSVG(Color(..))
 
 openField :: IO Field
 openField = do
@@ -168,6 +155,3 @@ nextNotFilteredEvent :: Display -> XEventPtr -> IO ()
 nextNotFilteredEvent dpy e = do
 	nextEvent dpy e
 	whenM (filterEvent e 0) $ nextNotFilteredEvent dpy e
-
---------------------------------------------------------------------------------
-

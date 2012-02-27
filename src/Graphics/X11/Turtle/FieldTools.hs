@@ -4,7 +4,9 @@ module Graphics.X11.Turtle.FieldTools(
 	drawCharacter,
 	drawCharacterAndLine,
 	fieldColor,
-	writeString
+	writeString,
+
+	module Graphics.X11.Turtle.FieldType
 ) where
 
 import Graphics.X11 hiding (Color, drawLine)
