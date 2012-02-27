@@ -1,5 +1,6 @@
 module Graphics.X11.Turtle.Field(
 	Field,
+	withLock2,
 
 	Layer,
 	Character,
@@ -97,9 +98,10 @@ data Field = Field{
 	fWidth :: IORef Dimension,
 	fHeight :: IORef Dimension,
 
-	fLLayers :: IORef Layers,
+	fLayers :: IORef Layers,
 
 	fWait :: Chan (),
+	fWait2 :: Chan (),
 	fEvent :: Chan (Maybe Event),
 	fClose :: Chan (),
 	fClosed :: IORef Bool,
@@ -142,6 +144,7 @@ openField = do
 	mapWindow dpy win
 	[widthRef, heightRef] <- mapM newIORef [rWidth, rHeight]
 	wait <- newChan
+	wait2 <- newChan
 	event <- newChan
 	close <- newChan
 	closed <- newIORef False
@@ -153,6 +156,7 @@ openField = do
 	keypressRef <- newIORef $ const $ return True
 	endRef <- newChan
 	writeChan wait ()
+	writeChan wait2 ()
 	fllRef <- newIORef undefined
 	let f = Field{
 		fDisplay = dpy,
@@ -166,6 +170,7 @@ openField = do
 		fWidth = widthRef,
 		fHeight = heightRef,
 		fWait = wait,
+		fWait2 = wait2,
 		fEvent = event,
 		fClose = close,
 		fClosed = closed,
@@ -176,7 +181,7 @@ openField = do
 		fPress = pressRef,
 		fKeypress = keypressRef,
 		fEnd = endRef,
-		fLLayers = fllRef
+		fLayers = fllRef
 	 }
 	_ <- forkIOX $ runLoop ic f
 	flushWindow f
@@ -187,8 +192,8 @@ openField = do
 			uncurry (fillRectangle (fDisplay f) (fUndoBuf f) (fGCBG f) 0 0))
 		(winSize f >>= \(width, height) ->
 			copyArea (fDisplay f) (fBG f) (fBuf f) (fGC f) 0 0 width height 0 0)
---	writeIORef fllRef fll
-	return f{fLLayers = fll} -- Ref}
+		(flushWindow f)
+	return f{fLayers = fll}
 
 runLoop :: XIC -> Field -> IO ()
 runLoop ic f = allocaXEvent $ \e -> do
@@ -296,10 +301,10 @@ flushLayer :: Field -> IO ()
 flushLayer = flushWindow
 
 addLayer :: Field -> IO Layer
-addLayer = L.addLayer . fLLayers
+addLayer = L.addLayer . fLayers
 
 addCharacter :: Field -> IO Character
-addCharacter = L.addCharacter . fLLayers
+addCharacter = L.addCharacter . fLayers
 
 runIfOpened :: Field -> IO a -> IO ()
 runIfOpened f act = do
@@ -420,6 +425,13 @@ withLock act f = do
 	readChan $ fWait f
 	ret <- act f
 	writeChan (fWait f) ()
+	return ret
+
+withLock2 :: (Field -> IO a) -> Field -> IO a
+withLock2 act f = do
+	readChan $ fWait2 f
+	ret <- act f
+	writeChan (fWait2 f) ()
 	return ret
 
 waitField :: Field -> IO ()

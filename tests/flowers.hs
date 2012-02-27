@@ -4,12 +4,22 @@ import Graphics.X11.Turtle
 import System.Random
 import Control.Monad
 import Control.Concurrent
+import System.Environment
 
 main :: IO ()
 main = do
-	(f, t1, t2) <- twoFlowers
-	replicateM_ 400 $ undo t1 >> undo t2
-	waitField f
+	args <- getArgs
+	case args of
+		[] -> do
+			(f, t1, t2) <- twoFlowers
+			replicateM_ 400 $ undo t1 >> undo t2
+			waitField f
+		["1"] -> do
+			f <- openField
+			t <- newTurtle f
+			flower t 5
+			replicateM_ 400 $ undo t
+			waitField f
 
 qcircle :: Turtle -> Double -> IO ()
 qcircle t s = replicateM_ 9 $ forward t s >> right t 10
