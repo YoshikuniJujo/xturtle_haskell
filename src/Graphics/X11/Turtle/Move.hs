@@ -28,7 +28,7 @@ import Graphics.X11.Turtle.State(TurtleState(..))
 import Graphics.X11.Turtle.Field(
 	withLock2,
 	Field, Layer, Character,
-	forkIOX, openField, closeField, flushLayer,
+	forkIOX, openField, closeField, flushWindow,
 	addLayer, addCharacter, fieldSize, clearLayer,
 	drawCharacter, drawCharacterAndLine, undoLayer,
 	drawLine,
@@ -74,20 +74,20 @@ moveTurtle f c l t0 t1 = do
 		forM_ (getDirections (dir t0) (dir t1)) $ \d -> lock f $ do
 			drawTurtle f c (pencolor t1) (shape t1) (shapesize t1) d
 				(pensize t1) p0 Nothing
-			flushLayer f
+			flushWindow f
 			threadDelay rotateSpeed
 		forM_ (getPositions x0 y0 x1 y1) $ \p -> lock f $ do
 			drawTurtle f c (pencolor t1) (shape t1) (shapesize t1)
 				(dir t1) (pensize t1) p lineOrigin
-			flushLayer f
+			flushWindow f
 			threadDelay moveSpeed
 		lock f $ do
 			drawTurtle f c (pencolor t1) (shape t1) (shapesize t1) (dir t1)
 				(pensize t1) p1 lineOrigin
-			flushLayer f
-	unless (visible t1) $ clearCharacter f c
-	when (clear t1) $ lock f $ clearLayer l >> flushLayer f
-	unless (undo t1) $ lock f $ drawDraw f l (draw t1) >> flushLayer f
+			flushWindow f
+	unless (visible t1) $ clearCharacter c
+	when (clear t1) $ lock f $ clearLayer l >> flushWindow f
+	unless (undo t1) $ lock f $ drawDraw f l (draw t1) >> flushWindow f
 	where
 	(tl, to) = if undo t1 then (t0, t1) else (t1, t0)
 	lineOrigin = if pendown tl then Just $ position to else Nothing
@@ -130,7 +130,6 @@ drawTurtle f c clr sh s d lw (px, py) org = do
 	let sp = map (((+ px) *** (+ py)) . rotatePoint . ((* s) *** (* s))) sh
 	maybe (drawCharacter f c clr sp)
 		(\(x0, y0) -> (drawCharacterAndLine f c clr sp lw x0 y0 px py)) org
---	flushLayer f
 	where
 	rotatePoint (x, y) = let rad = d * 2 * pi in
 		(x * cos rad - y * sin rad, x * sin rad + y * cos rad)

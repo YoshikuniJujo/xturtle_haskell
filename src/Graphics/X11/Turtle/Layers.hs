@@ -43,20 +43,20 @@ data Layers = Layers{
 	undoLayersAction :: IO (),
 	clearLayersAction :: IO (),
 	clearCharactersAction :: IO (),
-	flush :: IO (),
+--	flush :: IO (),
 	buffed :: [IO ()],
 	layers :: [[(IO (), IO ())]],
 	characters :: [IO ()],
 	lock :: Chan ()
  }
 
-newLayers :: Int -> IO () -> IO () -> IO () -> IO () -> IO (IORef Layers)
-newLayers un ula cla cca flsh = do
-	ls <- newLayers_ un ula cla cca flsh
+newLayers :: Int -> IO () -> IO () -> IO () -> IO (IORef Layers)
+newLayers un ula cla cca = do
+	ls <- newLayers_ un ula cla cca
 	newIORef ls
 
-newLayers_ :: Int -> IO () -> IO () -> IO () -> IO () -> IO Layers
-newLayers_ un ula cla cca flsh = do
+newLayers_ :: Int -> IO () -> IO () -> IO () -> IO Layers
+newLayers_ un ula cla cca = do
 	l <- newChan
 	writeChan l ()
 	return Layers{
@@ -64,7 +64,7 @@ newLayers_ un ula cla cca flsh = do
 		undoLayersAction = ula,
 		clearLayersAction = cla,
 		clearCharactersAction = cca,
-		flush = flsh,
+--		flush = flsh,
 		buffed = [],
 		layers = [],
 		characters = [],

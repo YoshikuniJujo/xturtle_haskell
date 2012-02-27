@@ -22,7 +22,7 @@ module Graphics.X11.Turtle.Field(
 
 	undoLayer,
 	clearLayer,
-	flushLayer,
+	flushWindow,
 
 	onclick,
 	onrelease,
@@ -73,7 +73,7 @@ import Data.Bits((.|.), shift)
 import Data.Convertible(convert)
 import Data.Maybe
 
-import Control.Monad(replicateM, forM_, forever, replicateM_, when, unless)
+import Control.Monad(replicateM, forM_, forever, replicateM_, when)
 import Control.Monad.Tools(doWhile_, whenM, unlessM)
 import Control.Arrow((***))
 import Control.Concurrent(
@@ -104,10 +104,9 @@ data Field = Field{
 	fWait2 :: Chan (),
 	fEvent :: Chan (Maybe Event),
 	fClose :: Chan (),
-	fClosed :: IORef Bool,
 	fRunning :: IORef [ThreadId],
 	fOnclick :: IORef (Int -> Double -> Double -> IO Bool),
-	fOnrelease :: IORef (Double -> Double -> IO Bool),
+	fOnrelease :: IORef (Int -> Double -> Double -> IO Bool),
 	fOndrag :: IORef (Double -> Double -> IO ()),
 	fPress :: IORef Bool,
 	fKeypress :: IORef (Char -> IO Bool),
@@ -147,10 +146,9 @@ openField = do
 	wait2 <- newChan
 	event <- newChan
 	close <- newChan
-	closed <- newIORef False
 	running <- newIORef []
 	onclickRef <- newIORef $ const $ const $ const $ return True
-	onreleaseRef <- newIORef $ const $ const $ return True
+	onreleaseRef <- newIORef $ const $ const $ const $ return True
 	ondragRef <- newIORef $ const $ const $ return ()
 	pressRef <- newIORef False
 	keypressRef <- newIORef $ const $ return True
@@ -173,7 +171,6 @@ openField = do
 		fWait2 = wait2,
 		fEvent = event,
 		fClose = close,
-		fClosed = closed,
 		fRunning = running,
 		fOnclick = onclickRef,
 		fOnrelease = onreleaseRef,
@@ -192,7 +189,6 @@ openField = do
 			uncurry (fillRectangle (fDisplay f) (fUndoBuf f) (fGCBG f) 0 0))
 		(winSize f >>= \(width, height) ->
 			copyArea (fDisplay f) (fBG f) (fBuf f) (fGC f) 0 0 width height 0 0)
-		(flushWindow f)
 	return f{fLayers = fll}
 
 runLoop :: XIC -> Field -> IO ()
@@ -226,12 +222,16 @@ runLoop ic f = allocaXEvent $ \e -> do
 					et	| et == buttonPress -> do
 							writeIORef (fPress f) True
 							fun <- readIORef (fOnclick f)
-							uncurry (fun $ fromIntegral $ ev_button ev)
+							uncurry (fun $ fromIntegral
+								$ ev_button ev)
 								pos
 						| et == buttonRelease -> do
 							writeIORef (fPress f) False
-							readIORef (fOnrelease f) >>=
-								($ pos) . uncurry
+							fun <- readIORef
+								(fOnrelease f)
+							uncurry (fun $ fromIntegral 
+								$ ev_button ev)
+								pos
 					_ -> error "not implement event"
 			Just ev@MotionEvent{} -> do
 				pos <- convertPosRev f (ev_x ev) (ev_y ev)
@@ -246,8 +246,7 @@ runLoop ic f = allocaXEvent $ \e -> do
 	closeDisplay $ fDisplay f
 	writeChan (fEnd f) ()
 
-onclick :: Field -> (Int -> Double -> Double -> IO Bool) -> IO ()
-onrelease :: Field -> (Double -> Double -> IO Bool) -> IO ()
+onclick, onrelease :: Field -> (Int -> Double -> Double -> IO Bool) -> IO ()
 onclick f = writeIORef $ fOnclick f
 onrelease f = writeIORef $ fOnrelease f
 
@@ -292,13 +291,9 @@ closeField :: Field -> IO ()
 closeField f = do
 	readIORef (fRunning f) >>= mapM_ killThread
 	writeChan (fClose f) ()
-	writeIORef (fClosed f) True
 
 addThread :: Field -> ThreadId -> IO ()
 addThread f tid = modifyIORef (fRunning f) (tid :)
-
-flushLayer :: Field -> IO ()
-flushLayer = flushWindow
 
 addLayer :: Field -> IO Layer
 addLayer = L.addLayer . fLayers
@@ -306,22 +301,15 @@ addLayer = L.addLayer . fLayers
 addCharacter :: Field -> IO Character
 addCharacter = L.addCharacter . fLayers
 
-runIfOpened :: Field -> IO a -> IO ()
-runIfOpened f act = do
-	cl <- readIORef $ fClosed f
-	unless cl $ act >> return ()
-
 drawLine :: Field ->
 	Layer -> Double -> Color -> Double -> Double -> Double -> Double -> IO ()
-drawLine f l lw_ clr x1 y1 x2 y2 = runIfOpened f $ -- withFLLayers f $ \ls ->
-	addLayerAction l (drawLineBuf f lw clr fUndoBuf x1 y1 x2 y2,
-		drawLineBuf f lw clr fBG x1 y1 x2 y2)
-	where
-	lw = round lw_
+drawLine f l lw clr x1 y1 x2 y2 =
+	addLayerAction l (drawLineBuf f (round lw) clr fUndoBuf x1 y1 x2 y2,
+		drawLineBuf f (round lw) clr fBG x1 y1 x2 y2)
 
 writeString :: Field -> Layer -> String -> Double -> Color ->
 	Double -> Double -> String -> IO ()
-writeString f l fname size clr x y str = -- withFLLayers f $ \ls ->
+writeString f l fname size clr x y str =
 	addLayerAction l (writeStringBuf f fUndoBuf fname size clr x y str,
 		writeStringBuf f fBG fname size clr x y str)
 
@@ -353,26 +341,22 @@ withXftColor dpy visual colormap (RGB r g b) action =
 withXftColor dpy visual colormap (ColorName cn) action =
 	withXftColorName dpy visual colormap cn action
 
-clearCharacter :: Field -> Character -> IO ()
-clearCharacter f c = runIfOpened f $ -- withFLLayers f $ \ls ->
+clearCharacter :: Character -> IO ()
+clearCharacter c =
 	setCharacter c $ return ()
 
 drawCharacter :: Field -> Character -> Color -> [(Double, Double)] -> IO ()
-drawCharacter f c cl sh = runIfOpened f $
-	setCharacter c $ do
+drawCharacter f c cl sh = setCharacter c $ do
 	clr <- getColorPixel (fDisplay f) cl
 	setForeground (fDisplay f) (fGC f) clr
 	fillPolygonBuf f sh
 
 drawCharacterAndLine ::	Field -> Character -> Color -> [(Double, Double)] -> Double ->
 	Double -> Double -> Double -> Double -> IO ()
-drawCharacterAndLine f c cl ps lw x1 y1 x2 y2 =
-	runIfOpened f $ -- withFLLayers f $ \ls -> do
-		setCharacter c $ do
-		clr <- getColorPixel (fDisplay f) cl
-		setForeground (fDisplay f) (fGC f) clr
-		fillPolygonBuf f ps >>
-			drawLineBuf f (round lw) cl fBuf x1 y1 x2 y2
+drawCharacterAndLine f c cl ps lw x1 y1 x2 y2 = setCharacter c $ do
+	clr <- getColorPixel (fDisplay f) cl
+	setForeground (fDisplay f) (fGC f) clr
+	fillPolygonBuf f ps >> drawLineBuf f (round lw) cl fBuf x1 y1 x2 y2
 
 forkIOX :: IO () -> IO ThreadId
 forkIOX = (initThreads >>) . forkIO

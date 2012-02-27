@@ -125,10 +125,10 @@ newTurtle f = do
 	shape t "classic"
 	return t{thread = tid}
 
-killTurtle :: Field -> Turtle -> IO ()
-killTurtle f t = do
+killTurtle :: Turtle -> IO ()
+killTurtle t = do
 	clearLayer $ layer t
-	clearCharacter f $ character t
+	clearCharacter $ character t
 	killThread $ thread t
 
 hideturtle, showturtle :: Turtle -> IO ()
