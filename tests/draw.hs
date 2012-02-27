@@ -15,7 +15,7 @@ main = do
 	bgclr <- newIORef 0
 	f <- openField
 	t <- newTurtle f
-	threadDelay 1000000
+	threadDelay 100000
 	height <- windowHeight t
 	width <- windowWidth t
 	clrT <- newTurtle f

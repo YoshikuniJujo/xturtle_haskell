@@ -28,7 +28,7 @@ import Graphics.X11
 import Graphics.X11.Xlib.Extras
 import Graphics.X11.Turtle.Layers(
 	Layers, Layer, Character, setCharacter, newLayers, addLayerAction,
-	undoLayer, clearLayer)
+	undoLayer, clearLayer, redrawLayers)
 import qualified Graphics.X11.Turtle.Layers as L
 import Foreign.C.Types
 import Control.Arrow((***))
