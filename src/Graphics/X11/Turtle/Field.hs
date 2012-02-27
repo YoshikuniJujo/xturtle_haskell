@@ -35,7 +35,7 @@ module Graphics.X11.Turtle.Field(
 
 import Data.IORef
 import Graphics.X11(
-	Display, closeDisplay, flush,
+	closeDisplay, flush,
 	copyArea, fillRectangle,
 	allocaXEvent, nextEvent, XEventPtr,
 	getGeometry, initThreads, connectionNumber, pending, destroyWindow,
@@ -44,12 +44,13 @@ import Graphics.X11(
 import Graphics.X11.Xlib.Extras(Event(..), getEvent)
 import Graphics.X11.Xim
 import Graphics.X11.Turtle.FieldTools
+import Graphics.X11.Turtle.Layers(redrawLayers)
 
 import Data.Convertible(convert)
 import Data.Maybe
 
 import Control.Monad(forever, replicateM_, when)
-import Control.Monad.Tools(doWhile_, whenM)
+import Control.Monad.Tools(doWhile_, whenM, unlessM)
 import Control.Concurrent(
 	forkIO, ThreadId, Chan, newChan, writeChan, readChan, threadWaitRead,
 	killThread)
@@ -73,53 +74,84 @@ openField = do
 	flushWindow f
 	return f
 
-runLoop :: XIC -> Field -> IO ()
-runLoop ic f = allocaXEvent $ \e -> do
-	endc <- waitInput f
-	th1 <- forkIOX $ forever $ do
+waitInput :: Field -> Chan () -> IO (Chan Bool)
+waitInput f t = do
+	c <- newChan
+	tid <- forkIOX $ forever $ do
+		putStrLn "before threadWaitRead"
+		threadWaitRead $ getConnection f
+		writeChan c False
+		readChan t
+	_ <- forkIO $ do
+		readChan $ fClose f
+		writeChan c True
+	addThread f tid
+	return c
+	where
+	getConnection = Fd . connectionNumber . fDisplay
+
+makeInput :: Field -> XEventPtr -> Chan Bool -> Chan () -> IO ThreadId
+makeInput f e endc t = do
+	forkIOX $ forever $ do
+		end <- readChan endc
 		evN <- pending $ fDisplay f
 		replicateM_ (fromIntegral evN) $ do
-			nextNotFilteredEvent (fDisplay f) e
-			ev <- getEvent e
-			writeChan (fEvent f) $ Just ev
-		end <- readChan endc
+			putStrLn "before nextEvent"
+			nextEvent (fDisplay f) e
+			unlessM (filterEvent e 0) $ do
+				ev <- getEvent e
+				writeChan (fEvent f) $ Just ev
 		when end $ writeChan (fEvent f) Nothing
+		writeChan t ()
+
+exposeFun :: Field -> IO Bool
+exposeFun f = do
+	(_, _, _, width, height, _, _) <- getGeometry (fDisplay f) (fWindow f)
+	writeIORef (fWidth f) width
+	writeIORef (fHeight f) height
+	redrawLayers $ fLayers f
+	flushWindow f
+	return True
+
+keyFun :: Field -> XIC -> XEventPtr -> IO Bool
+keyFun f ic e = do
+	(mstr, mks) <- utf8LookupString ic e
+	let	str = fromMaybe " " mstr
+		_ks = fromMaybe xK_VoidSymbol mks
+	readIORef (fKeypress f) >>= fmap and . ($ str) . mapM
+
+buttonFun :: Field -> Event -> IO Bool
+buttonFun f ev = do
+	pos <- convertPosRev f (ev_x ev) (ev_y ev)
+	case ev_event_type ev of
+		et	| et == buttonPress -> do
+				writeIORef (fPress f) True
+				fun <- readIORef (fOnclick f)
+				uncurry (fun $ fromIntegral $ ev_button ev) pos
+			| et == buttonRelease -> do
+				writeIORef (fPress f) False
+				fun <- readIORef (fOnrelease f)
+				uncurry (fun $ fromIntegral $ ev_button ev) pos
+		_ -> error "not implement event"
+
+motionFun :: Field -> Event -> IO Bool
+motionFun f ev = do
+	pos <- convertPosRev f (ev_x ev) (ev_y ev)
+	whenM (readIORef $ fPress f) $ readIORef (fOndrag f) >>= ($ pos) . uncurry
+	return True
+
+runLoop :: XIC -> Field -> IO ()
+runLoop ic f = allocaXEvent $ \e -> do
+	timing <- newChan
+	endc <- waitInput f timing
+	th1 <- makeInput f e endc timing
 	doWhile_ $ do
 		mev <- readChan $ fEvent f
 		case mev of
-			Just (ExposeEvent{}) -> do
-				(_, _, _, width, height, _, _) <-
-					getGeometry (fDisplay f) (fWindow f)
-				writeIORef (fWidth f) width
-				writeIORef (fHeight f) height
-				return True
-			Just (KeyEvent{}) -> do
-				(mstr, mks) <- utf8LookupString ic e
-				let	str = fromMaybe " " mstr
-					_ks = fromMaybe xK_VoidSymbol mks
-				readIORef (fKeypress f) >>= fmap and . ($ str) . mapM
-			Just ev@ButtonEvent{} -> do
-				pos <- convertPosRev f (ev_x ev) (ev_y ev)
-				case ev_event_type ev of
-					et	| et == buttonPress -> do
-							writeIORef (fPress f) True
-							fun <- readIORef (fOnclick f)
-							uncurry (fun $ fromIntegral
-								$ ev_button ev)
-								pos
-						| et == buttonRelease -> do
-							writeIORef (fPress f) False
-							fun <- readIORef
-								(fOnrelease f)
-							uncurry (fun $ fromIntegral 
-								$ ev_button ev)
-								pos
-					_ -> error "not implement event"
-			Just ev@MotionEvent{} -> do
-				pos <- convertPosRev f (ev_x ev) (ev_y ev)
-				whenM (readIORef $ fPress f) $
-					readIORef (fOndrag f) >>= ($ pos) . uncurry
-				return True
+			Just (ExposeEvent{}) -> exposeFun f
+			Just (KeyEvent{}) -> keyFun f ic e
+			Just ev@ButtonEvent{} -> buttonFun f ev
+			Just ev@MotionEvent{} -> motionFun f ev
 			Just ev@ClientMessageEvent{} ->
 				return $ convert (head $ ev_data ev) /= fDel f
 			Nothing -> killThread th1 >> return False
@@ -127,21 +159,6 @@ runLoop ic f = allocaXEvent $ \e -> do
 	destroyWindow (fDisplay f) (fWindow f)
 	closeDisplay $ fDisplay f
 	writeChan (fEnd f) ()
-
-getConnection :: Field -> Fd
-getConnection = Fd . connectionNumber . fDisplay
-
-waitInput :: Field -> IO (Chan Bool)
-waitInput f = do
-	c <- newChan
-	tid <- forkIOX $ forever $ do
-		threadWaitRead $ getConnection f
-		writeChan c False
-	addThread f tid
-	_ <- forkIO $ do
-		readChan $ fClose f
-		writeChan c True
-	return c
 
 forkIOX :: IO () -> IO ThreadId
 forkIOX = (initThreads >>) . forkIO
@@ -151,8 +168,3 @@ flushWindow = withLock $ \f -> do
 	(width, height) <- winSize f
 	copyArea (fDisplay f) (fBuf f) (fWindow f) (fGC f) 0 0 width height 0 0
 	flush $ fDisplay f
-
-nextNotFilteredEvent :: Display -> XEventPtr -> IO ()
-nextNotFilteredEvent dpy e = do
-	nextEvent dpy e
-	whenM (filterEvent e 0) $ nextNotFilteredEvent dpy e

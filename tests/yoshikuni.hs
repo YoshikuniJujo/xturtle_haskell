@@ -76,7 +76,7 @@ main = do
 		forward t 0
 		penup t
 		return True
-	onrelease f $ \_ _ -> do
+	onrelease f $ \_ _ _ -> do
 		replicateM_ 4 $ undo t
 		return True
 	t2 <- newTurtle f

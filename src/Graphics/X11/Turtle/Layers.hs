@@ -11,6 +11,8 @@ module Graphics.X11.Turtle.Layers(
 	undoLayer,
 	clearLayer,
 	setCharacter,
+
+	redrawLayers
 ) where
 
 import System.IO.Unsafe
@@ -49,6 +51,16 @@ data Layers = Layers{
 	characters :: [IO ()],
 	lock :: Chan ()
  }
+
+redrawLayers :: IORef Layers -> IO ()
+redrawLayers rls = do
+	ls <- readIORef rls
+	clearLayersAction ls
+	sequence_ $ buffed ls
+	undoLayersAction ls
+	mapM_ snd $ concat $ layers ls
+	clearCharactersAction ls
+	sequence_ $ characters ls
 
 newLayers :: Int -> IO () -> IO () -> IO () -> IO (IORef Layers)
 newLayers un ula cla cca = do

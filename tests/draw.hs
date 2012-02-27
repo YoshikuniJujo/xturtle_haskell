@@ -42,7 +42,7 @@ main = do
 			5 -> goto t x y >> modifyIORef clr (+ 1) >> readIORef clr >>=
 				(\c -> pencolor t c >> pencolor clrT c) . (colors !!) >>
 				forward clrT 0 >> return True
-	onrelease f $ \_ _ -> penup t>> return True
+	onrelease f $ \_ _ _ -> penup t>> return True
 	onkeypress f $ \_ -> do
 {-
 		print "hello"
