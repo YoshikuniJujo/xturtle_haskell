@@ -3,6 +3,7 @@ import Graphics.X11.Turtle
 main = do
 	f <- openField
 	onkeypress f $ \c -> do
-		print c
+		putChar c
+		putChar '\n'
 		return $ c /= 'q'
 	waitField f

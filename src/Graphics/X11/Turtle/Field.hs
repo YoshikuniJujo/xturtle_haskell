@@ -50,7 +50,7 @@ import Data.Convertible(convert)
 import Data.Maybe
 
 import Control.Monad(forever, replicateM, unless)
-import Control.Monad.Tools(doWhile_, whenM, ifM)
+import Control.Monad.Tools(doWhile, doWhile_, whenM, ifM)
 import Control.Concurrent(
 	forkIO, ThreadId, Chan, newChan, writeChan, readChan, threadWaitRead,
 	killThread)
@@ -78,6 +78,7 @@ waitInput :: Field -> Chan () -> IO (Chan Bool)
 waitInput f t = do
 	c <- newChan
 	tid <- forkIOX $ forever $ do
+--		putStrLn "before threadWaitRead"
 		threadWaitRead $ getConnection f
 		writeChan c False
 		readChan t
@@ -93,12 +94,26 @@ makeInput :: Field -> XIC -> XEventPtr -> Chan Bool -> Chan () -> IO ()
 makeInput f ic e endc t = doWhile_ $ do
 	end <- readChan endc
 	evN <- pending $ fDisplay f
+	conts <- fmap (: []) $ doWhile True $ \_ -> do
+		evN <- pending $ fDisplay f
+		if evN > 0 then do
+				nextEvent (fDisplay f) e
+				ret <- ifM (filterEvent e 0) (return True) (do
+					ev <- getEvent e
+					eventFun f ic e ev)
+				return (ret, ret)
+			else return (True, False)
+{-
 	conts <- replicateM (fromIntegral evN) $ do
+--		pending (fDisplay f) >>= print
+--		print evN
+--		putStrLn "before nextEvent"
 		nextEvent (fDisplay f) e
-		ifM (filterEvent e 0) (do
+		ifM (filterEvent e 0) (return True) (do
 			ev <- getEvent e
 			eventFun f ic e ev)
-			(return True)
+--			(return True)
+-}
 	writeChan t ()
 	unless (not end && and conts) $
 		readIORef (fRunning f) >>= mapM_ killThread
@@ -133,8 +148,9 @@ exposeFun f = do
 
 keyFun :: Field -> XIC -> XEventPtr -> IO Bool
 keyFun f ic e = do
+--	putStrLn "keyFun"
 	(mstr, mks) <- utf8LookupString ic e
-	let	str = fromMaybe " " mstr
+	let	str = fromMaybe "" mstr
 		_ks = fromMaybe xK_VoidSymbol mks
 	readIORef (fKeypress f) >>= fmap and . ($ str) . mapM
 
