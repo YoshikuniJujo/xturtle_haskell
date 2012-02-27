@@ -35,4 +35,5 @@ library
   Ghc-options:		-Wall
   Other-modules:	Graphics.X11.Turtle.Field, Graphics.X11.Turtle.Input,
     Graphics.X11.Turtle.Move, Graphics.X11.Turtle.State, Graphics.X11.Turtle.Shape,
-    Graphics.X11.Turtle.Layers, Graphics.X11.Turtle.FieldType
+    Graphics.X11.Turtle.Layers, Graphics.X11.Turtle.FieldType,
+    Graphics.X11.Turtle.FieldTools
