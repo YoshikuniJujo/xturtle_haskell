@@ -33,6 +33,7 @@ module Graphics.X11.Turtle.Field(
 	addThread
 ) where
 
+import Data.IORef
 import Graphics.X11(
 	Display, Pixmap, Point(..), Pixel,
 
@@ -67,7 +68,6 @@ import Graphics.X11.Turtle.Layers(undoLayer, clearLayer,
 	Layer, Character, newLayers, setCharacter, addLayerAction)
 import Graphics.X11.Turtle.FieldType
 
-import Data.IORef(newIORef, readIORef, writeIORef)
 import Data.Bits((.|.), shift)
 import Data.Convertible(convert)
 import Data.Maybe
@@ -97,7 +97,8 @@ openField = do
 	let	black = blackPixel dpy scr
 		white = whitePixel dpy scr
 		depth = defaultDepth dpy scr
-	bufs <- replicateM 3 $ createPixmap dpy root rWidth rHeight depth
+	bufs@[undoBuf, bg, buf] <-
+		replicateM 3 $ createPixmap dpy root rWidth rHeight depth
 	win <- createSimpleWindow dpy root 0 0 rWidth rHeight 1 black white
 	im <- openIM dpy Nothing Nothing Nothing
 	ic <- createIC im [XIMPreeditNothing, XIMStatusNothing] win
@@ -112,54 +113,18 @@ openField = do
 		fevent
 	mapWindow dpy win
 	[widthRef, heightRef] <- mapM newIORef [rWidth, rHeight]
-	wait <- newChan
-	wait2 <- newChan
-	event <- newChan
-	close <- newChan
-	running <- newIORef []
-	onclickRef <- newIORef $ const $ const $ const $ return True
-	onreleaseRef <- newIORef $ const $ const $ const $ return True
-	ondragRef <- newIORef $ const $ const $ return ()
-	pressRef <- newIORef False
-	keypressRef <- newIORef $ const $ return True
-	endRef <- newChan
-	writeChan wait ()
-	writeChan wait2 ()
-	fllRef <- newIORef undefined
-	let f = Field{
-		fDisplay = dpy,
-		fWindow = win,
-		fGC = gc,
-		fGCBG = gcBG,
-		fDel = del,
-		fUndoBuf = head bufs,
-		fBG = bufs !! 1,
-		fBuf = bufs !! 2,
-		fWidth = widthRef,
-		fHeight = heightRef,
-		fWait = wait,
-		fWait2 = wait2,
-		fEvent = event,
-		fClose = close,
-		fRunning = running,
-		fOnclick = onclickRef,
-		fOnrelease = onreleaseRef,
-		fOndrag = ondragRef,
-		fPress = pressRef,
-		fKeypress = keypressRef,
-		fEnd = endRef,
-		fLayers = fllRef
-	 }
+	let size = do
+		w <- readIORef widthRef
+		h <- readIORef heightRef
+		return (w, h)
+	fll <- newLayers 50 
+		(size >>= \(w, h) -> copyArea dpy undoBuf bg gc 0 0 w h 0 0)
+		(size >>= \(w, h) -> fillRectangle dpy undoBuf gcBG 0 0 w h)
+		(size >>= \(w, h) -> copyArea dpy bg buf gc 0 0 w h 0 0)
+	f <- initialField dpy win gc gcBG del widthRef heightRef bufs fll
 	_ <- forkIOX $ runLoop ic f
 	flushWindow f
-	fll <- newLayers 50 
-		(winSize f >>= \(width, height) ->
-			copyArea (fDisplay f) (fUndoBuf f) (fBG f) (fGC f) 0 0 width height 0 0)
-		(winSize f >>=
-			uncurry (fillRectangle (fDisplay f) (fUndoBuf f) (fGCBG f) 0 0))
-		(winSize f >>= \(width, height) ->
-			copyArea (fDisplay f) (fBG f) (fBuf f) (fGC f) 0 0 width height 0 0)
-	return f{fLayers = fll}
+	return f
 
 runLoop :: XIC -> Field -> IO ()
 runLoop ic f = allocaXEvent $ \e -> do

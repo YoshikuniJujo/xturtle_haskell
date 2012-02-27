@@ -1,5 +1,6 @@
 module Graphics.X11.Turtle.FieldType(
 	Field(..),
+	initialField,
 
 	onclick,
 	onrelease,
@@ -118,3 +119,44 @@ convertPosRev f x y = do
 
 fieldSize :: Field -> IO (Double, Double)
 fieldSize w = fmap (fromIntegral *** fromIntegral) $ winSize w
+
+initialField :: Display -> Window -> GC -> GC -> Atom ->
+	IORef Dimension -> IORef Dimension -> [Pixmap] -> IORef Layers -> IO Field
+initialField dpy win gc gcBG del widthRef heightRef bufs fll = do
+	wait <- newChan
+	wait2 <- newChan
+	event <- newChan
+	close <- newChan
+	running <- newIORef []
+	onclickRef <- newIORef $ const $ const $ const $ return True
+	onreleaseRef <- newIORef $ const $ const $ const $ return True
+	ondragRef <- newIORef $ const $ const $ return ()
+	pressRef <- newIORef False
+	keypressRef <- newIORef $ const $ return True
+	endRef <- newChan
+	writeChan wait ()
+	writeChan wait2 ()
+	return Field{
+		fDisplay = dpy,
+		fWindow = win,
+		fGC = gc,
+		fGCBG = gcBG,
+		fDel = del,
+		fUndoBuf = head bufs,
+		fBG = bufs !! 1,
+		fBuf = bufs !! 2,
+		fWidth = widthRef,
+		fHeight = heightRef,
+		fWait = wait,
+		fWait2 = wait2,
+		fEvent = event,
+		fClose = close,
+		fRunning = running,
+		fOnclick = onclickRef,
+		fOnrelease = onreleaseRef,
+		fOndrag = ondragRef,
+		fPress = pressRef,
+		fKeypress = keypressRef,
+		fEnd = endRef,
+		fLayers = fll
+	 }
