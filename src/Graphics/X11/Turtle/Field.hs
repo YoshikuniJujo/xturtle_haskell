@@ -49,7 +49,7 @@ import Graphics.X11.Turtle.Layers(redrawLayers)
 import Data.Convertible(convert)
 import Data.Maybe
 
-import Control.Monad(forever, replicateM, unless)
+import Control.Monad(forever, unless)
 import Control.Monad.Tools(doWhile, doWhile_, whenM, ifM)
 import Control.Concurrent(
 	forkIO, ThreadId, Chan, newChan, writeChan, readChan, threadWaitRead,
@@ -78,7 +78,6 @@ waitInput :: Field -> Chan () -> IO (Chan Bool)
 waitInput f t = do
 	c <- newChan
 	tid <- forkIOX $ forever $ do
---		putStrLn "before threadWaitRead"
 		threadWaitRead $ getConnection f
 		writeChan c False
 		readChan t
@@ -93,8 +92,7 @@ waitInput f t = do
 makeInput :: Field -> XIC -> XEventPtr -> Chan Bool -> Chan () -> IO ()
 makeInput f ic e endc t = doWhile_ $ do
 	end <- readChan endc
-	evN <- pending $ fDisplay f
-	conts <- fmap (: []) $ doWhile True $ \_ -> do
+	cont <- doWhile True $ \_ -> do
 		evN <- pending $ fDisplay f
 		if evN > 0 then do
 				nextEvent (fDisplay f) e
@@ -103,21 +101,10 @@ makeInput f ic e endc t = doWhile_ $ do
 					eventFun f ic e ev)
 				return (ret, ret)
 			else return (True, False)
-{-
-	conts <- replicateM (fromIntegral evN) $ do
---		pending (fDisplay f) >>= print
---		print evN
---		putStrLn "before nextEvent"
-		nextEvent (fDisplay f) e
-		ifM (filterEvent e 0) (return True) (do
-			ev <- getEvent e
-			eventFun f ic e ev)
---			(return True)
--}
 	writeChan t ()
-	unless (not end && and conts) $
+	unless (not end && cont) $
 		readIORef (fRunning f) >>= mapM_ killThread
-	return $ not end && and conts
+	return $ not end && cont
 
 runLoop :: XIC -> Field -> IO ()
 runLoop ic f = allocaXEvent $ \e -> do
@@ -148,7 +135,6 @@ exposeFun f = do
 
 keyFun :: Field -> XIC -> XEventPtr -> IO Bool
 keyFun f ic e = do
---	putStrLn "keyFun"
 	(mstr, mks) <- utf8LookupString ic e
 	let	str = fromMaybe "" mstr
 		_ks = fromMaybe xK_VoidSymbol mks
