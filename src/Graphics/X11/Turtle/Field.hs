@@ -134,9 +134,10 @@ getConnection = Fd . connectionNumber . fDisplay
 waitInput :: Field -> IO (Chan Bool)
 waitInput f = do
 	c <- newChan
-	_ <- forkIOX $ forever $ do
+	tid <- forkIOX $ forever $ do
 		threadWaitRead $ getConnection f
 		writeChan c False
+	addThread f tid
 	_ <- forkIO $ do
 		readChan $ fClose f
 		writeChan c True
