@@ -353,7 +353,7 @@ clearCharacter f c = runIfOpened f $ -- withFLLayers f $ \ls ->
 	setCharacterRef c $ return ()
 
 drawCharacter :: Field -> CharacterRef -> Color -> [(Double, Double)] -> IO ()
-drawCharacter f c cl sh = runIfOpened f $ do -- withFLLayers f $ \ls -> do
+drawCharacter f c cl sh = runIfOpened f $
 	setCharacterRef c $ do
 	clr <- getColorPixel (fDisplay f) cl
 	setForeground (fDisplay f) (fGC f) clr
@@ -370,7 +370,7 @@ drawCharacterAndLine f c cl ps lw x1 y1 x2 y2 =
 			drawLineBuf f (round lw) cl fBuf x1 y1 x2 y2
 
 undoLayer :: LayerRef -> IO Bool
-undoLayer l = L.undoLayerRef l
+undoLayer = L.undoLayerRef
 
 clearLayer :: LayerRef -> IO ()
 clearLayer = L.clearLayerRef

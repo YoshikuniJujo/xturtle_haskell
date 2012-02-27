@@ -113,8 +113,7 @@ undoLayerRef LayerRef{layerRefId = lid, layerLayersRef = rls} = do
 	maybe (return False) ((>> return True) . writeIORef rls) mnls
 
 undoLayer :: Layers -> Layer -> IO (Maybe Layers)
-undoLayer ls l = do
---	when (layersId ls /= layerLayers l) $ error "layer and layers not matched"
+undoLayer ls l =
 	if null $ layers ls !! layerId l then return Nothing else do
 		let nls = modifyAt (layers ls) (layerId l) init
 		undoLayersAction ls
