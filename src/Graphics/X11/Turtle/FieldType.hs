@@ -6,8 +6,6 @@ module Graphics.X11.Turtle.FieldType(
 	fWindow,
 	fGC,
 	fGCBG,
-	fDel,
-	fEnd,
 	fClose,
 	fRunning,
 	fUndoBuf,
@@ -20,7 +18,10 @@ module Graphics.X11.Turtle.FieldType(
 	fOnrelease,
 	fOndrag,
 	fPress,
+
 	setWinSize,
+	isWMDelete,
+	informEnd,
 
 	onclick,
 	onrelease,
@@ -52,6 +53,7 @@ import Graphics.X11.Turtle.Layers(
 import qualified Graphics.X11.Turtle.Layers as L
 import Foreign.C.Types
 import Control.Arrow((***))
+import Data.Convertible(convert)
 
 data Field = Field{
 	fDisplay :: Display,
@@ -80,6 +82,9 @@ data Field = Field{
 	fEnd :: Chan ()
  }
 
+isWMDelete :: Field -> Event -> Bool
+isWMDelete f ev = convert (head $ ev_data ev) /= fDel f
+
 onclick, onrelease :: Field -> (Int -> Double -> Double -> IO Bool) -> IO ()
 onclick f = writeIORef $ fOnclick f
 onrelease f = writeIORef $ fOnrelease f
@@ -103,6 +108,9 @@ winSize f = do
 	width <- readIORef $ fWidth f
 	height <- readIORef $ fHeight f
 	return (width, height)
+
+informEnd :: Field -> IO ()
+informEnd = flip writeChan () . fEnd
 
 waitField :: Field -> IO ()
 waitField = readChan . fEnd

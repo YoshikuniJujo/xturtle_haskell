@@ -38,7 +38,6 @@ import Graphics.X11.Xlib.Extras(Event(..), getEvent)
 import Graphics.X11.Xim
 import Graphics.X11.Turtle.FieldType
 
-import Data.Convertible(convert)
 import Data.Maybe
 
 import Control.Concurrent(
@@ -114,7 +113,7 @@ runLoop ic f = allocaXEvent $ \e -> do
 	makeInput f ic e endc timing
 	destroyWindow (fDisplay f) (fWindow f)
 	closeDisplay $ fDisplay f
-	writeChan (fEnd f) ()
+	informEnd f
 
 eventFun :: Field -> XIC -> XEventPtr -> Event -> IO Bool
 eventFun f ic e ev = case ev of
@@ -122,7 +121,7 @@ eventFun f ic e ev = case ev of
 	KeyEvent{} -> keyFun f ic e
 	ButtonEvent{} -> buttonFun f ev
 	MotionEvent{} -> motionFun f ev
-	ClientMessageEvent{} -> return $ convert (head $ ev_data ev) /= fDel f
+	ClientMessageEvent{} -> return $ isWMDelete f ev
 	_ -> return True
 
 exposeFun :: Field -> IO Bool
@@ -194,13 +193,11 @@ drawCharacterAndLine f c cl ps lw x1 y1 x2 y2 = setCharacter c $ do
 drawLineBuf :: Field -> Int -> Color -> (Field -> Pixmap) ->
 	Double -> Double -> Double -> Double -> IO ()
 drawLineBuf f lw c bf x1_ y1_ x2_ y2_ = do
-	let	dpy = fDisplay f
-		gc = fGC f
-	clr <- getColorPixel dpy c
+	clr <- getColorPixel (fDisplay f) c
 	setForeground (fDisplay f) (fGC f) clr
 	setLineAttributes (fDisplay f) (fGC f) (fromIntegral lw) lineSolid capRound joinRound
 	[(x1, y1), (x2, y2)] <- convertPos f [(x1_, y1_), (x2_, y2_)]
-	X.drawLine dpy (bf f) gc x1 y1 x2 y2
+	X.drawLine (fDisplay f) (bf f) (fGC f) x1 y1 x2 y2
 
 fillPolygonBuf :: Field -> [(Double, Double)] -> IO ()
 fillPolygonBuf f ps_ = do
@@ -210,8 +207,7 @@ fillPolygonBuf f ps_ = do
 
 fieldColor :: Field -> Color -> IO ()
 fieldColor f c = do
-	let dpy = fDisplay f
-	clr <- getColorPixel dpy c
+	clr <- getColorPixel (fDisplay f) c
 	setForeground (fDisplay f) (fGCBG f) clr
 	let bufs = [fUndoBuf f, fBG f, fBuf f]
 	(width, height) <- winSize f

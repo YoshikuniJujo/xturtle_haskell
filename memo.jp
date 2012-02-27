@@ -149,3 +149,7 @@ addLayer, addCharacter, addLayerAction, setCharacter, undoLayer 等
 
 Layers :: [[(IO (), IO ())]]
 Characters :: [IO ()]
+
+2012.02.28 Tue.
+
+Layers と FieldType と XTools とを直接、Field に import するようにしたい。

@@ -19,3 +19,4 @@ main = do
 		right t 90
 	replicateM_ 600 $ undo t
 	waitField f
+	putStrLn "end"
