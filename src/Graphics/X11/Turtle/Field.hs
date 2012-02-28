@@ -71,8 +71,8 @@ openField = do
 		h <- readIORef heightRef
 		return (w, h)
 	fll <- newLayers 50 
-		(size >>= \(w, h) -> copyArea dpy undoBuf bg gc 0 0 w h 0 0)
 		(size >>= uncurry (fillRectangle dpy undoBuf gcBG 0 0))
+		(size >>= \(w, h) -> copyArea dpy undoBuf bg gc 0 0 w h 0 0)
 		(size >>= \(w, h) -> copyArea dpy bg buf gc 0 0 w h 0 0)
 	f <- initialField dpy win gc gcBG del widthRef heightRef bufs fll
 	_ <- forkIOX $ runLoop ic f

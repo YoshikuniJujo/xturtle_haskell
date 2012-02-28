@@ -63,7 +63,7 @@ redrawLayers rls = do
 	sequence_ $ characters ls
 
 newLayers :: Int -> IO () -> IO () -> IO () -> IO (IORef Layers)
-newLayers un ula cla cca = do
+newLayers un cla ula cca = do
 	ls <- newLayers_ un ula cla cca
 	newIORef ls
 
@@ -159,6 +159,8 @@ clearLayer_ ls l = do
 	sequence_ nbf
 	undoLayersAction ls
 	mapM_ snd $ concat nls
+	clearCharactersAction ls
+	sequence_ $ characters ls
 	return ls{layers = nls, buffed = nbf}
 
 addCharacter :: IORef Layers -> IO Character
