@@ -68,8 +68,10 @@ moveTurtle f c l t0 t1 = do
 	when (undo t1 && isJust (draw t0)) $ lock f $ do
 		done <- undoLayer l
 		unless done $ clearLayer l >> drawLines f l (drawed t1)
-		drawTurtle f c (pencolor t1) (shape t1) (shapesize t1)
-			(dir t1) (pensize t1) (x0, y0) lineOrigin
+		when (visible t1) $
+			drawTurtle f c (pencolor t1) (shape t1) (shapesize t1)
+				(dir t1) (pensize t1) (x0, y0) lineOrigin
+		flushWindow f
 	when (visible t1) $ do
 		forM_ (getDirections (dir t0) (dir t1)) $ \d -> lock f $ do
 			drawTurtle f c (pencolor t1) (shape t1) (shapesize t1) d
