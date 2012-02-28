@@ -2,7 +2,9 @@ module Graphics.X11.Turtle.XTools(
 	forkIOX,
 	openWindow,
 	getColorPixel,
-	withXftColor
+	withXftColor,
+	writeStringBase,
+	drawLineBase
 ) where
 
 import Graphics.X11 hiding(Color)
@@ -72,3 +74,23 @@ withXftColor dpy visual colormap (RGB r g b) action =
 	 }
 withXftColor dpy visual colormap (ColorName cn) action =
 	withXftColorName dpy visual colormap cn action
+
+writeStringBase :: Display -> Pixmap -> String -> Double -> Color ->
+	Position -> Position -> String -> IO ()
+writeStringBase dpy buf fname size clr x y str = do
+	let	scr = defaultScreen dpy
+		scrN = defaultScreenOfDisplay dpy
+		visual = defaultVisual dpy scr
+		colormap = defaultColormap dpy scr
+	xftDraw <- xftDrawCreate dpy buf visual colormap
+	xftFont <- xftFontOpen dpy scrN $ fname ++ "-" ++ show (round size :: Int)
+	withXftColor dpy visual colormap clr $ \c ->
+		xftDrawString xftDraw c xftFont x y str
+
+drawLineBase :: Display -> GC -> Pixmap -> Int -> Color ->
+	Position -> Position -> Position -> Position -> IO ()
+drawLineBase dpy gc bf lw c x1 y1 x2 y2 = do
+	clr <- getColorPixel dpy c
+	setForeground dpy gc clr
+	setLineAttributes dpy gc (fromIntegral lw) lineSolid capRound joinRound
+	drawLine dpy bf gc x1 y1 x2 y2

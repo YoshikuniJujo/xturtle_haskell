@@ -46,8 +46,6 @@ import Control.Concurrent(
 import System.Posix.Types
 
 import Graphics.X11 hiding (Color, drawLine)
-import qualified Graphics.X11 as X
-import Graphics.X11.Xft
 
 import Text.XML.YJSVG(Color(..))
 import Control.Monad
@@ -180,9 +178,12 @@ drawLine f l lw clr x1 y1 x2 y2 =
 
 writeString :: Field -> Layer -> String -> Double -> Color ->
 	Double -> Double -> String -> IO ()
-writeString f l fname size clr x y str =
-	addLayerAction l (writeStringBuf f fUndoBuf fname size clr x y str,
-		writeStringBuf f fBG fname size clr x y str)
+writeString f l fname size clr x_ y_ str =
+	addLayerAction l (writeStringBuf fUndoBuf, writeStringBuf fBG)
+	where
+	writeStringBuf buf = do
+		(x, y) <- convertPos f x_ y_
+		writeStringBase (fDisplay f) (buf f) fname size clr x y str
 
 drawCharacter :: Field -> Character -> Color -> [(Double, Double)] -> IO ()
 drawCharacter f c cl sh = setCharacter c $ do
@@ -200,15 +201,13 @@ drawCharacterAndLine f c cl ps lw x1 y1 x2 y2 = setCharacter c $ do
 drawLineBuf :: Field -> Int -> Color -> (Field -> Pixmap) ->
 	Double -> Double -> Double -> Double -> IO ()
 drawLineBuf f lw c bf x1_ y1_ x2_ y2_ = do
-	clr <- getColorPixel (fDisplay f) c
-	setForeground (fDisplay f) (fGC f) clr
-	setLineAttributes (fDisplay f) (fGC f) (fromIntegral lw) lineSolid capRound joinRound
-	[(x1, y1), (x2, y2)] <- convertPos f [(x1_, y1_), (x2_, y2_)]
-	X.drawLine (fDisplay f) (bf f) (fGC f) x1 y1 x2 y2
+	(x1, y1) <- convertPos f x1_ y1_
+	(x2, y2) <- convertPos f x2_ y2_
+	drawLineBase (fDisplay f) (fGC f) (bf f) lw c x1 y1 x2 y2
 
 fillPolygonBuf :: Field -> [(Double, Double)] -> IO ()
 fillPolygonBuf f ps_ = do
-	ps <- convertPos f ps_
+	ps <- mapM (uncurry $ convertPos f) ps_
 	fillPolygon (fDisplay f) (fBuf f) (fGC f) (map (uncurry Point) ps)
 		nonconvex coordModeOrigin
 
@@ -216,36 +215,9 @@ fieldColor :: Field -> Color -> IO ()
 fieldColor f c = do
 	clr <- getColorPixel (fDisplay f) c
 	setForeground (fDisplay f) (fGCBG f) clr
-	let bufs = [fUndoBuf f, fBG f, fBuf f]
 	(width, height) <- winSize f
-	forM_ bufs $ \bf -> fillRectangle (fDisplay f) bf (fGCBG f) 0 0 width height
-
-writeStringBuf :: Field -> (Field -> Pixmap) -> String -> Double ->
-	Color -> Double -> Double -> String -> IO ()
-writeStringBuf f buf fname size clr x_ y_ str = do
-	let	dpy = fDisplay f
-		scr = defaultScreen dpy
-		scrN = defaultScreenOfDisplay dpy
-		visual = defaultVisual dpy scr
-		colormap = defaultColormap dpy scr
-	xftDraw <- xftDrawCreate dpy (buf f) visual colormap
-	xftFont <- xftFontOpen dpy scrN $ fname ++ "-" ++ show (round size :: Int)
-	[(x, y)] <- convertPos f [(x_, y_)]
-	withXftColor dpy visual colormap clr $ \c ->
-		xftDrawString xftDraw c xftFont x y str
-
-writeStringBase :: Display -> Pixmap -> String -> Double -> Color ->
-	Position -> Position -> String -> IO ()
-writeStringBase dpy buf fname size clr x y str = do
-	let	scr = defaultScreen dpy
-		scrN = defaultScreenOfDisplay dpy
-		visual = defaultVisual dpy scr
-		colormap = defaultColormap dpy scr
-	xftDraw <- xftDrawCreate dpy buf visual colormap
-	xftFont <- xftFontOpen dpy scrN $ fname ++ "-" ++ show (round size :: Int)
---	[(x, y)] <- convertPos f [(x_, y_)]
-	withXftColor dpy visual colormap clr $ \c ->
-		xftDrawString xftDraw c xftFont x y str
+	forM_ [fUndoBuf f, fBG f, fBuf f] $ \bf ->
+		fillRectangle (fDisplay f) bf (fGCBG f) 0 0 width height
 
 ---------------------------------------------------------------------------
 
@@ -337,11 +309,10 @@ closeField f = do
 	readIORef (fRunning f) >>= mapM_ killThread
 	writeChan (fClose f) ()
 
-convertPos :: Field -> [(Double, Double)] -> IO [(Position, Position)]
-convertPos f ps = do
+convertPos :: Field -> Double -> Double -> IO (Position, Position)
+convertPos f x y = do
 	(width, height) <- fieldSize f
-	return $ (round . (+ width / 2) *** round . (+ height / 2) . negate)
-		`map` ps
+	return $ (round $ x + width / 2, round $ - y + height / 2)
 
 convertPosRev :: Field -> CInt -> CInt -> IO (Double, Double)
 convertPosRev f x y = do
