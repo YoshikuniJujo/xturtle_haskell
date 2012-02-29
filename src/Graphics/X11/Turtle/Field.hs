@@ -67,12 +67,6 @@ import Foreign.C.Types(CInt)
 
 --------------------------------------------------------------------------------
 
-flushField :: Field -> IO a -> IO a
-flushField f act = withLock2 f $ do
-	ret <- act
-	flushWindow f
-	return ret
-
 openField :: IO Field
 openField = do
 	(dpy, win, gc, gcBG, bufs@[undoBuf, bg, buf], ic, del, width, height)
@@ -174,6 +168,12 @@ motionFun f ev = do
 	pos <- convertPosRev f (ev_x ev) (ev_y ev)
 	whenM (readIORef $ fPress f) $ readIORef (fOndrag f) >>= ($ pos) . uncurry
 	return True
+
+flushField :: Field -> IO a -> IO a
+flushField f act = withLock2 f $ do
+	ret <- act
+	flushWindow f
+	return ret
 
 flushWindow :: Field -> IO ()
 flushWindow = withLock $ \f -> do
