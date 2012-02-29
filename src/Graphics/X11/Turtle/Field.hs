@@ -71,20 +71,16 @@ import Foreign.C.Types(CInt)
 
 openField :: IO Field
 openField = do
-	(dpy, win, bufs, gcs, ic, del, width, height) <- openWindow
+	(dpy, win, bufs, gcs, ic, del, size) <- openWindow
 	let	(ub, bb, tb) = (undoBuf bufs, bgBuf bufs, topBuf bufs)
-		gcf = gcForeground gcs
-	widthRef <- newIORef width
-	heightRef <- newIORef height
-	let size = do
-		w <- readIORef widthRef
-		h <- readIORef heightRef
-		return (w, h)
+		(gcf, gcb) = (gcForeground gcs, gcBackground gcs)
+	sizeRef <- newIORef size
+	let getSize = readIORef sizeRef
 	ls <- newLayers 50 
-		(size >>= uncurry (fillRectangle dpy ub (gcBackground gcs) 0 0))
-		(size >>= \(w, h) -> copyArea dpy ub bb gcf 0 0 w h 0 0)
-		(size >>= \(w, h) -> copyArea dpy bb tb gcf 0 0 w h 0 0)
-	f <- makeField dpy win bufs gcs ic del widthRef heightRef ls
+		(getSize >>= uncurry (fillRectangle dpy ub gcb 0 0))
+		(getSize >>= \(w, h) -> copyArea dpy ub bb gcf 0 0 w h 0 0)
+		(getSize >>= \(w, h) -> copyArea dpy bb tb gcf 0 0 w h 0 0)
+	f <- makeField dpy win bufs gcs ic del sizeRef ls
 	_ <- forkIOX $ runLoop f
 	flushWindow f
 	return f
@@ -246,8 +242,7 @@ data Field = Field{
 	fUndoBuf :: Pixmap,
 	fBG :: Pixmap,
 	fBuf :: Pixmap,
-	fWidth :: IORef Dimension,
-	fHeight :: IORef Dimension,
+	fSize :: IORef (Dimension, Dimension),
 
 	fLayers :: IORef Layers,
 
@@ -287,15 +282,10 @@ forkField f act = do
 	return tid
 
 setWinSize :: Field -> Dimension -> Dimension -> IO ()
-setWinSize f w h = do
-	writeIORef (fWidth f) w
-	writeIORef (fHeight f) h
+setWinSize f = curry $ writeIORef $ fSize f
 
 winSize :: Field -> IO (Dimension, Dimension)
-winSize f = do
-	width <- readIORef $ fWidth f
-	height <- readIORef $ fHeight f
-	return (width, height)
+winSize = readIORef . fSize
 
 informEnd :: Field -> IO ()
 informEnd = flip writeChan () . fEnd
@@ -345,8 +335,8 @@ fieldSize :: Field -> IO (Double, Double)
 fieldSize w = fmap (fromIntegral *** fromIntegral) $ winSize w
 
 makeField :: Display -> Window -> Bufs -> GCs -> XIC -> Atom ->
-	IORef Dimension -> IORef Dimension -> IORef Layers -> IO Field
-makeField dpy win bufs_ gcs ic del widthRef heightRef fll = do
+	IORef (Dimension, Dimension) -> IORef Layers -> IO Field
+makeField dpy win bufs_ gcs ic del sizeRef fll = do
 	let	bufs = getBufs bufs_
 		(gc, gcBG) = (gcForeground gcs, gcBackground gcs)
 	wait <- newChan
@@ -372,8 +362,7 @@ makeField dpy win bufs_ gcs ic del widthRef heightRef fll = do
 		fUndoBuf = head bufs,
 		fBG = bufs !! 1,
 		fBuf = bufs !! 2,
-		fWidth = widthRef,
-		fHeight = heightRef,
+		fSize = sizeRef,
 		fWait = wait,
 		fWait2 = wait2,
 		fEvent = event,

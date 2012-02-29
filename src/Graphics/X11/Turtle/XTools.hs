@@ -47,7 +47,7 @@ data GCs = GCs{
 	gcBackground :: GC
  }
 
-openWindow :: IO (Display, Window, Bufs, GCs, XIC, Atom, Dimension, Dimension)
+openWindow :: IO (Display, Window, Bufs, GCs, XIC, Atom, (Dimension, Dimension))
 openWindow = do
 	_ <- setLocale LC_CTYPE Nothing >>= maybe (error "Can't set locale.") return
 	_ <- initThreads
@@ -76,7 +76,7 @@ openWindow = do
 		buttonPressMask .|. buttonReleaseMask .|. button1MotionMask .|.
 		fevent
 	mapWindow dpy win
-	return (dpy, win, makeBufs bufs, GCs gc gcBG, ic, del, width, height)
+	return (dpy, win, makeBufs bufs, GCs gc gcBG, ic, del, (width, height))
 
 getColorPixel :: Display -> Color -> IO Pixel
 getColorPixel _ (RGB r g b) = return $ shift (fromIntegral r) 16 .|.
