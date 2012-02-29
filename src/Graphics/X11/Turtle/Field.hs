@@ -1,36 +1,41 @@
 module Graphics.X11.Turtle.Field(
+	-- * types and classes
 	Field,
-	withLock2,
-
 	Layer,
 	Character,
 
+	-- * open and close
 	openField,
 	closeField,
 	waitField,
-	fieldColor,
-	fieldSize,
 
+	-- * draw
+	flushField,
+
+	-- ** to Layer
 	addLayer,
-	addCharacter,
-
 	drawLine,
 	writeString,
+	undoLayer,
+	clearLayer,
+
+	-- ** to Character
+	addCharacter,
 	drawCharacter,
 	drawCharacterAndLine,
 	clearCharacter,
 
-	undoLayer,
-	clearLayer,
-	flushWindow,
-
+	-- * event driven
 	onclick,
 	onrelease,
 	ondrag,
 	onkeypress,
 
-	forkIOX,
-	addThread
+	-- * others
+	fieldColor,
+	fieldSize,
+	addThread,
+	forkIOX
 ) where
 
 import Data.IORef
@@ -59,6 +64,12 @@ import Graphics.X11.Turtle.XTools
 import Foreign.C.Types
 import Control.Arrow((***))
 import Data.Convertible(convert)
+
+flushField :: Field -> IO a -> IO a
+flushField f act = withLock2 f $ do
+	ret <- act
+	flushWindow f
+	return ret
 
 openField :: IO Field
 openField = do
@@ -286,10 +297,10 @@ withLock act f = do
 	writeChan (fWait f) ()
 	return ret
 
-withLock2 :: (Field -> IO a) -> Field -> IO a
-withLock2 act f = do
+withLock2 :: Field -> IO a -> IO a
+withLock2 f act = do
 	readChan $ fWait2 f
-	ret <- act f
+	ret <- act
 	writeChan (fWait2 f) ()
 	return ret
 

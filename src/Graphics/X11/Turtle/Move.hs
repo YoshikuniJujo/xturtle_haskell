@@ -26,9 +26,9 @@ module Graphics.X11.Turtle.Move (
 
 import Graphics.X11.Turtle.State(TurtleState(..))
 import Graphics.X11.Turtle.Field(
-	withLock2,
+	flushField,
 	Field, Layer, Character,
-	forkIOX, openField, closeField, flushWindow,
+	forkIOX, openField, closeField,
 	addLayer, addCharacter, fieldSize, clearLayer,
 	drawCharacter, drawCharacterAndLine, undoLayer,
 	drawLine,
@@ -59,37 +59,30 @@ rotateSpeed = 10000
 dir :: TurtleState -> Double
 dir t = direction t / degrees t
 
-lock :: Field -> IO a -> IO a
-lock f = flip withLock2 f . const
-
 moveTurtle :: Field -> Character -> Layer -> TurtleState -> TurtleState -> IO ()
 moveTurtle f c l t0 t1 = do
-	when (undo t1 && clear t0) $ lock f $ drawLines f l $ drawed t1
-	when (undo t1 && isJust (draw t0)) $ lock f $ do
+	when (undo t1 && clear t0) $ flushField f $ drawLines f l $ drawed t1
+	when (undo t1 && isJust (draw t0)) $ flushField f $ do
 		done <- undoLayer l
 		unless done $ clearLayer l >> drawLines f l (drawed t1)
 		when (visible t1) $
 			drawTurtle f c (pencolor t1) (shape t1) (shapesize t1)
 				(dir t1) (pensize t1) (x0, y0) lineOrigin
-		flushWindow f
 	when (visible t1) $ do
-		forM_ (getDirections (dir t0) (dir t1)) $ \d -> lock f $ do
+		forM_ (getDirections (dir t0) (dir t1)) $ \d -> flushField f $ do
 			drawTurtle f c (pencolor t1) (shape t1) (shapesize t1) d
 				(pensize t1) p0 Nothing
-			flushWindow f
 			threadDelay rotateSpeed
-		forM_ (getPositions x0 y0 x1 y1) $ \p -> lock f $ do
+		forM_ (getPositions x0 y0 x1 y1) $ \p -> flushField f $ do
 			drawTurtle f c (pencolor t1) (shape t1) (shapesize t1)
 				(dir t1) (pensize t1) p lineOrigin
-			flushWindow f
 			threadDelay moveSpeed
-		lock f $ do
+		flushField f $ do
 			drawTurtle f c (pencolor t1) (shape t1) (shapesize t1) (dir t1)
 				(pensize t1) p1 lineOrigin
-			flushWindow f
 	unless (visible t1) $ clearCharacter c
-	when (clear t1) $ lock f $ clearLayer l >> flushWindow f
-	unless (undo t1) $ lock f $ drawDraw f l (draw t1) >> flushWindow f
+	when (clear t1) $ flushField f $ clearLayer l
+	unless (undo t1) $ flushField f $ drawDraw f l (draw t1)
 	where
 	(tl, to) = if undo t1 then (t0, t1) else (t1, t0)
 	lineOrigin = if pendown tl then Just $ position to else Nothing
