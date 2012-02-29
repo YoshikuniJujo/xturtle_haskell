@@ -38,7 +38,7 @@ module Graphics.X11.Turtle.Field(
 import Graphics.X11.Turtle.XTools(
 	forkIOX, openWindow, drawLineBase, writeStringBase, getColorPixel,
 	Bufs, getBufs, undoBuf, bgBuf, topBuf,
-	GCs, gcForeground, gcBackground)
+	GCs, gcForeground, gcBackground, windowSize)
 import Graphics.X11.Turtle.Layers(
 	Layers, Layer, Character, newLayers, redrawLayers,
 	makeLayer, addDraw, undoLayer, clearLayer, makeCharacter, setCharacter)
@@ -46,7 +46,7 @@ import Text.XML.YJSVG(Color(..))
 
 import Graphics.X11(
 	Display, Window, Pixmap, GC, Atom, Position, Dimension, XEventPtr,
-	Point(..), flush, closeDisplay, destroyWindow, getGeometry, copyArea,
+	Point(..), flush, closeDisplay, destroyWindow, copyArea,
 	setForeground, fillRectangle, fillPolygon, nonconvex, coordModeOrigin,
 	allocaXEvent, pending, nextEvent, buttonPress, buttonRelease,
 	xK_VoidSymbol, connectionNumber)
@@ -125,47 +125,35 @@ runLoop f = allocaXEvent $ \e -> do
 
 eventFun :: Field -> XEventPtr -> Event -> IO Bool
 eventFun f e ev = case ev of
-	ExposeEvent{} -> exposeFun f
-	KeyEvent{} -> keyFun f (fIC f) e
-	ButtonEvent{} -> buttonFun f ev
-	MotionEvent{} -> motionFun f ev
+	ExposeEvent{} -> flushField f $ do
+		windowSize (fDisplay f) (fWindow f) >>= uncurry (setWinSize f)
+		redrawLayers $ fLayers f
+		return True
+	KeyEvent{} -> do
+		(mstr, mks) <- utf8LookupString (fIC f) e
+		let	str = fromMaybe "" mstr
+			_ks = fromMaybe xK_VoidSymbol mks
+		readIORef (fKeypress f) >>= fmap and . ($ str) . mapM
+	ButtonEvent{} -> do
+		pos <- fromCenter f (ev_x ev) (ev_y ev)
+		let	buttonN = fromIntegral $ ev_button ev
+		case ev_event_type ev of
+			et	| et == buttonPress -> do
+					writeIORef (fPress f) True
+					readIORef (fOnclick f) >>=
+						($ pos) . uncurry . ($ buttonN)
+				| et == buttonRelease -> do
+					writeIORef (fPress f) False
+					readIORef (fOnrelease f) >>=
+						($ pos) . uncurry . ($ buttonN)
+			_ -> error "not implement event"
+	MotionEvent{} -> do
+		pos <- fromCenter f (ev_x ev) (ev_y ev)
+		whenM (readIORef $ fPress f) $
+			readIORef (fOndrag f) >>= ($ pos) . uncurry
+		return True
 	ClientMessageEvent{} -> return $ isWMDelete f ev
 	_ -> return True
-
-exposeFun :: Field -> IO Bool
-exposeFun f = do
-	(_, _, _, width, height, _, _) <- getGeometry (fDisplay f) (fWindow f)
-	setWinSize f width height
-	redrawLayers $ fLayers f
-	flushWindow f
-	return True
-
-keyFun :: Field -> XIC -> XEventPtr -> IO Bool
-keyFun f ic e = do
-	(mstr, mks) <- utf8LookupString ic e
-	let	str = fromMaybe "" mstr
-		_ks = fromMaybe xK_VoidSymbol mks
-	readIORef (fKeypress f) >>= fmap and . ($ str) . mapM
-
-buttonFun :: Field -> Event -> IO Bool
-buttonFun f ev = do
-	pos <- convertPosRev f (ev_x ev) (ev_y ev)
-	case ev_event_type ev of
-		et	| et == buttonPress -> do
-				writeIORef (fPress f) True
-				fun <- readIORef (fOnclick f)
-				uncurry (fun $ fromIntegral $ ev_button ev) pos
-			| et == buttonRelease -> do
-				writeIORef (fPress f) False
-				fun <- readIORef (fOnrelease f)
-				uncurry (fun $ fromIntegral $ ev_button ev) pos
-		_ -> error "not implement event"
-
-motionFun :: Field -> Event -> IO Bool
-motionFun f ev = do
-	pos <- convertPosRev f (ev_x ev) (ev_y ev)
-	whenM (readIORef $ fPress f) $ readIORef (fOndrag f) >>= ($ pos) . uncurry
-	return True
 
 flushField :: Field -> IO a -> IO a
 flushField f act = withLock2 f $ do
@@ -323,6 +311,9 @@ convertPos :: Field -> Double -> Double -> IO (Position, Position)
 convertPos f x y = do
 	(width, height) <- fieldSize f
 	return (round $ x + width / 2, round $ - y + height / 2)
+
+fromCenter :: Field -> CInt -> CInt -> IO (Double, Double)
+fromCenter = convertPosRev
 
 convertPosRev :: Field -> CInt -> CInt -> IO (Double, Double)
 convertPosRev f x y = do

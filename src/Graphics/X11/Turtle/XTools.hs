@@ -12,7 +12,8 @@ module Graphics.X11.Turtle.XTools(
 	topBuf,
 	GCs,
 	gcForeground,
-	gcBackground
+	gcBackground,
+	windowSize
 ) where
 
 import Graphics.X11 hiding(Color)
@@ -119,3 +120,8 @@ drawLineBase dpy gc bf lw c x1 y1 x2 y2 = do
 	setForeground dpy gc clr
 	setLineAttributes dpy gc (fromIntegral lw) lineSolid capRound joinRound
 	drawLine dpy bf gc x1 y1 x2 y2
+
+windowSize :: Display -> Window -> IO (Dimension, Dimension)
+windowSize dpy win = do
+	(_, _, _, width, height, _, _) <- getGeometry dpy win
+	return (width, height)
