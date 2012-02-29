@@ -45,7 +45,6 @@ data Layers = Layers{
 	undoLayersAction :: IO (),
 	clearLayersAction :: IO (),
 	clearCharactersAction :: IO (),
---	flush :: IO (),
 	buffed :: [IO ()],
 	layers :: [[(IO (), IO ())]],
 	characters :: [IO ()],
@@ -80,7 +79,6 @@ newLayers_ un ula cla cca = do
 		undoLayersAction = ula,
 		clearLayersAction = cla,
 		clearCharactersAction = cca,
---		flush = flsh,
 		buffed = [],
 		layers = [],
 		characters = [],
@@ -141,10 +139,9 @@ undoLayer Layer{layerId = lid, layerLayers = rls} = withLock2 $
 undoLayer_ :: Layers -> Int -> IO (Maybe Layers)
 undoLayer_ ls l =
 	if null $ layers ls !! l then return Nothing else do
-		let	nls = modifyAt (layers ls) l init
-			nlss = ls{layers = nls}
-		redrawFromUndo nlss
-		return $ Just nlss
+		let	nls = ls{layers = modifyAt (layers ls) l init}
+		redrawFromUndo nls
+		return $ Just nls
 
 clearLayer :: Layer -> IO ()
 clearLayer Layer{layerId = lid, layerLayers = rls} = withLock2 $ do
@@ -154,13 +151,12 @@ clearLayer Layer{layerId = lid, layerLayers = rls} = withLock2 $ do
 
 clearLayer_ :: Layers -> Int -> IO Layers
 clearLayer_ ls l = do
-	let	nls = setAt (layers ls) l []
-		nbf = setAt (buffed ls) l $ return ()
-		nlss = ls{layers = nls, buffed = nbf}
+	let	nls = ls{layers = setAt (layers ls) l [],
+			buffed = setAt (buffed ls) l $ return ()}
 	clearLayersAction ls
-	sequence_ nbf
-	redrawFromUndo nlss
-	return nlss
+	sequence_ $ buffed nls
+	redrawFromUndo nls
+	return nls
 
 addCharacter :: IORef Layers -> IO Character
 addCharacter rls = withLock2 $ do
@@ -178,9 +174,7 @@ setCharacter :: Character -> IO () -> IO ()
 setCharacter Character{characterId = cid, characterLayers = rls} act = withLock2 $
 	readIORef rls >>= flip withLock (\ls -> do
 	nls <- setCharacter_ ls cid act
-	writeIORef rls nls
---	flush ls)
-	)
+	writeIORef rls nls)
 
 setCharacter_ :: Layers -> Int -> IO () -> IO Layers
 setCharacter_ ls c act = do
