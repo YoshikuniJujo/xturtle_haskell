@@ -109,15 +109,16 @@ runLoop f = allocaXEvent $ \e -> do
 			if evN > 0 then do
 					nextEvent (fDisplay f) e
 					filtered <- filterEvent e 0
-					ret <- if filtered then return True
+					if filtered then return (True, True)
 						else do	ev <- getEvent e
-							eventFun f e ev
-					return (ret, ret)
+							r <- eventFun f e ev
+							return (r, r)
 				else return (True, False)
-		writeChan empty ()
-		if notEnd && cont then return True else do
-			readIORef (fRunning f) >>= mapM_ killThread
-			return False
+		if notEnd && cont then do
+				writeChan empty ()
+				return True
+			else do	readIORef (fRunning f) >>= mapM_ killThread
+				return False
 	destroyWindow (fDisplay f) (fWindow f)
 	closeDisplay $ fDisplay f
 	informEnd f
