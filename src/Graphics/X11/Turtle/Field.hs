@@ -69,6 +69,30 @@ import Foreign.C.Types(CInt)
 
 --------------------------------------------------------------------------------
 
+data Field = Field{
+	fDisplay :: Display,
+	fWindow :: Window,
+	fGC :: GC,
+	fGCBG :: GC,
+	fIC :: XIC,
+	fDel :: Atom,
+	fUndoBuf :: Pixmap,
+	fBG :: Pixmap,
+	fBuf :: Pixmap,
+	fSize :: IORef (Dimension, Dimension),
+	fLayers :: IORef Layers,
+	fWait2 :: Chan (),
+	fEvent :: Chan (Maybe Event),
+	fClose :: Chan (),
+	fRunning :: IORef [ThreadId],
+	fOnclick :: IORef (Int -> Double -> Double -> IO Bool),
+	fOnrelease :: IORef (Int -> Double -> Double -> IO Bool),
+	fOndrag :: IORef (Double -> Double -> IO ()),
+	fPress :: IORef Bool,
+	fKeypress :: IORef (Char -> IO Bool),
+	fEnd :: Chan ()
+ }
+
 openField :: IO Field
 openField = do
 	(dpy, win, bufs, gcs, ic, del, size) <- openWindow
@@ -82,7 +106,7 @@ openField = do
 		(getSize >>= \(w, h) -> copyArea dpy bb tb gcf 0 0 w h 0 0)
 	f <- makeField dpy win bufs gcs ic del sizeRef ls
 	_ <- forkIOX $ runLoop f
-	flushWindow f
+	flush dpy
 	return f
 
 waitInput :: Field -> IO (Chan Bool, Chan ())
@@ -96,7 +120,7 @@ waitInput f = do
 	_ <- forkIO $ do
 		readChan $ fClose f
 		writeChan go False
-	runningThread f tid
+	modifyIORef (fRunning f) (tid :)
 	return (go, empty)
 
 runLoop :: Field -> IO ()
@@ -111,7 +135,7 @@ runLoop f = allocaXEvent $ \e -> do
 					filtered <- filterEvent e 0
 					if filtered then return (True, True)
 						else do	ev <- getEvent e
-							r <- eventFun f e ev
+							r <- processEvent f e ev
 							return (r, r)
 				else return (True, False)
 		if notEnd && cont then do
@@ -121,12 +145,12 @@ runLoop f = allocaXEvent $ \e -> do
 				return False
 	destroyWindow (fDisplay f) (fWindow f)
 	closeDisplay $ fDisplay f
-	informEnd f
+	writeChan (fEnd f) ()
 
-eventFun :: Field -> XEventPtr -> Event -> IO Bool
-eventFun f e ev = case ev of
+processEvent :: Field -> XEventPtr -> Event -> IO Bool
+processEvent f e ev = case ev of
 	ExposeEvent{} -> flushField f $ do
-		windowSize (fDisplay f) (fWindow f) >>= uncurry (setWinSize f)
+		windowSize (fDisplay f) (fWindow f) >>= writeIORef (fSize f)
 		redrawLayers $ fLayers f
 		return True
 	KeyEvent{} -> do
@@ -152,20 +176,46 @@ eventFun f e ev = case ev of
 		whenM (readIORef $ fPress f) $
 			readIORef (fOndrag f) >>= ($ pos) . uncurry
 		return True
-	ClientMessageEvent{} -> return $ isWMDelete f ev
+	ClientMessageEvent{} -> return $ convert (head $ ev_data ev) /= fDel f
 	_ -> return True
 
-flushField :: Field -> IO a -> IO a
-flushField f act = withLock2 f $ do
-	ret <- act
-	flushWindow f
-	return ret
+closeField :: Field -> IO ()
+closeField f = do
+	readIORef (fRunning f) >>= mapM_ killThread
+	writeChan (fClose f) ()
 
-flushWindow :: Field -> IO ()
-flushWindow = withLock $ \f -> do
-	(width, height) <- winSize f
+waitField :: Field -> IO ()
+waitField = readChan . fEnd
+
+fieldSize :: Field -> IO (Double, Double)
+fieldSize = fmap (fromIntegral *** fromIntegral) . readIORef . fSize
+
+forkField :: Field -> IO () -> IO ThreadId
+forkField f act = do
+	tid <- forkIOX act
+	modifyIORef (fRunning f) (tid :)
+	return tid
+
+flushField :: Field -> IO a -> IO a
+flushField f act = do
+	readChan $ fWait2 f
+	ret <- act
+	(width, height) <- readIORef $ fSize f
 	copyArea (fDisplay f) (fBuf f) (fWindow f) (fGC f) 0 0 width height 0 0
 	flush $ fDisplay f
+	writeChan (fWait2 f) ()
+	return ret
+
+fieldColor :: Field -> Color -> IO ()
+fieldColor f c = do
+	clr <- getColorPixel (fDisplay f) c
+	setForeground (fDisplay f) (fGCBG f) clr
+	(width, height) <- readIORef $ fSize f
+	forM_ [fUndoBuf f, fBG f, fBuf f] $ \bf ->
+		fillRectangle (fDisplay f) bf (fGCBG f) 0 0 width height
+
+addLayer :: Field -> IO Layer
+addLayer = makeLayer . fLayers
 
 drawLine :: Field -> Layer -> Double -> Color ->
 	Double -> Double -> Double -> Double -> IO ()
@@ -179,8 +229,11 @@ writeString f l fname size clr x_ y_ str =
 	addDraw l (writeStringBuf fUndoBuf, writeStringBuf fBG)
 	where
 	writeStringBuf bf = do
-		(x, y) <- convertPos f x_ y_
+		(x, y) <- fromTopLeft f x_ y_
 		writeStringBase (fDisplay f) (bf f) fname size clr x y str
+
+addCharacter :: Field -> IO Character
+addCharacter = makeCharacter . fLayers
 
 drawCharacter :: Field -> Character -> Color -> [(Double, Double)] -> IO ()
 drawCharacter f c cl sh = setCharacter c $ do
@@ -195,58 +248,8 @@ drawCharacterAndLine f c cl ps lw x1 y1 x2 y2 = setCharacter c $ do
 	setForeground (fDisplay f) (fGC f) clr
 	fillPolygonBuf f ps >> drawLineBuf f (round lw) cl fBuf x1 y1 x2 y2
 
-drawLineBuf :: Field -> Int -> Color -> (Field -> Pixmap) ->
-	Double -> Double -> Double -> Double -> IO ()
-drawLineBuf f lw c bf x1_ y1_ x2_ y2_ = do
-	(x1, y1) <- convertPos f x1_ y1_
-	(x2, y2) <- convertPos f x2_ y2_
-	drawLineBase (fDisplay f) (fGC f) (bf f) lw c x1 y1 x2 y2
-
-fillPolygonBuf :: Field -> [(Double, Double)] -> IO ()
-fillPolygonBuf f ps_ = do
-	ps <- mapM (uncurry $ convertPos f) ps_
-	fillPolygon (fDisplay f) (fBuf f) (fGC f) (map (uncurry Point) ps)
-		nonconvex coordModeOrigin
-
-fieldColor :: Field -> Color -> IO ()
-fieldColor f c = do
-	clr <- getColorPixel (fDisplay f) c
-	setForeground (fDisplay f) (fGCBG f) clr
-	(width, height) <- winSize f
-	forM_ [fUndoBuf f, fBG f, fBuf f] $ \bf ->
-		fillRectangle (fDisplay f) bf (fGCBG f) 0 0 width height
-
----------------------------------------------------------------------------
-
-data Field = Field{
-	fDisplay :: Display,
-	fWindow :: Window,
-	fGC :: GC,
-	fGCBG :: GC,
-	fIC :: XIC,
-	fDel :: Atom,
-	fUndoBuf :: Pixmap,
-	fBG :: Pixmap,
-	fBuf :: Pixmap,
-	fSize :: IORef (Dimension, Dimension),
-
-	fLayers :: IORef Layers,
-
-	fWait :: Chan (),
-	fWait2 :: Chan (),
-	fEvent :: Chan (Maybe Event),
-	fClose :: Chan (),
-	fRunning :: IORef [ThreadId],
-	fOnclick :: IORef (Int -> Double -> Double -> IO Bool),
-	fOnrelease :: IORef (Int -> Double -> Double -> IO Bool),
-	fOndrag :: IORef (Double -> Double -> IO ()),
-	fPress :: IORef Bool,
-	fKeypress :: IORef (Char -> IO Bool),
-	fEnd :: Chan ()
- }
-
-isWMDelete :: Field -> Event -> Bool
-isWMDelete f ev = convert (head $ ev_data ev) /= fDel f
+clearCharacter :: Character -> IO ()
+clearCharacter c = setCharacter c $ return ()
 
 onclick, onrelease :: Field -> (Int -> Double -> Double -> IO Bool) -> IO ()
 onclick f = writeIORef $ fOnclick f
@@ -258,77 +261,36 @@ ondrag f = writeIORef $ fOndrag f
 onkeypress :: Field -> (Char -> IO Bool) -> IO ()
 onkeypress f = writeIORef $ fKeypress f
 
-runningThread :: Field -> ThreadId -> IO ()
-runningThread f tid = modifyIORef (fRunning f) (tid :)
+drawLineBuf :: Field -> Int -> Color -> (Field -> Pixmap) ->
+	Double -> Double -> Double -> Double -> IO ()
+drawLineBuf f lw c bf x1_ y1_ x2_ y2_ = do
+	(x1, y1) <- fromTopLeft f x1_ y1_
+	(x2, y2) <- fromTopLeft f x2_ y2_
+	drawLineBase (fDisplay f) (fGC f) (bf f) lw c x1 y1 x2 y2
 
-forkField :: Field -> IO () -> IO ThreadId
-forkField f act = do
-	tid <- forkIOX act
-	runningThread f tid
-	return tid
+fillPolygonBuf :: Field -> [(Double, Double)] -> IO ()
+fillPolygonBuf f ps_ = do
+	ps <- mapM (uncurry $ fromTopLeft f) ps_
+	fillPolygon (fDisplay f) (fBuf f) (fGC f) (map (uncurry Point) ps)
+		nonconvex coordModeOrigin
 
-setWinSize :: Field -> Dimension -> Dimension -> IO ()
-setWinSize f = curry $ writeIORef $ fSize f
+---------------------------------------------------------------------------
 
-winSize :: Field -> IO (Dimension, Dimension)
-winSize = readIORef . fSize
-
-informEnd :: Field -> IO ()
-informEnd = flip writeChan () . fEnd
-
-waitField :: Field -> IO ()
-waitField = readChan . fEnd
-
-withLock :: (Field -> IO a) -> Field -> IO a
-withLock act f = do
-	readChan $ fWait f
-	ret <- act f
-	writeChan (fWait f) ()
-	return ret
-
-withLock2 :: Field -> IO a -> IO a
-withLock2 f act = do
-	readChan $ fWait2 f
-	ret <- act
-	writeChan (fWait2 f) ()
-	return ret
-
-addLayer :: Field -> IO Layer
-addLayer = makeLayer . fLayers
-
-addCharacter :: Field -> IO Character
-addCharacter = makeCharacter . fLayers
-
-clearCharacter :: Character -> IO ()
-clearCharacter c = setCharacter c $ return ()
-
-closeField :: Field -> IO ()
-closeField f = do
-	readIORef (fRunning f) >>= mapM_ killThread
-	writeChan (fClose f) ()
-
-convertPos :: Field -> Double -> Double -> IO (Position, Position)
-convertPos f x y = do
+fromTopLeft :: Field -> Double -> Double -> IO (Position, Position)
+fromTopLeft f x y = do
 	(width, height) <- fieldSize f
 	return (round $ x + width / 2, round $ - y + height / 2)
 
 fromCenter :: Field -> CInt -> CInt -> IO (Double, Double)
-fromCenter = convertPosRev
-
-convertPosRev :: Field -> CInt -> CInt -> IO (Double, Double)
-convertPosRev f x y = do
+fromCenter f x y = do
 	(width, height) <- fieldSize f
 	return (fromIntegral x - width / 2, fromIntegral (- y) + height / 2)
-
-fieldSize :: Field -> IO (Double, Double)
-fieldSize w = fmap (fromIntegral *** fromIntegral) $ winSize w
 
 makeField :: Display -> Window -> Bufs -> GCs -> XIC -> Atom ->
 	IORef (Dimension, Dimension) -> IORef Layers -> IO Field
 makeField dpy win bufs_ gcs ic del sizeRef fll = do
 	let	bufs = getBufs bufs_
 		(gc, gcBG) = (gcForeground gcs, gcBackground gcs)
-	wait <- newChan
 	wait2 <- newChan
 	event <- newChan
 	close <- newChan
@@ -339,7 +301,6 @@ makeField dpy win bufs_ gcs ic del sizeRef fll = do
 	pressRef <- newIORef False
 	keypressRef <- newIORef $ const $ return True
 	endRef <- newChan
-	writeChan wait ()
 	writeChan wait2 ()
 	return Field{
 		fDisplay = dpy,
@@ -352,7 +313,6 @@ makeField dpy win bufs_ gcs ic del sizeRef fll = do
 		fBG = bufs !! 1,
 		fBuf = bufs !! 2,
 		fSize = sizeRef,
-		fWait = wait,
 		fWait2 = wait2,
 		fEvent = event,
 		fClose = close,
