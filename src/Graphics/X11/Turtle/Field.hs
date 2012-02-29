@@ -35,32 +35,32 @@ module Graphics.X11.Turtle.Field(
 	onkeypress
 ) where
 
-import Data.IORef
+import Graphics.X11.Turtle.XTools(
+	forkIOX, openWindow, drawLineBase, writeStringBase, getColorPixel)
+import Graphics.X11.Turtle.Layers(
+	Layers, Layer, Character, newLayers, redrawLayers,
+	addLayerAction, undoLayer, clearLayer, setCharacter)
+import qualified Graphics.X11.Turtle.Layers as L(
+	addLayer, addCharacter)
+import Text.XML.YJSVG(Color(..))
+
+import Graphics.X11 hiding (Color, drawLine)
 import Graphics.X11.Xlib.Extras(Event(..), getEvent)
 import Graphics.X11.Xim
 
-import Data.Maybe
-
+import Control.Monad
+import Control.Monad.Tools
+import Control.Arrow((***))
 import Control.Concurrent(
 	forkIO, ThreadId, Chan, newChan, writeChan, readChan, threadWaitRead,
 	killThread)
 
-import System.Posix.Types
-
-import Graphics.X11 hiding (Color, drawLine)
-
-import Text.XML.YJSVG(Color(..))
-import Control.Monad
-import Control.Monad.Tools
-
-import Graphics.X11.Turtle.Layers(
-	Layers, Layer, Character, setCharacter, newLayers, addLayerAction,
-	undoLayer, clearLayer, redrawLayers)
-import qualified Graphics.X11.Turtle.Layers as L
-import Graphics.X11.Turtle.XTools
-import Foreign.C.Types
-import Control.Arrow((***))
+import Data.IORef
+import Data.Maybe
 import Data.Convertible(convert)
+
+import System.Posix.Types
+import Foreign.C.Types
 
 flushField :: Field -> IO a -> IO a
 flushField f act = withLock2 f $ do
