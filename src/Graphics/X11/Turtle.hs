@@ -71,9 +71,9 @@ module Graphics.X11.Turtle (
 
 import Graphics.X11.Turtle.Move(
 	Field, Layer, Character,
-	forkIOX, openField, closeField,
+	forkField, openField, closeField,
 	addCharacter, addLayer, fieldSize, clearLayer, clearCharacter,
-	addThread, fieldColor, onclick, onrelease, ondrag, onkeypress, waitField,
+	fieldColor, onclick, onrelease, ondrag, onkeypress, waitField,
 	moveTurtle
  )
 import Graphics.X11.Turtle.Input(
@@ -120,8 +120,8 @@ newTurtle f = do
 			stateIndex = si,
 			thread = undefined
 		 }
-	tid <- forkIOX $ zipWithM_ (moveTurtle f ch l) sts $ tail sts
-	addThread f tid
+	
+	tid <- forkField f $ zipWithM_ (moveTurtle f ch l) sts $ tail sts
 	shape t "classic"
 	return t{thread = tid}
 

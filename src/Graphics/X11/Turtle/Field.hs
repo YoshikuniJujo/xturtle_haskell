@@ -8,9 +8,12 @@ module Graphics.X11.Turtle.Field(
 	openField,
 	closeField,
 	waitField,
+	fieldSize,
 
 	-- * draw
+	forkField,
 	flushField,
+	fieldColor,
 
 	-- ** to Layer
 	addLayer,
@@ -29,13 +32,7 @@ module Graphics.X11.Turtle.Field(
 	onclick,
 	onrelease,
 	ondrag,
-	onkeypress,
-
-	-- * others
-	fieldColor,
-	fieldSize,
-	addThread,
-	forkIOX
+	onkeypress
 ) where
 
 import Data.IORef
@@ -272,6 +269,12 @@ onkeypress f = writeIORef $ fKeypress f
 
 addThread :: Field -> ThreadId -> IO ()
 addThread f tid = modifyIORef (fRunning f) (tid :)
+
+forkField :: Field -> IO () -> IO ThreadId
+forkField f act = do
+	tid <- forkIOX act
+	addThread f tid
+	return tid
 
 setWinSize :: Field -> Dimension -> Dimension -> IO ()
 setWinSize f w h = do

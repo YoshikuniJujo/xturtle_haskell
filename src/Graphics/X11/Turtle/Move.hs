@@ -3,7 +3,7 @@ module Graphics.X11.Turtle.Move (
 	Layer,
 	Character,
 
-	forkIOX,
+	forkField,
 	openField,
 	closeField,
 	addLayer,
@@ -11,7 +11,6 @@ module Graphics.X11.Turtle.Move (
 	fieldSize,
 	clearLayer,
 	clearCharacter,
-	addThread,
 	fieldColor,
 	onclick,
 	onrelease,
@@ -19,7 +18,6 @@ module Graphics.X11.Turtle.Move (
 	onkeypress,
 	waitField,
 	writeString,
---	Color'(..),
 
 	moveTurtle
 ) where
@@ -28,11 +26,11 @@ import Graphics.X11.Turtle.State(TurtleState(..))
 import Graphics.X11.Turtle.Field(
 	flushField,
 	Field, Layer, Character,
-	forkIOX, openField, closeField,
+	forkField, openField, closeField,
 	addLayer, addCharacter, fieldSize, clearLayer,
 	drawCharacter, drawCharacterAndLine, undoLayer,
 	drawLine,
-	clearCharacter, addThread,
+	clearCharacter,
 	fieldColor, onkeypress, onclick, onrelease, ondrag, waitField, writeString
  )
 import Text.XML.YJSVG
