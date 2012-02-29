@@ -39,28 +39,33 @@ import Graphics.X11.Turtle.XTools(
 	forkIOX, openWindow, drawLineBase, writeStringBase, getColorPixel)
 import Graphics.X11.Turtle.Layers(
 	Layers, Layer, Character, newLayers, redrawLayers,
-	addLayerAction, undoLayer, clearLayer, setCharacter)
-import qualified Graphics.X11.Turtle.Layers as L(
-	addLayer, addCharacter)
+	makeLayer, addDraw, undoLayer, clearLayer, makeCharacter, setCharacter)
 import Text.XML.YJSVG(Color(..))
 
-import Graphics.X11 hiding (Color, drawLine)
+import Graphics.X11(
+	Display, Window, Pixmap, GC, Atom, Position, Dimension, XEventPtr,
+	Point(..), flush, closeDisplay, destroyWindow, getGeometry, copyArea,
+	setForeground, fillRectangle, fillPolygon, nonconvex, coordModeOrigin,
+	allocaXEvent, pending, nextEvent, buttonPress, buttonRelease,
+	xK_VoidSymbol, connectionNumber)
 import Graphics.X11.Xlib.Extras(Event(..), getEvent)
-import Graphics.X11.Xim
+import Graphics.X11.Xim(XIC, filterEvent, utf8LookupString)
 
-import Control.Monad
-import Control.Monad.Tools
+import Control.Monad(forever, unless, forM_)
+import Control.Monad.Tools(doWhile_, doWhile, ifM, whenM)
 import Control.Arrow((***))
 import Control.Concurrent(
-	forkIO, ThreadId, Chan, newChan, writeChan, readChan, threadWaitRead,
-	killThread)
+	forkIO, ThreadId, threadWaitRead, killThread,
+	Chan, newChan, readChan, writeChan)
 
-import Data.IORef
-import Data.Maybe
+import Data.IORef(IORef, newIORef, readIORef, writeIORef, modifyIORef)
+import Data.Maybe(fromMaybe)
 import Data.Convertible(convert)
 
-import System.Posix.Types
-import Foreign.C.Types
+import System.Posix.Types(Fd(..))
+import Foreign.C.Types(CInt)
+
+--------------------------------------------------------------------------------
 
 flushField :: Field -> IO a -> IO a
 flushField f act = withLock2 f $ do
@@ -179,13 +184,13 @@ flushWindow = withLock $ \f -> do
 drawLine :: Field -> Layer -> Double -> Color ->
 	Double -> Double -> Double -> Double -> IO ()
 drawLine f l lw clr x1 y1 x2 y2 =
-	addLayerAction l (drawLineBuf f (round lw) clr fUndoBuf x1 y1 x2 y2,
+	addDraw l (drawLineBuf f (round lw) clr fUndoBuf x1 y1 x2 y2,
 		drawLineBuf f (round lw) clr fBG x1 y1 x2 y2)
 
 writeString :: Field -> Layer -> String -> Double -> Color ->
 	Double -> Double -> String -> IO ()
 writeString f l fname size clr x_ y_ str =
-	addLayerAction l (writeStringBuf fUndoBuf, writeStringBuf fBG)
+	addDraw l (writeStringBuf fUndoBuf, writeStringBuf fBG)
 	where
 	writeStringBuf buf = do
 		(x, y) <- convertPos f x_ y_
@@ -308,10 +313,10 @@ withLock2 f act = do
 	return ret
 
 addLayer :: Field -> IO Layer
-addLayer = L.addLayer . fLayers
+addLayer = makeLayer . fLayers
 
 addCharacter :: Field -> IO Character
-addCharacter = L.addCharacter . fLayers
+addCharacter = makeCharacter . fLayers
 
 clearCharacter :: Character -> IO ()
 clearCharacter c = setCharacter c $ return ()

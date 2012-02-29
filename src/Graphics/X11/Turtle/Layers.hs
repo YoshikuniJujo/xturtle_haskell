@@ -4,10 +4,10 @@ module Graphics.X11.Turtle.Layers(
 	Character,
 	
 	newLayers,
-	addLayer,
-	addCharacter,
+	makeLayer,
+	makeCharacter,
 
-	addLayerAction,
+	addDraw,
 	undoLayer,
 	clearLayer,
 	setCharacter,
@@ -95,6 +95,9 @@ data Character = Character{
 	characterLayers :: IORef Layers
  }
 
+makeLayer :: IORef Layers -> IO Layer
+makeLayer = addLayer
+
 addLayer :: IORef Layers -> IO Layer
 addLayer rls = withLock2 $ do
 	ls <- readIORef rls
@@ -106,6 +109,9 @@ addLayer_ :: Layers -> (Int, Layers)
 addLayer_ ls =
 	(length $ layers ls,
 		ls{layers = layers ls ++ [[]], buffed = buffed ls ++ [return ()]})
+
+addDraw :: Layer -> (IO (), IO ()) -> IO ()
+addDraw = addLayerAction
 
 addLayerAction :: Layer -> (IO (), IO ()) -> IO ()
 addLayerAction Layer{layerId = lid, layerLayers = rls} acts = withLock2 $
@@ -157,6 +163,9 @@ clearLayer_ ls l = do
 	sequence_ $ buffed nls
 	redrawFromUndo nls
 	return nls
+
+makeCharacter :: IORef Layers -> IO Character
+makeCharacter = addCharacter
 
 addCharacter :: IORef Layers -> IO Character
 addCharacter rls = withLock2 $ do
