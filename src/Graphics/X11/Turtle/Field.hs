@@ -37,7 +37,7 @@ module Graphics.X11.Turtle.Field(
 
 import Graphics.X11.Turtle.XTools(
 	forkIOX, openWindow, drawLineBase, writeStringBase, getColorPixel,
-	Bufs, getBufs, undoBuf, bgBuf, topBuf,
+	Bufs, undoBuf, bgBuf, topBuf,
 	GCs, gcForeground, gcBackground, windowSize)
 import Graphics.X11.Turtle.Layers(
 	Layers, Layer, Character, newLayers, redrawLayers,
@@ -45,7 +45,7 @@ import Graphics.X11.Turtle.Layers(
 import Text.XML.YJSVG(Color(..))
 
 import Graphics.X11(
-	Display, Window, Pixmap, GC, Atom, Position, Dimension, XEventPtr,
+	Display, Window, Pixmap, Atom, Position, Dimension, XEventPtr,
 	Point(..), flush, closeDisplay, destroyWindow, copyArea,
 	setForeground, fillRectangle, fillPolygon, nonconvex, coordModeOrigin,
 	allocaXEvent, pending, nextEvent, buttonPress, buttonRelease,
@@ -72,26 +72,54 @@ import Foreign.C.Types(CInt)
 data Field = Field{
 	fDisplay :: Display,
 	fWindow :: Window,
-	fGC :: GC,
-	fGCBG :: GC,
+	fBufs :: Bufs,
+	fGCs :: GCs,
 	fIC :: XIC,
 	fDel :: Atom,
-	fUndoBuf :: Pixmap,
-	fBG :: Pixmap,
-	fBuf :: Pixmap,
 	fSize :: IORef (Dimension, Dimension),
-	fLayers :: IORef Layers,
-	fWait2 :: Chan (),
-	fEvent :: Chan (Maybe Event),
-	fClose :: Chan (),
-	fRunning :: IORef [ThreadId],
-	fOnclick :: IORef (Int -> Double -> Double -> IO Bool),
-	fOnrelease :: IORef (Int -> Double -> Double -> IO Bool),
+
+	fOnclick, fOnrelease :: IORef (Int -> Double -> Double -> IO Bool),
 	fOndrag :: IORef (Double -> Double -> IO ()),
-	fPress :: IORef Bool,
 	fKeypress :: IORef (Char -> IO Bool),
-	fEnd :: Chan ()
+	fPress :: IORef Bool,
+
+	fLayers :: IORef Layers,
+	fRunning :: IORef [ThreadId],
+	fLock, fClose, fEnd :: Chan ()
  }
+
+makeField :: Display -> Window -> Bufs -> GCs -> XIC -> Atom ->
+	IORef (Dimension, Dimension) -> IORef Layers -> IO Field
+makeField dpy win bufs gcs ic del sizeRef fll = do
+	lock <- newChan
+	close <- newChan
+	running <- newIORef []
+	onclickRef <- newIORef $ const $ const $ const $ return True
+	onreleaseRef <- newIORef $ const $ const $ const $ return True
+	ondragRef <- newIORef $ const $ const $ return ()
+	pressRef <- newIORef False
+	keypressRef <- newIORef $ const $ return True
+	endRef <- newChan
+	writeChan lock ()
+	return Field{
+		fDisplay = dpy,
+		fWindow = win,
+		fGCs = gcs,
+		fIC = ic,
+		fDel = del,
+		fBufs = bufs,
+		fSize = sizeRef,
+		fLock = lock,
+		fClose = close,
+		fRunning = running,
+		fOnclick = onclickRef,
+		fOnrelease = onreleaseRef,
+		fOndrag = ondragRef,
+		fPress = pressRef,
+		fKeypress = keypressRef,
+		fEnd = endRef,
+		fLayers = fll
+	 }
 
 openField :: IO Field
 openField = do
@@ -198,21 +226,22 @@ forkField f act = do
 
 flushField :: Field -> IO a -> IO a
 flushField f act = do
-	readChan $ fWait2 f
+	readChan $ fLock f
 	ret <- act
-	(width, height) <- readIORef $ fSize f
-	copyArea (fDisplay f) (fBuf f) (fWindow f) (fGC f) 0 0 width height 0 0
+	(w, h) <- readIORef $ fSize f
+	copyArea (fDisplay f) (topBuf $ fBufs f) (fWindow f) (gcForeground $ fGCs f)
+		0 0 w h 0 0
 	flush $ fDisplay f
-	writeChan (fWait2 f) ()
+	writeChan (fLock f) ()
 	return ret
 
 fieldColor :: Field -> Color -> IO ()
 fieldColor f c = do
 	clr <- getColorPixel (fDisplay f) c
-	setForeground (fDisplay f) (fGCBG f) clr
-	(width, height) <- readIORef $ fSize f
-	forM_ [fUndoBuf f, fBG f, fBuf f] $ \bf ->
-		fillRectangle (fDisplay f) bf (fGCBG f) 0 0 width height
+	setForeground (fDisplay f) (gcBackground $ fGCs f) clr
+	(w, h) <- readIORef $ fSize f
+	forM_ [undoBuf $ fBufs f, bgBuf $ fBufs f, topBuf $ fBufs f] $ \bf ->
+		fillRectangle (fDisplay f) bf (gcBackground $ fGCs f) 0 0 w h
 
 addLayer :: Field -> IO Layer
 addLayer = makeLayer . fLayers
@@ -220,13 +249,13 @@ addLayer = makeLayer . fLayers
 drawLine :: Field -> Layer -> Double -> Color ->
 	Double -> Double -> Double -> Double -> IO ()
 drawLine f l lw clr x1 y1 x2 y2 =
-	addDraw l (drawLineBuf f (round lw) clr fUndoBuf x1 y1 x2 y2,
-		drawLineBuf f (round lw) clr fBG x1 y1 x2 y2)
+	addDraw l (drawLineBuf f (round lw) clr (undoBuf . fBufs) x1 y1 x2 y2,
+		drawLineBuf f (round lw) clr (bgBuf . fBufs) x1 y1 x2 y2)
 
 writeString :: Field -> Layer -> String -> Double -> Color ->
 	Double -> Double -> String -> IO ()
 writeString f l fname size clr x_ y_ str =
-	addDraw l (writeStringBuf fUndoBuf, writeStringBuf fBG)
+	addDraw l (writeStringBuf $ undoBuf . fBufs, writeStringBuf $ bgBuf . fBufs)
 	where
 	writeStringBuf bf = do
 		(x, y) <- fromTopLeft f x_ y_
@@ -238,15 +267,15 @@ addCharacter = makeCharacter . fLayers
 drawCharacter :: Field -> Character -> Color -> [(Double, Double)] -> IO ()
 drawCharacter f c cl sh = setCharacter c $ do
 	clr <- getColorPixel (fDisplay f) cl
-	setForeground (fDisplay f) (fGC f) clr
+	setForeground (fDisplay f) (gcForeground $ fGCs f) clr
 	fillPolygonBuf f sh
 
 drawCharacterAndLine ::	Field -> Character -> Color -> [(Double, Double)] -> Double ->
 	Double -> Double -> Double -> Double -> IO ()
 drawCharacterAndLine f c cl ps lw x1 y1 x2 y2 = setCharacter c $ do
 	clr <- getColorPixel (fDisplay f) cl
-	setForeground (fDisplay f) (fGC f) clr
-	fillPolygonBuf f ps >> drawLineBuf f (round lw) cl fBuf x1 y1 x2 y2
+	setForeground (fDisplay f) (gcForeground $ fGCs f) clr
+	fillPolygonBuf f ps >> drawLineBuf f (round lw) cl (topBuf . fBufs) x1 y1 x2 y2
 
 clearCharacter :: Character -> IO ()
 clearCharacter c = setCharacter c $ return ()
@@ -266,13 +295,13 @@ drawLineBuf :: Field -> Int -> Color -> (Field -> Pixmap) ->
 drawLineBuf f lw c bf x1_ y1_ x2_ y2_ = do
 	(x1, y1) <- fromTopLeft f x1_ y1_
 	(x2, y2) <- fromTopLeft f x2_ y2_
-	drawLineBase (fDisplay f) (fGC f) (bf f) lw c x1 y1 x2 y2
+	drawLineBase (fDisplay f) (gcForeground $ fGCs f) (bf f) lw c x1 y1 x2 y2
 
 fillPolygonBuf :: Field -> [(Double, Double)] -> IO ()
 fillPolygonBuf f ps_ = do
 	ps <- mapM (uncurry $ fromTopLeft f) ps_
-	fillPolygon (fDisplay f) (fBuf f) (fGC f) (map (uncurry Point) ps)
-		nonconvex coordModeOrigin
+	fillPolygon (fDisplay f) (topBuf $ fBufs f) (gcForeground $ fGCs f)
+		(map (uncurry Point) ps) nonconvex coordModeOrigin
 
 ---------------------------------------------------------------------------
 
@@ -285,43 +314,3 @@ fromCenter :: Field -> CInt -> CInt -> IO (Double, Double)
 fromCenter f x y = do
 	(width, height) <- fieldSize f
 	return (fromIntegral x - width / 2, fromIntegral (- y) + height / 2)
-
-makeField :: Display -> Window -> Bufs -> GCs -> XIC -> Atom ->
-	IORef (Dimension, Dimension) -> IORef Layers -> IO Field
-makeField dpy win bufs_ gcs ic del sizeRef fll = do
-	let	bufs = getBufs bufs_
-		(gc, gcBG) = (gcForeground gcs, gcBackground gcs)
-	wait2 <- newChan
-	event <- newChan
-	close <- newChan
-	running <- newIORef []
-	onclickRef <- newIORef $ const $ const $ const $ return True
-	onreleaseRef <- newIORef $ const $ const $ const $ return True
-	ondragRef <- newIORef $ const $ const $ return ()
-	pressRef <- newIORef False
-	keypressRef <- newIORef $ const $ return True
-	endRef <- newChan
-	writeChan wait2 ()
-	return Field{
-		fDisplay = dpy,
-		fWindow = win,
-		fGC = gc,
-		fGCBG = gcBG,
-		fIC = ic,
-		fDel = del,
-		fUndoBuf = head bufs,
-		fBG = bufs !! 1,
-		fBuf = bufs !! 2,
-		fSize = sizeRef,
-		fWait2 = wait2,
-		fEvent = event,
-		fClose = close,
-		fRunning = running,
-		fOnclick = onclickRef,
-		fOnrelease = onreleaseRef,
-		fOndrag = ondragRef,
-		fPress = pressRef,
-		fKeypress = keypressRef,
-		fEnd = endRef,
-		fLayers = fll
-	 }

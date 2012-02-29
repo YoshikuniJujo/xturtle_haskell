@@ -6,7 +6,6 @@ module Graphics.X11.Turtle.XTools(
 	writeStringBase,
 	drawLineBase,
 	Bufs,
-	getBufs,
 	undoBuf,
 	bgBuf,
 	topBuf,
@@ -39,9 +38,6 @@ data Bufs = Bufs{
 makeBufs :: [Pixmap] -> Bufs
 makeBufs [ub, bg, b] = Bufs{undoBuf = ub, bgBuf = bg, topBuf = b}
 makeBufs _ = error "no such bufs"
-
-getBufs :: Bufs -> [Pixmap]
-getBufs bfs = [undoBuf bfs, bgBuf bfs, topBuf bfs]
 
 data GCs = GCs{
 	gcForeground :: GC,
