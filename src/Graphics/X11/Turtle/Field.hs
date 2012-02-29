@@ -89,7 +89,7 @@ waitInput :: Field -> Chan () -> IO (Chan Bool)
 waitInput f t = do
 	c <- newChan
 	tid <- forkIOX $ forever $ do
-		threadWaitRead $ getConnection f
+		threadWaitRead $ Fd $ connectionNumber $ fDisplay f
 		writeChan c False
 		readChan t
 	_ <- forkIO $ do
@@ -97,8 +97,6 @@ waitInput f t = do
 		writeChan c True
 	addThread f tid
 	return c
-	where
-	getConnection = Fd . connectionNumber . fDisplay
 
 runLoop :: Field -> IO ()
 runLoop f = allocaXEvent $ \e -> do
@@ -107,7 +105,7 @@ runLoop f = allocaXEvent $ \e -> do
 	endc <- waitInput f timing
 	doWhile_ $ do
 		end <- readChan endc
-		cont <- doWhile True $ \_ -> do
+		cont <- doWhile True $ const $ do
 			evN <- pending $ fDisplay f
 			if evN > 0 then do
 					nextEvent (fDisplay f) e
