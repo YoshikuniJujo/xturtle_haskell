@@ -94,28 +94,26 @@ waitInput f t = do
 	where
 	getConnection = Fd . connectionNumber . fDisplay
 
-makeInput :: Field -> XIC -> XEventPtr -> Chan Bool -> Chan () -> IO ()
-makeInput f ic e endc t = doWhile_ $ do
-	end <- readChan endc
-	cont <- doWhile True $ \_ -> do
-		evN <- pending $ fDisplay f
-		if evN > 0 then do
-				nextEvent (fDisplay f) e
-				ret <- ifM (filterEvent e 0) (return True) (do
-					ev <- getEvent e
-					eventFun f ic e ev)
-				return (ret, ret)
-			else return (True, False)
-	writeChan t ()
-	unless (not end && cont) $
-		readIORef (fRunning f) >>= mapM_ killThread
-	return $ not end && cont
-
 runLoop :: XIC -> Field -> IO ()
 runLoop ic f = allocaXEvent $ \e -> do
 	timing <- newChan
 	endc <- waitInput f timing
-	makeInput f ic e endc timing
+	doWhile_ $ do
+		end <- readChan endc
+		cont <- doWhile True $ \_ -> do
+			evN <- pending $ fDisplay f
+			if evN > 0 then do
+					nextEvent (fDisplay f) e
+					ret <- ifM (filterEvent e 0)
+							(return True)
+							(do	ev <- getEvent e
+								eventFun f ic e ev)
+					return (ret, ret)
+				else return (True, False)
+		writeChan timing ()
+		unless (not end && cont) $
+			readIORef (fRunning f) >>= mapM_ killThread
+		return $ not end && cont
 	destroyWindow (fDisplay f) (fWindow f)
 	closeDisplay $ fDisplay f
 	informEnd f
@@ -170,8 +168,8 @@ flushWindow = withLock $ \f -> do
 	copyArea (fDisplay f) (fBuf f) (fWindow f) (fGC f) 0 0 width height 0 0
 	flush $ fDisplay f
 
-drawLine :: Field ->
-	Layer -> Double -> Color -> Double -> Double -> Double -> Double -> IO ()
+drawLine :: Field -> Layer -> Double -> Color ->
+	Double -> Double -> Double -> Double -> IO ()
 drawLine f l lw clr x1 y1 x2 y2 =
 	addLayerAction l (drawLineBuf f (round lw) clr fUndoBuf x1 y1 x2 y2,
 		drawLineBuf f (round lw) clr fBG x1 y1 x2 y2)
