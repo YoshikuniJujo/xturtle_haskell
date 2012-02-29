@@ -130,8 +130,8 @@ waitInput f = do
 		readChan empty
 	_ <- forkIO $ do
 		readChan $ fClose f
+		killThread tid
 		writeChan go False
-	modifyIORef (fRunning f) (tid :)
 	return (go, empty)
 
 runLoop :: Field -> IO ()
@@ -196,7 +196,6 @@ processEvent f e ev = case ev of
 
 closeField :: Field -> IO ()
 closeField f = do
-	readIORef (fRunning f) >>= mapM_ killThread
 	writeChan (fClose f) ()
 
 waitField :: Field -> IO ()
