@@ -4,7 +4,15 @@ module Graphics.X11.Turtle.XTools(
 	getColorPixel,
 	withXftColor,
 	writeStringBase,
-	drawLineBase
+	drawLineBase,
+	Bufs,
+	getBufs,
+	undoBuf,
+	bgBuf,
+	topBuf,
+	GCs,
+	gcForeground,
+	gcBackground
 ) where
 
 import Graphics.X11 hiding(Color)
@@ -21,8 +29,25 @@ import System.Locale.SetLocale
 forkIOX :: IO () -> IO ThreadId
 forkIOX = (initThreads >>) . forkIO
 
-openWindow :: IO (Display, Window, GC, GC, [Pixmap], XIC, Atom,
-	Dimension, Dimension)
+data Bufs = Bufs{
+	undoBuf :: Pixmap,
+	bgBuf :: Pixmap,
+	topBuf :: Pixmap
+ }
+
+makeBufs :: [Pixmap] -> Bufs
+makeBufs [ub, bg, b] = Bufs{undoBuf = ub, bgBuf = bg, topBuf = b}
+makeBufs _ = error "no such bufs"
+
+getBufs :: Bufs -> [Pixmap]
+getBufs bfs = [undoBuf bfs, bgBuf bfs, topBuf bfs]
+
+data GCs = GCs{
+	gcForeground :: GC,
+	gcBackground :: GC
+ }
+
+openWindow :: IO (Display, Window, Bufs, GCs, XIC, Atom, Dimension, Dimension)
 openWindow = do
 	_ <- setLocale LC_CTYPE Nothing >>= maybe (error "Can't set locale.") return
 	_ <- initThreads
@@ -51,7 +76,7 @@ openWindow = do
 		buttonPressMask .|. buttonReleaseMask .|. button1MotionMask .|.
 		fevent
 	mapWindow dpy win
-	return (dpy, win, gc, gcBG, bufs, ic, del, width, height)
+	return (dpy, win, makeBufs bufs, GCs gc gcBG, ic, del, width, height)
 
 getColorPixel :: Display -> Color -> IO Pixel
 getColorPixel _ (RGB r g b) = return $ shift (fromIntegral r) 16 .|.

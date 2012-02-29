@@ -36,7 +36,9 @@ module Graphics.X11.Turtle.Field(
 ) where
 
 import Graphics.X11.Turtle.XTools(
-	forkIOX, openWindow, drawLineBase, writeStringBase, getColorPixel)
+	forkIOX, openWindow, drawLineBase, writeStringBase, getColorPixel,
+	Bufs, getBufs, undoBuf, bgBuf, topBuf,
+	GCs, gcForeground, gcBackground)
 import Graphics.X11.Turtle.Layers(
 	Layers, Layer, Character, newLayers, redrawLayers,
 	makeLayer, addDraw, undoLayer, clearLayer, makeCharacter, setCharacter)
@@ -69,20 +71,21 @@ import Foreign.C.Types(CInt)
 
 openField :: IO Field
 openField = do
-	(dpy, win, gc, gcBG, bufs@[undoBuf, bg, buf], ic, del, width, height)
-		<- openWindow
+	(dpy, win, bufs, gcs, ic, del, width, height) <- openWindow
+	let	(ub, bb, tb) = (undoBuf bufs, bgBuf bufs, topBuf bufs)
+		gcf = gcForeground gcs
 	widthRef <- newIORef width
 	heightRef <- newIORef height
 	let size = do
 		w <- readIORef widthRef
 		h <- readIORef heightRef
 		return (w, h)
-	fll <- newLayers 50 
-		(size >>= uncurry (fillRectangle dpy undoBuf gcBG 0 0))
-		(size >>= \(w, h) -> copyArea dpy undoBuf bg gc 0 0 w h 0 0)
-		(size >>= \(w, h) -> copyArea dpy bg buf gc 0 0 w h 0 0)
-	f <- initialField dpy win gc gcBG del widthRef heightRef bufs fll
-	_ <- forkIOX $ runLoop ic f
+	ls <- newLayers 50 
+		(size >>= uncurry (fillRectangle dpy ub (gcBackground gcs) 0 0))
+		(size >>= \(w, h) -> copyArea dpy ub bb gcf 0 0 w h 0 0)
+		(size >>= \(w, h) -> copyArea dpy bb tb gcf 0 0 w h 0 0)
+	f <- makeField dpy win bufs gcs ic del widthRef heightRef ls
+	_ <- forkIOX $ runLoop f
 	flushWindow f
 	return f
 
@@ -101,8 +104,9 @@ waitInput f t = do
 	where
 	getConnection = Fd . connectionNumber . fDisplay
 
-runLoop :: XIC -> Field -> IO ()
-runLoop ic f = allocaXEvent $ \e -> do
+runLoop :: Field -> IO ()
+runLoop f = allocaXEvent $ \e -> do
+	let ic = fIC f
 	timing <- newChan
 	endc <- waitInput f timing
 	doWhile_ $ do
@@ -192,9 +196,9 @@ writeString :: Field -> Layer -> String -> Double -> Color ->
 writeString f l fname size clr x_ y_ str =
 	addDraw l (writeStringBuf fUndoBuf, writeStringBuf fBG)
 	where
-	writeStringBuf buf = do
+	writeStringBuf bf = do
 		(x, y) <- convertPos f x_ y_
-		writeStringBase (fDisplay f) (buf f) fname size clr x y str
+		writeStringBase (fDisplay f) (bf f) fname size clr x y str
 
 drawCharacter :: Field -> Character -> Color -> [(Double, Double)] -> IO ()
 drawCharacter f c cl sh = setCharacter c $ do
@@ -237,6 +241,7 @@ data Field = Field{
 	fWindow :: Window,
 	fGC :: GC,
 	fGCBG :: GC,
+	fIC :: XIC,
 	fDel :: Atom,
 	fUndoBuf :: Pixmap,
 	fBG :: Pixmap,
@@ -339,9 +344,11 @@ convertPosRev f x y = do
 fieldSize :: Field -> IO (Double, Double)
 fieldSize w = fmap (fromIntegral *** fromIntegral) $ winSize w
 
-initialField :: Display -> Window -> GC -> GC -> Atom ->
-	IORef Dimension -> IORef Dimension -> [Pixmap] -> IORef Layers -> IO Field
-initialField dpy win gc gcBG del widthRef heightRef bufs fll = do
+makeField :: Display -> Window -> Bufs -> GCs -> XIC -> Atom ->
+	IORef Dimension -> IORef Dimension -> IORef Layers -> IO Field
+makeField dpy win bufs_ gcs ic del widthRef heightRef fll = do
+	let	bufs = getBufs bufs_
+		(gc, gcBG) = (gcForeground gcs, gcBackground gcs)
 	wait <- newChan
 	wait2 <- newChan
 	event <- newChan
@@ -360,6 +367,7 @@ initialField dpy win gc gcBG del widthRef heightRef bufs fll = do
 		fWindow = win,
 		fGC = gc,
 		fGCBG = gcBG,
+		fIC = ic,
 		fDel = del,
 		fUndoBuf = head bufs,
 		fBG = bufs !! 1,
