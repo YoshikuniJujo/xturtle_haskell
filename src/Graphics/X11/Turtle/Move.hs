@@ -77,9 +77,9 @@ moveTurtle f c l t0 t1 = do
 			drawTurtle f c (pencolor t1) (shape t1) (shapesize t1)
 				(dir t1) (pensize t1) p lineOrigin
 			threadDelay moveSpeed
-		flushField f $ do
-			drawTurtle f c (pencolor t1) (shape t1) (shapesize t1) (dir t1)
-				(pensize t1) p1 lineOrigin
+		flushField f $
+			drawTurtle f c (pencolor t1) (shape t1) (shapesize t1)
+				(dir t1) (pensize t1) p1 lineOrigin
 	unless (visible t1) $ clearCharacter c
 	when (clear t1) $ flushField f $ clearLayer l
 	unless (undo t1) $ flushField f $ drawDraw f l (draw t1)

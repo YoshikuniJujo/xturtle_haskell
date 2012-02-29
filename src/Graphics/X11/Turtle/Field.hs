@@ -321,7 +321,7 @@ closeField f = do
 convertPos :: Field -> Double -> Double -> IO (Position, Position)
 convertPos f x y = do
 	(width, height) <- fieldSize f
-	return $ (round $ x + width / 2, round $ - y + height / 2)
+	return (round $ x + width / 2, round $ - y + height / 2)
 
 convertPosRev :: Field -> CInt -> CInt -> IO (Double, Double)
 convertPosRev f x y = do

@@ -57,6 +57,10 @@ redrawLayers rls = do
 	ls <- readIORef rls
 	clearLayersAction ls
 	sequence_ $ buffed ls
+	redrawFromUndo ls
+
+redrawFromUndo :: Layers -> IO ()
+redrawFromUndo ls = do
 	undoLayersAction ls
 	mapM_ snd $ concat $ layers ls
 	clearCharactersAction ls
@@ -137,13 +141,10 @@ undoLayer Layer{layerId = lid, layerLayers = rls} = withLock2 $
 undoLayer_ :: Layers -> Int -> IO (Maybe Layers)
 undoLayer_ ls l =
 	if null $ layers ls !! l then return Nothing else do
-		let nls = modifyAt (layers ls) l init
-		undoLayersAction ls
-		mapM_ snd $ concat nls
-		clearCharactersAction ls
-		sequence_ $ characters ls
---		flush ls
-		return $ Just ls{layers = nls}
+		let	nls = modifyAt (layers ls) l init
+			nlss = ls{layers = nls}
+		redrawFromUndo nlss
+		return $ Just nlss
 
 clearLayer :: Layer -> IO ()
 clearLayer Layer{layerId = lid, layerLayers = rls} = withLock2 $ do
@@ -155,13 +156,11 @@ clearLayer_ :: Layers -> Int -> IO Layers
 clearLayer_ ls l = do
 	let	nls = setAt (layers ls) l []
 		nbf = setAt (buffed ls) l $ return ()
+		nlss = ls{layers = nls, buffed = nbf}
 	clearLayersAction ls
 	sequence_ nbf
-	undoLayersAction ls
-	mapM_ snd $ concat nls
-	clearCharactersAction ls
-	sequence_ $ characters ls
-	return ls{layers = nls, buffed = nbf}
+	redrawFromUndo nlss
+	return nlss
 
 addCharacter :: IORef Layers -> IO Character
 addCharacter rls = withLock2 $ do
