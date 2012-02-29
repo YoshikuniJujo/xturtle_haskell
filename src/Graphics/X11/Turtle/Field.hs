@@ -53,7 +53,7 @@ import Graphics.X11(
 import Graphics.X11.Xlib.Extras(Event(..), getEvent)
 import Graphics.X11.Xim(XIC, filterEvent, utf8LookupString)
 
-import Control.Monad(forever, forM_)
+import Control.Monad(forever, forM_, replicateM)
 import Control.Monad.Tools(doWhile_, doWhile, whenM)
 import Control.Arrow((***))
 import Control.Concurrent(
@@ -65,61 +65,44 @@ import Data.Maybe(fromMaybe)
 import Data.Convertible(convert)
 
 import System.Posix.Types(Fd(..))
-import Foreign.C.Types(CInt)
 
 --------------------------------------------------------------------------------
 
 data Field = Field{
-	fDisplay :: Display,
-	fWindow :: Window,
-	fBufs :: Bufs,
-	fGCs :: GCs,
-	fIC :: XIC,
-	fDel :: Atom,
-	fSize :: IORef (Dimension, Dimension),
+	fDisplay :: Display, fWindow :: Window, fBufs :: Bufs, fGCs :: GCs,
+	fIC :: XIC, fDel :: Atom, fSize :: IORef (Dimension, Dimension),
 
-	fOnclick, fOnrelease :: IORef (Int -> Double -> Double -> IO Bool),
-	fOndrag :: IORef (Double -> Double -> IO ()),
-	fKeypress :: IORef (Char -> IO Bool),
-	fPress :: IORef Bool,
+	fClick, fRelease :: IORef (Int -> Double -> Double -> IO Bool),
+	fDrag :: IORef (Double -> Double -> IO ()),
+	fKeypress :: IORef (Char -> IO Bool), fPressed :: IORef Bool,
 
-	fLayers :: IORef Layers,
-	fRunning :: IORef [ThreadId],
+	fLayers :: IORef Layers, fRunning :: IORef [ThreadId],
 	fLock, fClose, fEnd :: Chan ()
  }
 
 makeField :: Display -> Window -> Bufs -> GCs -> XIC -> Atom ->
 	IORef (Dimension, Dimension) -> IORef Layers -> IO Field
-makeField dpy win bufs gcs ic del sizeRef fll = do
-	lock <- newChan
-	close <- newChan
+makeField dpy win bufs gcs ic del sizeRef ls = do
+	[click, release] <- replicateM 2 $ newIORef $ \_ _ _ -> return True
+	drag <- newIORef $ \_ _ -> return ()
+	keypress <- newIORef $ \_ -> return True
+	pressed <- newIORef False
 	running <- newIORef []
-	onclickRef <- newIORef $ const $ const $ const $ return True
-	onreleaseRef <- newIORef $ const $ const $ const $ return True
-	ondragRef <- newIORef $ const $ const $ return ()
-	pressRef <- newIORef False
-	keypressRef <- newIORef $ const $ return True
-	endRef <- newChan
+	[lock, close, end] <- replicateM 3 newChan
 	writeChan lock ()
 	return Field{
-		fDisplay = dpy,
-		fWindow = win,
-		fGCs = gcs,
-		fIC = ic,
-		fDel = del,
-		fBufs = bufs,
-		fSize = sizeRef,
-		fLock = lock,
-		fClose = close,
+		fDisplay = dpy, fWindow = win, fBufs = bufs, fGCs = gcs,
+		fIC = ic, fDel = del, fSize = sizeRef,
+
+		fClick = click, fRelease = release, fDrag = drag,
+		fKeypress = keypress, fPressed = pressed,
+
+		fLayers = ls,
 		fRunning = running,
-		fOnclick = onclickRef,
-		fOnrelease = onreleaseRef,
-		fOndrag = ondragRef,
-		fPress = pressRef,
-		fKeypress = keypressRef,
-		fEnd = endRef,
-		fLayers = fll
+		fLock = lock, fClose = close, fEnd = end
 	 }
+
+--------------------------------------------------------------------------------
 
 openField :: IO Field
 openField = do
@@ -187,25 +170,29 @@ processEvent f e ev = case ev of
 			_ks = fromMaybe xK_VoidSymbol mks
 		readIORef (fKeypress f) >>= fmap and . ($ str) . mapM
 	ButtonEvent{} -> do
-		pos <- fromCenter f (ev_x ev) (ev_y ev)
+		pos <- center (ev_x ev) (ev_y ev)
 		let	buttonN = fromIntegral $ ev_button ev
 		case ev_event_type ev of
 			et	| et == buttonPress -> do
-					writeIORef (fPress f) True
-					readIORef (fOnclick f) >>=
+					writeIORef (fPressed f) True
+					readIORef (fClick f) >>=
 						($ pos) . uncurry . ($ buttonN)
 				| et == buttonRelease -> do
-					writeIORef (fPress f) False
-					readIORef (fOnrelease f) >>=
+					writeIORef (fPressed f) False
+					readIORef (fRelease f) >>=
 						($ pos) . uncurry . ($ buttonN)
 			_ -> error "not implement event"
 	MotionEvent{} -> do
-		pos <- fromCenter f (ev_x ev) (ev_y ev)
-		whenM (readIORef $ fPress f) $
-			readIORef (fOndrag f) >>= ($ pos) . uncurry
+		pos <- center (ev_x ev) (ev_y ev)
+		whenM (readIORef $ fPressed f) $
+			readIORef (fDrag f) >>= ($ pos) . uncurry
 		return True
 	ClientMessageEvent{} -> return $ convert (head $ ev_data ev) /= fDel f
 	_ -> return True
+	where
+	center x y = do
+		(w, h) <- fieldSize f
+		return (fromIntegral x - w / 2, fromIntegral (- y) + h / 2)
 
 closeField :: Field -> IO ()
 closeField f = do
@@ -217,6 +204,8 @@ waitField = readChan . fEnd
 
 fieldSize :: Field -> IO (Double, Double)
 fieldSize = fmap (fromIntegral *** fromIntegral) . readIORef . fSize
+
+--------------------------------------------------------------------------------
 
 forkField :: Field -> IO () -> IO ThreadId
 forkField f act = do
@@ -243,6 +232,8 @@ fieldColor f c = do
 	forM_ [undoBuf $ fBufs f, bgBuf $ fBufs f, topBuf $ fBufs f] $ \bf ->
 		fillRectangle (fDisplay f) bf (gcBackground $ fGCs f) 0 0 w h
 
+--------------------------------------------------------------------------------
+
 addLayer :: Field -> IO Layer
 addLayer = makeLayer . fLayers
 
@@ -258,8 +249,15 @@ writeString f l fname size clr x_ y_ str =
 	addDraw l (writeStringBuf $ undoBuf . fBufs, writeStringBuf $ bgBuf . fBufs)
 	where
 	writeStringBuf bf = do
-		(x, y) <- fromTopLeft f x_ y_
+		(x, y) <- topLeft f x_ y_
 		writeStringBase (fDisplay f) (bf f) fname size clr x y str
+
+topLeft :: Field -> Double -> Double -> IO (Position, Position)
+topLeft f x y = do
+	(width, height) <- fieldSize f
+	return (round $ x + width / 2, round $ - y + height / 2)
+
+--------------------------------------------------------------------------------
 
 addCharacter :: Field -> IO Character
 addCharacter = makeCharacter . fLayers
@@ -277,40 +275,30 @@ drawCharacterAndLine f c cl ps lw x1 y1 x2 y2 = setCharacter c $ do
 	setForeground (fDisplay f) (gcForeground $ fGCs f) clr
 	fillPolygonBuf f ps >> drawLineBuf f (round lw) cl (topBuf . fBufs) x1 y1 x2 y2
 
-clearCharacter :: Character -> IO ()
-clearCharacter c = setCharacter c $ return ()
-
-onclick, onrelease :: Field -> (Int -> Double -> Double -> IO Bool) -> IO ()
-onclick f = writeIORef $ fOnclick f
-onrelease f = writeIORef $ fOnrelease f
-
-ondrag :: Field -> (Double -> Double -> IO ()) -> IO ()
-ondrag f = writeIORef $ fOndrag f
-
-onkeypress :: Field -> (Char -> IO Bool) -> IO ()
-onkeypress f = writeIORef $ fKeypress f
+fillPolygonBuf :: Field -> [(Double, Double)] -> IO ()
+fillPolygonBuf f ps_ = do
+	ps <- mapM (uncurry $ topLeft f) ps_
+	fillPolygon (fDisplay f) (topBuf $ fBufs f) (gcForeground $ fGCs f)
+		(map (uncurry Point) ps) nonconvex coordModeOrigin
 
 drawLineBuf :: Field -> Int -> Color -> (Field -> Pixmap) ->
 	Double -> Double -> Double -> Double -> IO ()
 drawLineBuf f lw c bf x1_ y1_ x2_ y2_ = do
-	(x1, y1) <- fromTopLeft f x1_ y1_
-	(x2, y2) <- fromTopLeft f x2_ y2_
+	(x1, y1) <- topLeft f x1_ y1_
+	(x2, y2) <- topLeft f x2_ y2_
 	drawLineBase (fDisplay f) (gcForeground $ fGCs f) (bf f) lw c x1 y1 x2 y2
 
-fillPolygonBuf :: Field -> [(Double, Double)] -> IO ()
-fillPolygonBuf f ps_ = do
-	ps <- mapM (uncurry $ fromTopLeft f) ps_
-	fillPolygon (fDisplay f) (topBuf $ fBufs f) (gcForeground $ fGCs f)
-		(map (uncurry Point) ps) nonconvex coordModeOrigin
+clearCharacter :: Character -> IO ()
+clearCharacter c = setCharacter c $ return ()
 
----------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 
-fromTopLeft :: Field -> Double -> Double -> IO (Position, Position)
-fromTopLeft f x y = do
-	(width, height) <- fieldSize f
-	return (round $ x + width / 2, round $ - y + height / 2)
+onclick, onrelease :: Field -> (Int -> Double -> Double -> IO Bool) -> IO ()
+onclick f = writeIORef $ fClick f
+onrelease f = writeIORef $ fRelease f
 
-fromCenter :: Field -> CInt -> CInt -> IO (Double, Double)
-fromCenter f x y = do
-	(width, height) <- fieldSize f
-	return (fromIntegral x - width / 2, fromIntegral (- y) + height / 2)
+ondrag :: Field -> (Double -> Double -> IO ()) -> IO ()
+ondrag f = writeIORef $ fDrag f
+
+onkeypress :: Field -> (Char -> IO Bool) -> IO ()
+onkeypress f = writeIORef $ fKeypress f
