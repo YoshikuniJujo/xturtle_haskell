@@ -53,8 +53,8 @@ import Graphics.X11(
 import Graphics.X11.Xlib.Extras(Event(..), getEvent)
 import Graphics.X11.Xim(XIC, filterEvent, utf8LookupString)
 
-import Control.Monad(forever, unless, forM_)
-import Control.Monad.Tools(doWhile_, doWhile, ifM, whenM)
+import Control.Monad(forever, forM_)
+import Control.Monad.Tools(doWhile_, doWhile, whenM)
 import Control.Arrow((***))
 import Control.Concurrent(
 	forkIO, ThreadId, threadWaitRead, killThread,
@@ -85,48 +85,47 @@ openField = do
 	flushWindow f
 	return f
 
-waitInput :: Field -> Chan () -> IO (Chan Bool)
-waitInput f t = do
-	c <- newChan
+waitInput :: Field -> IO (Chan Bool, Chan ())
+waitInput f = do
+	go <- newChan
+	empty <- newChan
 	tid <- forkIOX $ forever $ do
 		threadWaitRead $ Fd $ connectionNumber $ fDisplay f
-		writeChan c False
-		readChan t
+		writeChan go True
+		readChan empty
 	_ <- forkIO $ do
 		readChan $ fClose f
-		writeChan c True
-	addThread f tid
-	return c
+		writeChan go False
+	runningThread f tid
+	return (go, empty)
 
 runLoop :: Field -> IO ()
 runLoop f = allocaXEvent $ \e -> do
-	let ic = fIC f
-	timing <- newChan
-	endc <- waitInput f timing
+	(go, empty) <- waitInput f
 	doWhile_ $ do
-		end <- readChan endc
+		notEnd <- readChan go
 		cont <- doWhile True $ const $ do
 			evN <- pending $ fDisplay f
 			if evN > 0 then do
 					nextEvent (fDisplay f) e
-					ret <- ifM (filterEvent e 0)
-							(return True)
-							(do	ev <- getEvent e
-								eventFun f ic e ev)
+					filtered <- filterEvent e 0
+					ret <- if filtered then return True
+						else do	ev <- getEvent e
+							eventFun f e ev
 					return (ret, ret)
 				else return (True, False)
-		writeChan timing ()
-		unless (not end && cont) $
+		writeChan empty ()
+		if notEnd && cont then return True else do
 			readIORef (fRunning f) >>= mapM_ killThread
-		return $ not end && cont
+			return False
 	destroyWindow (fDisplay f) (fWindow f)
 	closeDisplay $ fDisplay f
 	informEnd f
 
-eventFun :: Field -> XIC -> XEventPtr -> Event -> IO Bool
-eventFun f ic e ev = case ev of
+eventFun :: Field -> XEventPtr -> Event -> IO Bool
+eventFun f e ev = case ev of
 	ExposeEvent{} -> exposeFun f
-	KeyEvent{} -> keyFun f ic e
+	KeyEvent{} -> keyFun f (fIC f) e
 	ButtonEvent{} -> buttonFun f ev
 	MotionEvent{} -> motionFun f ev
 	ClientMessageEvent{} -> return $ isWMDelete f ev
@@ -270,13 +269,13 @@ ondrag f = writeIORef $ fOndrag f
 onkeypress :: Field -> (Char -> IO Bool) -> IO ()
 onkeypress f = writeIORef $ fKeypress f
 
-addThread :: Field -> ThreadId -> IO ()
-addThread f tid = modifyIORef (fRunning f) (tid :)
+runningThread :: Field -> ThreadId -> IO ()
+runningThread f tid = modifyIORef (fRunning f) (tid :)
 
 forkField :: Field -> IO () -> IO ThreadId
 forkField f act = do
 	tid <- forkIOX act
-	addThread f tid
+	runningThread f tid
 	return tid
 
 setWinSize :: Field -> Dimension -> Dimension -> IO ()
