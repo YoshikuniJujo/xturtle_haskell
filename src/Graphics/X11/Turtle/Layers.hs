@@ -1,35 +1,73 @@
 module Graphics.X11.Turtle.Layers(
+	-- * types
 	Layers,
 	Layer,
 	Character,
 	
+	-- * initilize
 	newLayers,
 	makeLayer,
 	makeCharacter,
 
+	-- * draws
+	redrawLayers,
 	addDraw,
 	undoLayer,
 	clearLayer,
-	setCharacter,
-
-	redrawLayers
+	setCharacter
 ) where
 
+import Control.Monad(when, unless)
 import Data.IORef(IORef, newIORef, readIORef, atomicModifyIORef)
-import Data.List.Tools
-import Control.Concurrent
-import Control.Monad
+import Data.List.Tools(setAt, modifyAt)
+
+--------------------------------------------------------------------------------
 
 data Layers = Layers{
 	undoNum :: Int,
-	undoLayersAction :: IO (),
 	clearLayersAction :: IO (),
+	undoLayersAction :: IO (),
 	clearCharactersAction :: IO (),
 	buffed :: [IO ()],
 	layers :: [[(IO (), IO ())]],
-	characters :: [IO ()],
-	lock :: Chan ()
+	characters :: [IO ()]
  }
+
+data Layer = Layer{
+	layerId :: Int,
+	layerLayers :: IORef Layers
+ }
+
+data Character = Character{
+	characterId :: Int,
+	characterLayers :: IORef Layers
+ }
+
+--------------------------------------------------------------------------------
+
+newLayers :: Int -> IO () -> IO () -> IO () -> IO (IORef Layers)
+newLayers un cla ula cca = newIORef $ Layers{
+	undoNum = un,
+	clearLayersAction = cla,
+	undoLayersAction = ula,
+	clearCharactersAction = cca,
+	buffed = [],
+	layers = [],
+	characters = []
+ }
+
+makeLayer :: IORef Layers -> IO Layer
+makeLayer rls = atomicModifyIORef rls $ \ls ->
+	(ls{layers = layers ls ++ [[]], buffed = buffed ls ++ [return ()]},
+		Layer{layerId = length $ layers ls, layerLayers = rls})
+
+makeCharacter :: IORef Layers -> IO Character
+makeCharacter rls = atomicModifyIORef rls $ \ls ->
+	(ls{characters = characters ls ++ [return ()]}, Character{
+		characterId = length $ characters ls,
+		characterLayers = rls})
+
+--------------------------------------------------------------------------------
 
 redrawLayers :: IORef Layers -> IO ()
 redrawLayers rls = do
@@ -43,46 +81,8 @@ redrawFromUndo ls = do
 	clearCharactersAction ls
 	sequence_ $ characters ls
 
-newLayers :: Int -> IO () -> IO () -> IO () -> IO (IORef Layers)
-newLayers un cla ula cca = do
-	ls <- newLayers_ un ula cla cca
-	newIORef ls
-
-newLayers_ :: Int -> IO () -> IO () -> IO () -> IO Layers
-newLayers_ un ula cla cca = do
-	l <- newChan
-	writeChan l ()
-	return Layers{
-		undoNum = un,
-		undoLayersAction = ula,
-		clearLayersAction = cla,
-		clearCharactersAction = cca,
-		buffed = [],
-		layers = [],
-		characters = [],
-		lock = l
-	 }
-
-data Layer = Layer{
-	layerId :: Int,
-	layerLayers :: IORef Layers
- }
-
-data Character = Character{
-	characterId :: Int,
-	characterLayers :: IORef Layers
- }
-
-makeLayer :: IORef Layers -> IO Layer
-makeLayer = addLayer
-
 atomicModifyIORef_ :: IORef a -> (a -> a) -> IO ()
 atomicModifyIORef_ ref f =  atomicModifyIORef ref $ \x -> (f x, ())
-
-addLayer :: IORef Layers -> IO Layer
-addLayer rls = atomicModifyIORef rls $ \ls ->
-	(ls{layers = layers ls ++ [[]], buffed = buffed ls ++ [return ()]},
-		Layer{layerId = length $ layers ls, layerLayers = rls})
 
 addDraw :: Layer -> (IO (), IO ()) -> IO ()
 addDraw = addLayerAction
@@ -138,19 +138,6 @@ clearLayerAction ls = do
 	clearLayersAction ls
 	sequence_ $ buffed ls
 	redrawFromUndo ls
-
-makeCharacter :: IORef Layers -> IO Character
-makeCharacter = addCharacter
-
-addCharacter :: IORef Layers -> IO Character
-addCharacter rls = atomicModifyIORef rls $ \ls ->
-	let	(cid, nls) = addCharacter_ ls in
-		(nls, Character{characterId = cid, characterLayers = rls})
-
-addCharacter_ :: Layers -> (Int, Layers)
-addCharacter_ ls =
-	(length $ characters ls,
-		ls{characters = characters ls ++ [return ()]})
 
 setCharacter :: Character -> IO () -> IO ()
 setCharacter Character{characterId = cid, characterLayers = rls} act = do
