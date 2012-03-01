@@ -15,30 +15,10 @@ module Graphics.X11.Turtle.Layers(
 	redrawLayers
 ) where
 
-import System.IO.Unsafe
-import Data.IORef
+import Data.IORef(IORef, newIORef, readIORef, atomicModifyIORef)
 import Data.List.Tools
 import Control.Concurrent
-
-lockChan :: Chan ()
-lockChan = unsafePerformIO $ do
-	c <- newChan
-	writeChan c ()
-	return c
-
-withLock2 :: IO a -> IO a
-withLock2 act = do
-	readChan lockChan
-	ret <- act
-	writeChan lockChan ()
-	return ret
-
-withLock :: Layers -> (Layers -> IO a) -> IO a
-withLock ls act = do
-	readChan $ lock ls
-	ret <- act ls
-	writeChan (lock ls) ()
-	return ret
+import Control.Monad
 
 data Layers = Layers{
 	undoNum :: Int,
@@ -54,9 +34,7 @@ data Layers = Layers{
 redrawLayers :: IORef Layers -> IO ()
 redrawLayers rls = do
 	ls <- readIORef rls
-	clearLayersAction ls
-	sequence_ $ buffed ls
-	redrawFromUndo ls
+	clearLayerAction ls
 
 redrawFromUndo :: Layers -> IO ()
 redrawFromUndo ls = do
@@ -98,81 +76,76 @@ data Character = Character{
 makeLayer :: IORef Layers -> IO Layer
 makeLayer = addLayer
 
-addLayer :: IORef Layers -> IO Layer
-addLayer rls = withLock2 $ do
-	ls <- readIORef rls
-	let	(lid, nls) = addLayer_ ls
-	writeIORef rls nls
-	return Layer{layerId = lid, layerLayers = rls}
+atomicModifyIORef_ :: IORef a -> (a -> a) -> IO ()
+atomicModifyIORef_ ref f =  atomicModifyIORef ref $ \x -> (f x, ())
 
-addLayer_ :: Layers -> (Int, Layers)
-addLayer_ ls =
-	(length $ layers ls,
-		ls{layers = layers ls ++ [[]], buffed = buffed ls ++ [return ()]})
+addLayer :: IORef Layers -> IO Layer
+addLayer rls = atomicModifyIORef rls $ \ls ->
+	(ls{layers = layers ls ++ [[]], buffed = buffed ls ++ [return ()]},
+		Layer{layerId = length $ layers ls, layerLayers = rls})
 
 addDraw :: Layer -> (IO (), IO ()) -> IO ()
 addDraw = addLayerAction
 
 addLayerAction :: Layer -> (IO (), IO ()) -> IO ()
-addLayerAction Layer{layerId = lid, layerLayers = rls} acts = withLock2 $
-	readIORef rls >>= flip withLock (\ls -> do
-		nls <- addLayerAction_ ls lid acts
-		writeIORef rls nls)
+addLayerAction Layer{layerId = lid, layerLayers = rls} acts = do
+	readIORef rls >>= \ls -> addLayerActionAction ls lid acts
+	atomicModifyIORef_ rls $ \ls -> addLayerActionData ls lid acts
 
-addLayerAction_ :: Layers -> Int -> (IO (), IO ()) -> IO Layers
-addLayerAction_ ls l acts@(_, act) = do
-	let actNum = length $ layers ls !! l
+addLayerActionData :: Layers -> Int -> (IO (), IO ()) -> Layers
+addLayerActionData ls l acts =
+	let	actNum = length $ layers ls !! l
+		nls1 = ls{layers = modifyAt (layers ls) l (++ [acts])}
+		nls2 = ls{
+			layers = modifyAt (layers ls) l ((++ [acts]) . tail),
+			buffed = modifyAt (buffed ls) l
+					(>> fst (head $ layers ls !! l))} in
+	if actNum < undoNum ls then nls1 else nls2
+
+addLayerActionAction :: Layers -> Int -> (IO (), IO ()) -> IO ()
+addLayerActionAction ls l (_, act) = do
+	let	actNum = length $ layers ls !! l
 	act
 	clearCharactersAction ls
 	sequence_ $ characters ls
-	if actNum < undoNum ls then
-			return ls{layers =
-				modifyAt (layers ls) l (++ [acts])}
-		else do	fst $ head $ layers ls !! l
-			return ls{
-				layers = modifyAt (layers ls) l
-					((++ [acts]) . tail),
-				buffed = modifyAt (buffed ls) l
-					(>> fst (head $ layers ls !! l))}
+	unless (actNum < undoNum ls) $ fst $ head $ layers ls !! l
 
 undoLayer :: Layer -> IO Bool
-undoLayer Layer{layerId = lid, layerLayers = rls} = withLock2 $
-	readIORef rls >>= flip withLock (\ls -> do
-		mnls <- undoLayer_ ls lid
-		maybe (return False)
-			((>> return True) . writeIORef rls) mnls)
+undoLayer Layer{layerId = lid, layerLayers = rls} = do
+	ret <- atomicModifyIORef rls $ \ls -> case undoLayerData ls lid of
+		Nothing -> (ls, False)
+		Just nls -> (nls, True)
+	when ret $ readIORef rls >>= \ls -> redrawFromUndo ls
+	return ret
 
-undoLayer_ :: Layers -> Int -> IO (Maybe Layers)
-undoLayer_ ls l =
-	if null $ layers ls !! l then return Nothing else do
-		let	nls = ls{layers = modifyAt (layers ls) l init}
-		redrawFromUndo nls
-		return $ Just nls
+undoLayerData :: Layers -> Int -> Maybe Layers
+undoLayerData ls l = if null $ layers ls !! l then Nothing
+	else Just ls{layers = modifyAt (layers ls) l init}
 
 clearLayer :: Layer -> IO ()
-clearLayer Layer{layerId = lid, layerLayers = rls} = withLock2 $ do
-	ls <- readIORef rls
-	nls <- clearLayer_ ls lid
-	writeIORef rls nls
+clearLayer Layer{layerId = lid, layerLayers = rls} = do
+	atomicModifyIORef_ rls $ \ls -> clearLayerData ls lid
+	readIORef rls >>= clearLayerAction
 
-clearLayer_ :: Layers -> Int -> IO Layers
-clearLayer_ ls l = do
-	let	nls = ls{layers = setAt (layers ls) l [],
-			buffed = setAt (buffed ls) l $ return ()}
+clearLayerData :: Layers -> Int -> Layers
+clearLayerData ls l = ls{
+	layers = setAt (layers ls) l [],
+	buffed = setAt (buffed ls) l $ return ()
+ }
+
+clearLayerAction :: Layers -> IO ()
+clearLayerAction ls = do
 	clearLayersAction ls
-	sequence_ $ buffed nls
-	redrawFromUndo nls
-	return nls
+	sequence_ $ buffed ls
+	redrawFromUndo ls
 
 makeCharacter :: IORef Layers -> IO Character
 makeCharacter = addCharacter
 
 addCharacter :: IORef Layers -> IO Character
-addCharacter rls = withLock2 $ do
-	ls <- readIORef rls
-	let (cid, nls) = addCharacter_ ls
-	writeIORef rls nls
-	return Character{characterId = cid, characterLayers = rls}
+addCharacter rls = atomicModifyIORef rls $ \ls ->
+	let	(cid, nls) = addCharacter_ ls in
+		(nls, Character{characterId = cid, characterLayers = rls})
 
 addCharacter_ :: Layers -> (Int, Layers)
 addCharacter_ ls =
@@ -180,14 +153,14 @@ addCharacter_ ls =
 		ls{characters = characters ls ++ [return ()]})
 
 setCharacter :: Character -> IO () -> IO ()
-setCharacter Character{characterId = cid, characterLayers = rls} act = withLock2 $
-	readIORef rls >>= flip withLock (\ls -> do
-	nls <- setCharacter_ ls cid act
-	writeIORef rls nls)
+setCharacter Character{characterId = cid, characterLayers = rls} act = do
+	atomicModifyIORef_ rls $ \ls -> setCharacterData ls cid act
+	readIORef rls >>= setCharacterAction
 
-setCharacter_ :: Layers -> Int -> IO () -> IO Layers
-setCharacter_ ls c act = do
-	let cs = setAt (characters ls) c act
+setCharacterData :: Layers -> Int -> IO () -> Layers
+setCharacterData ls c act = ls{characters = setAt (characters ls) c act}
+
+setCharacterAction :: Layers -> IO ()
+setCharacterAction ls = do
 	clearCharactersAction ls
-	sequence_ cs
-	return ls{characters = cs}
+	sequence_ $ characters ls
