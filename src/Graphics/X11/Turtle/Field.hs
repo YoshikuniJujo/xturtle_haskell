@@ -146,14 +146,12 @@ runLoop f = allocaXEvent $ \e -> do
 					filtered <- filterEvent e 0
 					if filtered then return (True, True)
 						else do	ev <- getEvent e
-							r <- processEvent f e ev
-							return (r, r)
+							c <- processEvent f e ev
+							return (c, c)
 				else return (True, False)
-		if notEnd && cont then do
-				writeChan empty ()
-				return True
-			else do	readIORef (fRunning f) >>= mapM_ killThread
-				return False
+		if notEnd && cont then writeChan empty () >> return True
+			else return False
+	readIORef (fRunning f) >>= mapM_ killThread
 	destroyWindow (fDisplay f) (fWindow f)
 	closeDisplay $ fDisplay f
 	writeChan (fEnd f) ()
@@ -195,8 +193,7 @@ processEvent f e ev = case ev of
 		return (fromIntegral x - w / 2, fromIntegral (- y) + h / 2)
 
 closeField :: Field -> IO ()
-closeField f = do
-	writeChan (fClose f) ()
+closeField = flip writeChan () . fClose
 
 waitField :: Field -> IO ()
 waitField = readChan . fEnd
@@ -217,19 +214,20 @@ flushField f act = do
 	readChan $ fLock f
 	ret <- act
 	(w, h) <- readIORef $ fSize f
-	copyArea (fDisplay f) (topBuf $ fBufs f) (fWindow f) (gcForeground $ fGCs f)
-		0 0 w h 0 0
+	copyArea (fDisplay f) (topBuf $ fBufs f) (fWindow f)
+		(gcForeground $ fGCs f) 0 0 w h 0 0
 	flush $ fDisplay f
 	writeChan (fLock f) ()
 	return ret
 
 fieldColor :: Field -> Color -> IO ()
-fieldColor f c = do
+fieldColor f c = flushField f $ do
 	clr <- getColorPixel (fDisplay f) c
 	setForeground (fDisplay f) (gcBackground $ fGCs f) clr
 	(w, h) <- readIORef $ fSize f
 	forM_ [undoBuf $ fBufs f, bgBuf $ fBufs f, topBuf $ fBufs f] $ \bf ->
 		fillRectangle (fDisplay f) bf (gcBackground $ fGCs f) 0 0 w h
+	redrawLayers $ fLayers f
 
 --------------------------------------------------------------------------------
 
@@ -239,8 +237,8 @@ addLayer = makeLayer . fLayers
 drawLine :: Field -> Layer -> Double -> Color ->
 	Double -> Double -> Double -> Double -> IO ()
 drawLine f l lw clr x1 y1 x2 y2 =
-	addDraw l (drawLineBuf f (round lw) clr (undoBuf . fBufs) x1 y1 x2 y2,
-		drawLineBuf f (round lw) clr (bgBuf . fBufs) x1 y1 x2 y2)
+	addDraw l (drawLineBuf f undoBuf (round lw) clr x1 y1 x2 y2,
+		drawLineBuf f bgBuf (round lw) clr x1 y1 x2 y2)
 
 writeString :: Field -> Layer -> String -> Double -> Color ->
 	Double -> Double -> String -> IO ()
@@ -250,6 +248,14 @@ writeString f l fname size clr x_ y_ str =
 	writeStringBuf bf = do
 		(x, y) <- topLeft f x_ y_
 		writeStringBase (fDisplay f) (bf f) fname size clr x y str
+
+drawLineBuf :: Field -> (Bufs -> Pixmap) -> Int -> Color ->
+	Double -> Double -> Double -> Double -> IO ()
+drawLineBuf f bf lw c x1_ y1_ x2_ y2_ = do
+	(x1, y1) <- topLeft f x1_ y1_
+	(x2, y2) <- topLeft f x2_ y2_
+	drawLineBase (fDisplay f) (gcForeground $ fGCs f) (bf $ fBufs f) lw c
+		x1 y1 x2 y2
 
 topLeft :: Field -> Double -> Double -> IO (Position, Position)
 topLeft f x y = do
@@ -272,20 +278,14 @@ drawCharacterAndLine ::	Field -> Character -> Color -> [(Double, Double)] -> Dou
 drawCharacterAndLine f c cl ps lw x1 y1 x2 y2 = setCharacter c $ do
 	clr <- getColorPixel (fDisplay f) cl
 	setForeground (fDisplay f) (gcForeground $ fGCs f) clr
-	fillPolygonBuf f ps >> drawLineBuf f (round lw) cl (topBuf . fBufs) x1 y1 x2 y2
+	fillPolygonBuf f ps
+	drawLineBuf f topBuf (round lw) cl x1 y1 x2 y2
 
 fillPolygonBuf :: Field -> [(Double, Double)] -> IO ()
-fillPolygonBuf f ps_ = do
-	ps <- mapM (uncurry $ topLeft f) ps_
+fillPolygonBuf f psc = do
+	ps <- mapM (uncurry $ topLeft f) psc
 	fillPolygon (fDisplay f) (topBuf $ fBufs f) (gcForeground $ fGCs f)
 		(map (uncurry Point) ps) nonconvex coordModeOrigin
-
-drawLineBuf :: Field -> Int -> Color -> (Field -> Pixmap) ->
-	Double -> Double -> Double -> Double -> IO ()
-drawLineBuf f lw c bf x1_ y1_ x2_ y2_ = do
-	(x1, y1) <- topLeft f x1_ y1_
-	(x2, y2) <- topLeft f x2_ y2_
-	drawLineBase (fDisplay f) (gcForeground $ fGCs f) (bf f) lw c x1 y1 x2 y2
 
 clearCharacter :: Character -> IO ()
 clearCharacter c = setCharacter c $ return ()

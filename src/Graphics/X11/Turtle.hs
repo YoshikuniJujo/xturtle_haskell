@@ -91,7 +91,7 @@ import Data.IORef(IORef, newIORef, readIORef, modifyIORef)
 import Data.Fixed(mod')
 
 xturtleVersion :: (Int, String)
-xturtleVersion = (35, "0.0.16a")
+xturtleVersion = (36, "0.0.16b")
 
 data Turtle = Turtle {
 	field :: Field,
@@ -120,7 +120,6 @@ newTurtle f = do
 			stateIndex = si,
 			thread = undefined
 		 }
-	
 	tid <- forkField f $ zipWithM_ (moveTurtle f ch l) sts $ tail sts
 	shape t "classic"
 	return t{thread = tid}

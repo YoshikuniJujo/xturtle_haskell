@@ -1,6 +1,7 @@
 * refactoring
 
 Functions
+* use atomicModifyIORef
 * bgcolor may should be Turtle -> Color -> IO () instead of Field -> ...
 	-- Because change bg color is drawing element
 	-- How do I make in SVG
