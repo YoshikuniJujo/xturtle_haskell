@@ -36,7 +36,7 @@ module Graphics.X11.Turtle.Field(
 ) where
 
 import Graphics.X11.Turtle.XTools(
-	forkIOX, openWindow, drawLineBase, writeStringBase, getColorPixel,
+	forkIOX, openWindow, drawLineXT, writeStringXT, getColorPixel,
 	Bufs, undoBuf, bgBuf, topBuf,
 	GCs, gcForeground, gcBackground, windowSize)
 import Graphics.X11.Turtle.Layers(
@@ -242,19 +242,17 @@ drawLine f l lw clr x1 y1 x2 y2 =
 
 writeString :: Field -> Layer -> String -> Double -> Color ->
 	Double -> Double -> String -> IO ()
-writeString f l fname size clr x_ y_ str =
-	addDraw l (writeStringBuf $ undoBuf . fBufs, writeStringBuf $ bgBuf . fBufs)
-	where
-	writeStringBuf bf = do
-		(x, y) <- topLeft f x_ y_
-		writeStringBase (fDisplay f) (bf f) fname size clr x y str
+writeString f l fname size clr xc yc str = addDraw l (ws undoBuf, ws bgBuf)
+	where ws bf = do
+		(x, y) <- topLeft f xc yc
+		writeStringXT (fDisplay f) (bf $ fBufs f) fname size clr x y str
 
 drawLineBuf :: Field -> (Bufs -> Pixmap) -> Int -> Color ->
 	Double -> Double -> Double -> Double -> IO ()
 drawLineBuf f bf lw c x1_ y1_ x2_ y2_ = do
 	(x1, y1) <- topLeft f x1_ y1_
 	(x2, y2) <- topLeft f x2_ y2_
-	drawLineBase (fDisplay f) (gcForeground $ fGCs f) (bf $ fBufs f) lw c
+	drawLineXT (fDisplay f) (gcForeground $ fGCs f) (bf $ fBufs f) lw c
 		x1 y1 x2 y2
 
 topLeft :: Field -> Double -> Double -> IO (Position, Position)
@@ -268,22 +266,18 @@ addCharacter :: Field -> IO Character
 addCharacter = makeCharacter . fLayers
 
 drawCharacter :: Field -> Character -> Color -> [(Double, Double)] -> IO ()
-drawCharacter f c cl sh = setCharacter c $ do
-	clr <- getColorPixel (fDisplay f) cl
-	setForeground (fDisplay f) (gcForeground $ fGCs f) clr
-	fillPolygonBuf f sh
+drawCharacter f c clr sh = setCharacter c $ drawShape f clr sh
 
-drawCharacterAndLine ::	Field -> Character -> Color -> [(Double, Double)] -> Double ->
-	Double -> Double -> Double -> Double -> IO ()
-drawCharacterAndLine f c cl ps lw x1 y1 x2 y2 = setCharacter c $ do
-	clr <- getColorPixel (fDisplay f) cl
-	setForeground (fDisplay f) (gcForeground $ fGCs f) clr
-	fillPolygonBuf f ps
-	drawLineBuf f topBuf (round lw) cl x1 y1 x2 y2
+drawCharacterAndLine ::	Field -> Character -> Color -> [(Double, Double)] ->
+	Double -> Double -> Double -> Double -> Double -> IO ()
+drawCharacterAndLine f c clr sh lw x1 y1 x2 y2 = setCharacter c $
+	drawShape f clr sh >> drawLineBuf f topBuf (round lw) clr x1 y1 x2 y2
 
-fillPolygonBuf :: Field -> [(Double, Double)] -> IO ()
-fillPolygonBuf f psc = do
+drawShape :: Field -> Color -> [(Double, Double)] -> IO ()
+drawShape f clr psc = do
 	ps <- mapM (uncurry $ topLeft f) psc
+	pxl <- getColorPixel (fDisplay f) clr
+	setForeground (fDisplay f) (gcForeground $ fGCs f) pxl
 	fillPolygon (fDisplay f) (topBuf $ fBufs f) (gcForeground $ fGCs f)
 		(map (uncurry Point) ps) nonconvex coordModeOrigin
 
@@ -293,11 +287,10 @@ clearCharacter c = setCharacter c $ return ()
 --------------------------------------------------------------------------------
 
 onclick, onrelease :: Field -> (Int -> Double -> Double -> IO Bool) -> IO ()
-onclick f = writeIORef $ fClick f
-onrelease f = writeIORef $ fRelease f
+(onclick, onrelease) = (writeIORef .) *** (writeIORef .) $ (fClick, fRelease)
 
 ondrag :: Field -> (Double -> Double -> IO ()) -> IO ()
-ondrag f = writeIORef $ fDrag f
+ondrag = writeIORef . fDrag
 
 onkeypress :: Field -> (Char -> IO Bool) -> IO ()
-onkeypress f = writeIORef $ fKeypress f
+onkeypress = writeIORef . fKeypress

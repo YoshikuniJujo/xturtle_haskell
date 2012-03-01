@@ -3,8 +3,8 @@ module Graphics.X11.Turtle.XTools(
 	openWindow,
 	getColorPixel,
 	withXftColor,
-	writeStringBase,
-	drawLineBase,
+	writeStringXT,
+	drawLineXT,
 	Bufs,
 	undoBuf,
 	bgBuf,
@@ -97,8 +97,9 @@ withXftColor dpy visual colormap (RGB r g b) action =
 withXftColor dpy visual colormap (ColorName cn) action =
 	withXftColorName dpy visual colormap cn action
 
-writeStringBase :: Display -> Pixmap -> String -> Double -> Color ->
+writeStringBase, writeStringXT :: Display -> Pixmap -> String -> Double -> Color ->
 	Position -> Position -> String -> IO ()
+writeStringXT = writeStringBase
 writeStringBase dpy buf fname size clr x y str = do
 	let	scr = defaultScreen dpy
 		scrN = defaultScreenOfDisplay dpy
@@ -109,8 +110,9 @@ writeStringBase dpy buf fname size clr x y str = do
 	withXftColor dpy visual colormap clr $ \c ->
 		xftDrawString xftDraw c xftFont x y str
 
-drawLineBase :: Display -> GC -> Pixmap -> Int -> Color ->
+drawLineBase, drawLineXT :: Display -> GC -> Pixmap -> Int -> Color ->
 	Position -> Position -> Position -> Position -> IO ()
+drawLineXT = drawLineBase
 drawLineBase dpy gc bf lw c x1 y1 x2 y2 = do
 	clr <- getColorPixel dpy c
 	setForeground dpy gc clr
