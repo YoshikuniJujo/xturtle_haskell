@@ -12,10 +12,12 @@ module Graphics.X11.Turtle.XTools(
 	GCs,
 	gcForeground,
 	gcBackground,
-	windowSize
+	windowSize,
+	fillPolygon
 ) where
 
-import Graphics.X11 hiding(Color)
+import Graphics.X11 hiding(Color, fillPolygon)
+import qualified Graphics.X11 as X
 import Graphics.X11.Xft
 import Graphics.X11.Xim
 import Graphics.X11.Xrender
@@ -25,6 +27,9 @@ import Control.Monad
 import Control.Monad.Tools
 import Data.Bits
 import System.Locale.SetLocale
+
+fillPolygon :: Display -> Drawable -> GC -> [Point] -> IO ()
+fillPolygon dpy win gc ps = X.fillPolygon dpy win gc ps nonconvex coordModeOrigin
 
 forkIOX :: IO () -> IO ThreadId
 forkIOX = (initThreads >>) . forkIO

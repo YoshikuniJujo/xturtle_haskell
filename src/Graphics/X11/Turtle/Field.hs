@@ -38,7 +38,7 @@ module Graphics.X11.Turtle.Field(
 import Graphics.X11.Turtle.XTools(
 	forkIOX, openWindow, drawLineXT, writeStringXT, getColorPixel,
 	Bufs, undoBuf, bgBuf, topBuf,
-	GCs, gcForeground, gcBackground, windowSize)
+	GCs, gcForeground, gcBackground, windowSize, fillPolygon)
 import Graphics.X11.Turtle.Layers(
 	Layers, Layer, Character, newLayers, redrawLayers,
 	makeLayer, addDraw, undoLayer, clearLayer, makeCharacter, setCharacter)
@@ -47,7 +47,7 @@ import Text.XML.YJSVG(Color(..))
 import Graphics.X11(
 	Display, Window, Pixmap, Atom, Position, Dimension, XEventPtr,
 	Point(..), flush, closeDisplay, destroyWindow, copyArea,
-	setForeground, fillRectangle, fillPolygon, nonconvex, coordModeOrigin,
+	setForeground, fillRectangle,
 	allocaXEvent, pending, nextEvent, buttonPress, buttonRelease,
 	xK_VoidSymbol, connectionNumber)
 import Graphics.X11.Xlib.Extras(Event(..), getEvent)
@@ -275,11 +275,10 @@ drawCharacterAndLine f c clr sh lw x1 y1 x2 y2 = setCharacter c $
 
 drawShape :: Field -> Color -> [(Double, Double)] -> IO ()
 drawShape f clr psc = do
-	ps <- mapM (uncurry $ topLeft f) psc
+	ps <- mapM (fmap (uncurry Point) . uncurry (topLeft f)) psc
 	pxl <- getColorPixel (fDisplay f) clr
 	setForeground (fDisplay f) (gcForeground $ fGCs f) pxl
-	fillPolygon (fDisplay f) (topBuf $ fBufs f) (gcForeground $ fGCs f)
-		(map (uncurry Point) ps) nonconvex coordModeOrigin
+	fillPolygon (fDisplay f) (topBuf $ fBufs f) (gcForeground $ fGCs f) ps
 
 clearCharacter :: Character -> IO ()
 clearCharacter c = setCharacter c $ return ()

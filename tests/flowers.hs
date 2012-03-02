@@ -31,7 +31,7 @@ twoFlowers :: IO (Field, Turtle, Turtle)
 twoFlowers = do
 	wait <- newChan
 	f <- openField
-	threadDelay 1000000
+	onkeypress f $ return . (/= 'q')
 	t1 <- newTurtle f
 	t2 <- newTurtle f
 	goto t1 (- 150) 0
