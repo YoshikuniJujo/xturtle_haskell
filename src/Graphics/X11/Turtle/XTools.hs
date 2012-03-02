@@ -84,29 +84,19 @@ import System.Posix.Types(Fd(..))
 
 --------------------------------------------------------------------------------
 
-waitEvent :: Display -> IO ()
-waitEvent = threadWaitRead . Fd . connectionNumber
-
-fillPolygon :: Display -> Drawable -> GC -> [Point] -> IO ()
-fillPolygon dpy win gc ps = X.fillPolygon dpy win gc ps nonconvex coordModeOrigin
-
-forkIOX :: IO () -> IO ThreadId
-forkIOX = (initThreads >>) . forkIO
-
 data Bufs = Bufs{
 	undoBuf :: Pixmap,
 	bgBuf :: Pixmap,
-	topBuf :: Pixmap
- }
-
-makeBufs :: [Pixmap] -> Bufs
-makeBufs [ub, bg, b] = Bufs{undoBuf = ub, bgBuf = bg, topBuf = b}
-makeBufs _ = error "no such bufs"
+	topBuf :: Pixmap}
 
 data GCs = GCs{
 	gcForeground :: GC,
-	gcBackground :: GC
- }
+	gcBackground :: GC}
+
+--------------------------------------------------------------------------------
+
+forkIOX :: IO () -> IO ThreadId
+forkIOX = (initThreads >>) . forkIO
 
 openWindow :: IO (Display, Window, Bufs, GCs, XIC, Atom, (Dimension, Dimension))
 openWindow = do
@@ -138,6 +128,16 @@ openWindow = do
 		fevent
 	mapWindow dpy win
 	return (dpy, win, makeBufs bufs, GCs gc gcBG, ic, del, (width, height))
+	where
+	makeBufs [ub, bg, b] = Bufs{undoBuf = ub, bgBuf = bg, topBuf = b}
+	makeBufs _ = error "cannot occur"
+
+windowSize :: Display -> Window -> IO (Dimension, Dimension)
+windowSize dpy win = do
+	(_, _, _, width, height, _, _) <- getGeometry dpy win
+	return (width, height)
+
+--------------------------------------------------------------------------------
 
 getColorPixel :: Display -> Color -> IO Pixel
 getColorPixel _ (RGB r g b) = return $ shift (fromIntegral r) 16 .|.
@@ -146,6 +146,31 @@ getColorPixel dpy (ColorName cn) = do
 	let	scr = defaultScreen dpy
 		colormap = defaultColormap dpy scr
 	fmap (color_pixel . fst) $ allocNamedColor dpy colormap cn
+
+fillPolygon :: Display -> Drawable -> GC -> [Point] -> IO ()
+fillPolygon dpy win gc ps = X.fillPolygon dpy win gc ps nonconvex coordModeOrigin
+
+drawLineBase, drawLineXT :: Display -> GC -> Pixmap -> Int -> Color ->
+	Position -> Position -> Position -> Position -> IO ()
+drawLineXT = drawLineBase
+drawLineBase dpy gc bf lw c x1 y1 x2 y2 = do
+	clr <- getColorPixel dpy c
+	setForeground dpy gc clr
+	setLineAttributes dpy gc (fromIntegral lw) lineSolid capRound joinRound
+	drawLine dpy bf gc x1 y1 x2 y2
+
+writeStringBase, writeStringXT :: Display -> Pixmap -> String -> Double -> Color ->
+	Position -> Position -> String -> IO ()
+writeStringXT = writeStringBase
+writeStringBase dpy buf fname size clr x y str = do
+	let	scr = defaultScreen dpy
+		scrN = defaultScreenOfDisplay dpy
+		visual = defaultVisual dpy scr
+		colormap = defaultColormap dpy scr
+	xftDraw <- xftDrawCreate dpy buf visual colormap
+	xftFont <- xftFontOpen dpy scrN $ fname ++ "-" ++ show (round size :: Int)
+	withXftColor dpy visual colormap clr $ \c ->
+		xftDrawString xftDraw c xftFont x y str
 
 withXftColor ::
 	Display -> Visual -> Colormap -> Color -> (XftColor -> IO a) -> IO a
@@ -161,29 +186,7 @@ withXftColor dpy visual colormap (RGB r g b) action =
 withXftColor dpy visual colormap (ColorName cn) action =
 	withXftColorName dpy visual colormap cn action
 
-writeStringBase, writeStringXT :: Display -> Pixmap -> String -> Double -> Color ->
-	Position -> Position -> String -> IO ()
-writeStringXT = writeStringBase
-writeStringBase dpy buf fname size clr x y str = do
-	let	scr = defaultScreen dpy
-		scrN = defaultScreenOfDisplay dpy
-		visual = defaultVisual dpy scr
-		colormap = defaultColormap dpy scr
-	xftDraw <- xftDrawCreate dpy buf visual colormap
-	xftFont <- xftFontOpen dpy scrN $ fname ++ "-" ++ show (round size :: Int)
-	withXftColor dpy visual colormap clr $ \c ->
-		xftDrawString xftDraw c xftFont x y str
+--------------------------------------------------------------------------------
 
-drawLineBase, drawLineXT :: Display -> GC -> Pixmap -> Int -> Color ->
-	Position -> Position -> Position -> Position -> IO ()
-drawLineXT = drawLineBase
-drawLineBase dpy gc bf lw c x1 y1 x2 y2 = do
-	clr <- getColorPixel dpy c
-	setForeground dpy gc clr
-	setLineAttributes dpy gc (fromIntegral lw) lineSolid capRound joinRound
-	drawLine dpy bf gc x1 y1 x2 y2
-
-windowSize :: Display -> Window -> IO (Dimension, Dimension)
-windowSize dpy win = do
-	(_, _, _, width, height, _, _) <- getGeometry dpy win
-	return (width, height)
+waitEvent :: Display -> IO ()
+waitEvent = threadWaitRead . Fd . connectionNumber
