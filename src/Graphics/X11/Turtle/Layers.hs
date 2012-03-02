@@ -4,7 +4,7 @@ module Graphics.X11.Turtle.Layers(
 	Layer,
 	Character,
 	
-	-- * initilize
+	-- * initialize
 	newLayers,
 	makeLayer,
 	makeCharacter,
@@ -71,57 +71,45 @@ makeCharacter rls = atomicModifyIORef rls $ \ls ->
 
 redrawLayers :: IORef Layers -> IO ()
 redrawLayers rls = readIORef rls >>= \ls -> do
-	clearLayersAction ls
-	sequence_ $ buffed ls
-	redrawUndo ls
+	clearLayersAction ls >> sequence_ (buffed ls)
+	undoLayersAction ls >> mapM_ snd (concat $ layers ls)
+	clearCharactersAction ls >> sequence_ (characters ls)
 
 addDraw :: Layer -> (IO (), IO ()) -> IO ()
-addDraw Layer{layerId = lid, layerLayers = rls} acts = do
-	readIORef rls >>= \ls -> addDrawAction ls lid acts
-	atomicModifyIORef_ rls $ \ls -> addDrawData ls lid acts
-
-addDrawAction :: Layers -> Int -> (IO (), IO ()) -> IO ()
-addDrawAction ls l (_, act) = do
-	act >> clearCharactersAction ls >> sequence_ (characters ls)
-	unless (length (layers ls !! l) < undoNum ls) $
-		fst $ head $ layers ls !! l
-
-addDrawData :: Layers -> Int -> (IO (), IO ()) -> Layers
-addDrawData ls l acts = if length (layers ls !! l) < undoNum ls
-	then ls{layers = modifyAt (layers ls) l (++ [acts])}
-	else ls{layers = modifyAt (layers ls) l $ (++ [acts]) . tail,
-		buffed = modifyAt (buffed ls) l (>> fst (head $ layers ls !! l))}
+addDraw Layer{layerId = lid, layerLayers = rls} acts@(_, act) = do
+	readIORef rls >>= \ls -> do
+		act >> clearCharactersAction ls >> sequence_ (characters ls)
+		unless (length (layers ls !! lid) < undoNum ls) $
+			fst $ head $ layers ls !! lid
+	atomicModifyIORef_ rls $ \ls -> if length (layers ls !! lid) < undoNum ls
+		then ls{layers = modifyAt (layers ls) lid (++ [acts])}
+		else let (a, _) : as = layers ls !! lid in ls{
+			layers = setAt (layers ls) lid $ as ++ [acts],
+			buffed = modifyAt (buffed ls) lid (>> a)}
 
 undoLayer :: Layer -> IO Bool
 undoLayer Layer{layerId = lid, layerLayers = rls} = do
-	ret <- atomicModifyIORef rls $ \ls -> if null $ layers ls !! lid
-			then (ls, False)
-			else (ls{layers = modifyAt (layers ls) lid init}, True)
-	when ret $ readIORef rls >>= redrawUndo
-	return ret
+	done <- atomicModifyIORef rls $ \ls -> if null $ layers ls !! lid
+		then (ls, False)
+		else (ls{layers = modifyAt (layers ls) lid init}, True)
+	when done $ readIORef rls >>= \ls -> do
+		undoLayersAction ls >> mapM_ snd (concat $ layers ls)
+		clearCharactersAction ls >> sequence_ (characters ls)
+	return done
 
 clearLayer :: Layer -> IO ()
 clearLayer Layer{layerId = lid, layerLayers = rls} = do
 	atomicModifyIORef_ rls $ \ls -> ls{
 		layers = setAt (layers ls) lid [],
-		buffed = setAt (buffed ls) lid $ return ()
-	 }
+		buffed = setAt (buffed ls) lid $ return ()}
 	redrawLayers rls
 
 setCharacter :: Character -> IO () -> IO ()
 setCharacter Character{characterId = cid, characterLayers = rls} act = do
 	atomicModifyIORef_ rls $ \ls ->
 		ls{characters = setAt (characters ls) cid act}
-	readIORef rls >>= \ls -> do
-		clearCharactersAction ls
-		sequence_ $ characters ls
-
-redrawUndo :: Layers -> IO ()
-redrawUndo ls = do
-	undoLayersAction ls
-	mapM_ snd $ concat $ layers ls
-	clearCharactersAction ls
-	sequence_ $ characters ls
+	readIORef rls >>= \ls ->
+		clearCharactersAction ls >> sequence_ (characters ls)
 
 atomicModifyIORef_ :: IORef a -> (a -> a) -> IO ()
 atomicModifyIORef_ ref f =  atomicModifyIORef ref $ \x -> (f x, ())
