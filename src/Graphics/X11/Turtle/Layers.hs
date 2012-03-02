@@ -46,7 +46,7 @@ data Character = Character{
 --------------------------------------------------------------------------------
 
 newLayers :: Int -> IO () -> IO () -> IO () -> IO (IORef Layers)
-newLayers un cla ula cca = newIORef $ Layers{
+newLayers un cla ula cca = newIORef Layers{
 	undoNum = un,
 	clearLayersAction = cla,
 	undoLayersAction = ula,
@@ -73,7 +73,7 @@ redrawLayers :: IORef Layers -> IO ()
 redrawLayers rls = readIORef rls >>= \ls -> do
 	clearLayersAction ls
 	sequence_ $ buffed ls
-	redrawFromUndo ls
+	redrawUndo ls
 
 addDraw :: Layer -> (IO (), IO ()) -> IO ()
 addDraw Layer{layerId = lid, layerLayers = rls} acts = do
@@ -97,7 +97,7 @@ undoLayer Layer{layerId = lid, layerLayers = rls} = do
 	ret <- atomicModifyIORef rls $ \ls -> if null $ layers ls !! lid
 			then (ls, False)
 			else (ls{layers = modifyAt (layers ls) lid init}, True)
-	when ret $ readIORef rls >>= \ls -> redrawFromUndo ls
+	when ret $ readIORef rls >>= redrawUndo
 	return ret
 
 clearLayer :: Layer -> IO ()
@@ -110,19 +110,14 @@ clearLayer Layer{layerId = lid, layerLayers = rls} = do
 
 setCharacter :: Character -> IO () -> IO ()
 setCharacter Character{characterId = cid, characterLayers = rls} act = do
-	atomicModifyIORef_ rls $ \ls -> setCharacterData ls cid act
-	readIORef rls >>= setCharacterAction
+	atomicModifyIORef_ rls $ \ls ->
+		ls{characters = setAt (characters ls) cid act}
+	readIORef rls >>= \ls -> do
+		clearCharactersAction ls
+		sequence_ $ characters ls
 
-setCharacterData :: Layers -> Int -> IO () -> Layers
-setCharacterData ls c act = ls{characters = setAt (characters ls) c act}
-
-setCharacterAction :: Layers -> IO ()
-setCharacterAction ls = do
-	clearCharactersAction ls
-	sequence_ $ characters ls
-
-redrawFromUndo :: Layers -> IO ()
-redrawFromUndo ls = do
+redrawUndo :: Layers -> IO ()
+redrawUndo ls = do
 	undoLayersAction ls
 	mapM_ snd $ concat $ layers ls
 	clearCharactersAction ls
