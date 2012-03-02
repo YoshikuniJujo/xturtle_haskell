@@ -36,16 +36,14 @@ module Graphics.X11.Turtle.Field(
 ) where
 
 import Graphics.X11.Turtle.XTools(
-	Display, Window, Pixmap, Atom, Position, Dimension, XEventPtr,
-	Point(..), flush, closeDisplay, destroyWindow, copyArea,
-	forkIOX, openWindow, drawLineXT, writeStringXT, getColorPixel,
-	Bufs, undoBuf, bgBuf, topBuf,
-	GCs, gcForeground, gcBackground, windowSize, fillPolygon,
-	setForeground, fillRectangle,
-	allocaXEvent, pending, nextEvent, buttonPress, buttonRelease,
-	xK_VoidSymbol, waitEvent,
-	Event(..), getEvent,
-	XIC, filterEvent, utf8LookupString)
+	Display, Window, Pixmap, Atom, Point(..), Position, Dimension,
+	XEventPtr, XIC, Bufs, undoBuf, bgBuf, topBuf,
+	GCs, gcForeground, gcBackground, Event(..),
+	forkIOX, openWindow, destroyWindow, closeDisplay, windowSize,
+	flush, getColorPixel, setForeground, copyArea, fillRectangle,
+	fillPolygon, drawLineXT, writeStringXT,
+	allocaXEvent, waitEvent, pending, nextEvent, getEvent, filterEvent,
+	utf8LookupString, buttonPress, buttonRelease, xK_VoidSymbol)
 import Graphics.X11.Turtle.Layers(
 	Layers, Layer, Character, newLayers, redrawLayers,
 	makeLayer, addDraw, undoLayer, clearLayer, makeCharacter, setCharacter)
@@ -55,8 +53,7 @@ import Control.Monad(forever, forM_, replicateM)
 import Control.Monad.Tools(doWhile_, doWhile, whenM)
 import Control.Arrow((***))
 import Control.Concurrent(
-	forkIO, ThreadId, killThread,
-	Chan, newChan, readChan, writeChan)
+	forkIO, ThreadId, killThread, Chan, newChan, readChan, writeChan)
 
 import Data.IORef(IORef, newIORef, readIORef, writeIORef, modifyIORef)
 import Data.Maybe(fromMaybe)

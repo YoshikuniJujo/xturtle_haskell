@@ -29,7 +29,6 @@ module Graphics.X11.Turtle.XTools(
 	flush,
 	getColorPixel,
 	setForeground,
-	withXftColor,
 	copyArea,
 	fillRectangle,
 	fillPolygon,
