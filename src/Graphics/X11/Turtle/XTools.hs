@@ -81,6 +81,7 @@ import Control.Concurrent(ThreadId, forkIO, threadWaitRead)
 import Data.Bits((.|.), shift)
 import System.Locale.SetLocale(setLocale, Category(..))
 import System.Posix.Types(Fd(..))
+import Numeric(showFFloat)
 
 --------------------------------------------------------------------------------
 
@@ -135,33 +136,28 @@ windowSize dpy win = do
 getColorPixel :: Display -> Color -> IO Pixel
 getColorPixel _ (RGB r g b) = return $ shift (fromIntegral r) 16 .|.
 	shift (fromIntegral g) 8 .|. fromIntegral b
-getColorPixel dpy (ColorName cn) = do
-	let	scr = defaultScreen dpy
-		colormap = defaultColormap dpy scr
-	fmap (color_pixel . fst) $ allocNamedColor dpy colormap cn
+getColorPixel dpy (ColorName cn) = fmap (color_pixel . fst) $
+	allocNamedColor dpy (defaultColormap dpy $ defaultScreen dpy) cn
 
 fillPolygon :: Display -> Drawable -> GC -> [Point] -> IO ()
-fillPolygon dpy win gc ps = X.fillPolygon dpy win gc ps nonconvex coordModeOrigin
+fillPolygon d w gc ps = X.fillPolygon d w gc ps nonconvex coordModeOrigin
 
-drawLineBase, drawLineXT :: Display -> GC -> Pixmap -> Int -> Color ->
+drawLineXT :: Display -> GC -> Drawable -> Int -> Color ->
 	Position -> Position -> Position -> Position -> IO ()
-drawLineXT = drawLineBase
-drawLineBase dpy gc bf lw c x1 y1 x2 y2 = do
-	clr <- getColorPixel dpy c
-	setForeground dpy gc clr
+drawLineXT dpy gc bf lw c x1 y1 x2 y2 = do
+	getColorPixel dpy c >>= setForeground dpy gc
 	setLineAttributes dpy gc (fromIntegral lw) lineSolid capRound joinRound
 	drawLine dpy bf gc x1 y1 x2 y2
 
-writeStringBase, writeStringXT :: Display -> Pixmap -> String -> Double -> Color ->
+writeStringXT :: Display -> Drawable -> String -> Double -> Color ->
 	Position -> Position -> String -> IO ()
-writeStringXT = writeStringBase
-writeStringBase dpy buf fname size clr x y str = do
-	let	scr = defaultScreen dpy
-		scrN = defaultScreenOfDisplay dpy
-		visual = defaultVisual dpy scr
-		colormap = defaultColormap dpy scr
+writeStringXT dpy buf fname size clr x y str = do
+	let	scrN = defaultScreenOfDisplay dpy
+		visual = defaultVisual dpy $ defaultScreen dpy
+		colormap = defaultColormap dpy $ defaultScreen dpy
 	xftDraw <- xftDrawCreate dpy buf visual colormap
-	xftFont <- xftFontOpen dpy scrN $ fname ++ "-" ++ show (round size :: Int)
+	xftFont <- xftFontOpen dpy scrN $
+		fname ++ "-" ++ showFFloat (Just 0) size ""
 	withXftColor dpy visual colormap clr $ \c ->
 		xftDrawString xftDraw c xftFont x y str
 
@@ -174,8 +170,7 @@ withXftColor dpy visual colormap (RGB r g b) action =
 		xrendercolor_red = fromIntegral r * 0x100,
 		xrendercolor_green = fromIntegral b * 0x100,
 		xrendercolor_blue = fromIntegral g * 0x100,
-		xrendercolor_alpha = 0xffff
-	 }
+		xrendercolor_alpha = 0xffff}
 withXftColor dpy visual colormap (ColorName cn) action =
 	withXftColorName dpy visual colormap cn action
 
