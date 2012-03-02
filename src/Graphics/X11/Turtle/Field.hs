@@ -36,35 +36,31 @@ module Graphics.X11.Turtle.Field(
 ) where
 
 import Graphics.X11.Turtle.XTools(
+	Display, Window, Pixmap, Atom, Position, Dimension, XEventPtr,
+	Point(..), flush, closeDisplay, destroyWindow, copyArea,
 	forkIOX, openWindow, drawLineXT, writeStringXT, getColorPixel,
 	Bufs, undoBuf, bgBuf, topBuf,
-	GCs, gcForeground, gcBackground, windowSize, fillPolygon)
+	GCs, gcForeground, gcBackground, windowSize, fillPolygon,
+	setForeground, fillRectangle,
+	allocaXEvent, pending, nextEvent, buttonPress, buttonRelease,
+	xK_VoidSymbol, waitEvent,
+	Event(..), getEvent,
+	XIC, filterEvent, utf8LookupString)
 import Graphics.X11.Turtle.Layers(
 	Layers, Layer, Character, newLayers, redrawLayers,
 	makeLayer, addDraw, undoLayer, clearLayer, makeCharacter, setCharacter)
 import Text.XML.YJSVG(Color(..))
 
-import Graphics.X11(
-	Display, Window, Pixmap, Atom, Position, Dimension, XEventPtr,
-	Point(..), flush, closeDisplay, destroyWindow, copyArea,
-	setForeground, fillRectangle,
-	allocaXEvent, pending, nextEvent, buttonPress, buttonRelease,
-	xK_VoidSymbol, connectionNumber)
-import Graphics.X11.Xlib.Extras(Event(..), getEvent)
-import Graphics.X11.Xim(XIC, filterEvent, utf8LookupString)
-
 import Control.Monad(forever, forM_, replicateM)
 import Control.Monad.Tools(doWhile_, doWhile, whenM)
 import Control.Arrow((***))
 import Control.Concurrent(
-	forkIO, ThreadId, threadWaitRead, killThread,
+	forkIO, ThreadId, killThread,
 	Chan, newChan, readChan, writeChan)
 
 import Data.IORef(IORef, newIORef, readIORef, writeIORef, modifyIORef)
 import Data.Maybe(fromMaybe)
 import Data.Convertible(convert)
-
-import System.Posix.Types(Fd(..))
 
 --------------------------------------------------------------------------------
 
@@ -125,7 +121,7 @@ waitInput f = do
 	go <- newChan
 	empty <- newChan
 	tid <- forkIOX $ forever $ do
-		threadWaitRead $ Fd $ connectionNumber $ fDisplay f
+		waitEvent $ fDisplay f
 		writeChan go True
 		readChan empty
 	_ <- forkIO $ do

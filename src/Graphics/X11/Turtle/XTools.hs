@@ -1,10 +1,14 @@
 module Graphics.X11.Turtle.XTools(
-	forkIOX,
-	openWindow,
-	getColorPixel,
-	withXftColor,
-	writeStringXT,
-	drawLineXT,
+	-- * types
+	Display,
+	Window,
+	Pixmap,
+	Atom,
+	Point(..),
+	Position,
+	Dimension,
+	XEventPtr,
+	XIC,
 	Bufs,
 	undoBuf,
 	bgBuf,
@@ -12,12 +16,42 @@ module Graphics.X11.Turtle.XTools(
 	GCs,
 	gcForeground,
 	gcBackground,
+	Event(..),
+
+	-- * open window
+	forkIOX,
+	openWindow,
+	destroyWindow,
+	closeDisplay,
 	windowSize,
-	fillPolygon
+
+	-- * draws
+	flush,
+	getColorPixel,
+	setForeground,
+	withXftColor,
+	copyArea,
+	fillRectangle,
+	fillPolygon,
+	drawLineXT,
+	writeStringXT,
+
+	-- * event
+	allocaXEvent,
+	waitEvent,
+	pending,
+	nextEvent,
+	getEvent,
+	filterEvent,
+	utf8LookupString,
+	buttonPress,
+	buttonRelease,
+	xK_VoidSymbol,
 ) where
 
 import Graphics.X11 hiding(Color, fillPolygon)
 import qualified Graphics.X11 as X
+import Graphics.X11.Xlib.Extras
 import Graphics.X11.Xft
 import Graphics.X11.Xim
 import Graphics.X11.Xrender
@@ -27,6 +61,10 @@ import Control.Monad
 import Control.Monad.Tools
 import Data.Bits
 import System.Locale.SetLocale
+import System.Posix.Types(Fd(..))
+
+waitEvent :: Display -> IO ()
+waitEvent = threadWaitRead . Fd . connectionNumber
 
 fillPolygon :: Display -> Drawable -> GC -> [Point] -> IO ()
 fillPolygon dpy win gc ps = X.fillPolygon dpy win gc ps nonconvex coordModeOrigin
