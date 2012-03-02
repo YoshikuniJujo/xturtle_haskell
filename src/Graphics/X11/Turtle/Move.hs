@@ -28,21 +28,20 @@ module Graphics.X11.Turtle.Move (
 
 import Graphics.X11.Turtle.State(TurtleState(..))
 import Graphics.X11.Turtle.Field(
-	flushField,
 	Field, Layer, Character,
-	forkField, openField, closeField,
-	addLayer, addCharacter, fieldSize, clearLayer,
-	drawCharacter, drawCharacterAndLine, undoLayer,
-	drawLine,
-	clearCharacter,
-	fieldColor, onkeypress, onclick, onrelease, ondrag, waitField, writeString
- )
-import Text.XML.YJSVG
+	openField, closeField, waitField, fieldSize,
+	forkField, flushField, fieldColor,
+	addLayer, drawLine, writeString, undoLayer, clearLayer,
+	addCharacter, drawCharacter, drawCharacterAndLine, clearCharacter,
+	onclick, onrelease, ondrag, onkeypress)
+import Text.XML.YJSVG(SVG(..), Position(..), Color)
 
 import Control.Concurrent(threadDelay)
 import Control.Monad(when, unless, forM_)
 import Control.Arrow((***))
-import Data.Maybe
+import Data.Maybe(isJust)
+
+--------------------------------------------------------------------------------
 
 type Pos = (Double, Double)
 
@@ -98,14 +97,8 @@ drawDraw :: Field -> Layer -> Maybe SVG -> IO ()
 drawDraw _ _ Nothing = return ()
 drawDraw f l (Just (Line (Center x0 y0) (Center x1 y1) clr lw)) =
 	drawLine f l lw clr x0 y0 x1 y1
--- drawDraw l (Line clr lw (x0, y0) (x1, y1)) = drawLine l lw (clr) x0 y0 x1 y1
 drawDraw f l (Just (Text (Center x y) sz clr fnt str)) =
--- drawDraw l (Just (Text clr fnt sz (x, y) str)) =
 	writeString f l fnt sz clr x y str
-{-
-	where
-	[r, g, b] = map ((/ 0xff) . fromIntegral) [r_, g_, b_]
--}
 drawDraw _ _ _ = error "not implemented"
 
 getPositions :: Double -> Double -> Double -> Double -> [Pos]
