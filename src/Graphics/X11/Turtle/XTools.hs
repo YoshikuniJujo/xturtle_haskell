@@ -100,21 +100,19 @@ forkIOX = (initThreads >>) . forkIO
 
 openWindow :: IO (Display, Window, Bufs, GCs, XIC, Atom, (Dimension, Dimension))
 openWindow = do
-	_ <- setLocale LC_CTYPE Nothing >>= maybe (error "Can't set locale.") return
+	_ <- setLocale LC_CTYPE Nothing >>= maybe (error "setLocale") return
 	_ <- initThreads
-	unlessM supportsLocale $ error "Current locale is notSupported."
+	unlessM supportsLocale $ error "Current locale is not supported."
 	_ <- setLocaleModifiers ""
 	dpy <- openDisplay ""
 	del <- internAtom dpy "WM_DELETE_WINDOW" True
 	let	scr = defaultScreen dpy
 	root <- rootWindow dpy scr
-	(_, _, _, rWidth, rHeight, _, _) <- getGeometry dpy root
-	let	black = blackPixel dpy scr
-		white = whitePixel dpy scr
-		depth = defaultDepth dpy scr
-	bufs <- replicateM 3 $ createPixmap dpy root rWidth rHeight depth
-	win <- createSimpleWindow dpy root 0 0 rWidth rHeight 1 black white
-	(_, _, _, width, height, _, _) <- getGeometry dpy win
+	(rWidth, rHeight) <- windowSize dpy root
+	bufs@[ub, bb, tb] <- replicateM 3 $
+		createPixmap dpy root rWidth rHeight $ defaultDepth dpy scr
+	win <- createSimpleWindow dpy root 0 0 rWidth rHeight 1
+		(blackPixel dpy scr) (whitePixel dpy scr)
 	im <- openIM dpy Nothing Nothing Nothing
 	ic <- createIC im [XIMPreeditNothing, XIMStatusNothing] win
 	fevent <- getICValue ic "filterEvents"
@@ -122,15 +120,10 @@ openWindow = do
 	setForeground dpy gcBG 0xffffff
 	forM_ bufs $ \bf -> fillRectangle dpy bf gcBG 0 0 rWidth rHeight
 	setWMProtocols dpy win [del]
-	selectInput dpy win $
-		exposureMask .|. keyPressMask .|.
-		buttonPressMask .|. buttonReleaseMask .|. button1MotionMask .|.
-		fevent
-	mapWindow dpy win
-	return (dpy, win, makeBufs bufs, GCs gc gcBG, ic, del, (width, height))
-	where
-	makeBufs [ub, bg, b] = Bufs{undoBuf = ub, bgBuf = bg, topBuf = b}
-	makeBufs _ = error "cannot occur"
+	selectInput dpy win $ fevent .|. exposureMask .|. keyPressMask .|.
+		buttonPressMask .|. buttonReleaseMask .|. button1MotionMask
+	size <- mapWindow dpy win >> windowSize dpy win
+	return (dpy, win, Bufs ub bb tb, GCs gc gcBG, ic, del, size)
 
 windowSize :: Display -> Window -> IO (Dimension, Dimension)
 windowSize dpy win = do
