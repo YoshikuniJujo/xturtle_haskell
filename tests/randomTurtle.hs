@@ -41,4 +41,4 @@ randomTurtle t = do
 		forward t 15
 		d <- distance t 0 0
 		when (d > 100) $ undo t
---		threadDelay 50000
+		threadDelay 10000

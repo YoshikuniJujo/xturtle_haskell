@@ -84,7 +84,7 @@ import Graphics.X11.Turtle.Input(
 import qualified Graphics.X11.Turtle.Input as S(degrees, pendown, position)
 import Graphics.X11.Turtle.Shape(nameToShape)
 import Text.XML.YJSVG(SVG(..), Color(..))
-import Control.Concurrent(Chan, writeChan, threadDelay, ThreadId, killThread)
+import Control.Concurrent(Chan, writeChan, ThreadId, killThread)
 import Control.Monad(replicateM_, zipWithM_)
 import Prelude hiding(Left)
 import Data.IORef(IORef, newIORef, readIORef, modifyIORef)
@@ -138,7 +138,6 @@ sendCommand :: Turtle -> TurtleInput -> IO ()
 sendCommand Turtle{inputChan = c, stateIndex = si} ti = do
 	modifyIORef si (+ 1)
 	writeChan c ti
-	threadDelay 10000
 
 shape :: Turtle -> String -> IO ()
 shape t = sendCommand t . Shape . nameToShape
