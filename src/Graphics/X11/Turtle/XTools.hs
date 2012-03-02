@@ -48,19 +48,41 @@ module Graphics.X11.Turtle.XTools(
 	xK_VoidSymbol,
 ) where
 
-import Graphics.X11 hiding(Color, fillPolygon)
-import qualified Graphics.X11 as X
-import Graphics.X11.Xlib.Extras
-import Graphics.X11.Xft
-import Graphics.X11.Xim
-import Graphics.X11.Xrender
 import Text.XML.YJSVG(Color(..))
-import Control.Concurrent
-import Control.Monad
-import Control.Monad.Tools
-import Data.Bits
-import System.Locale.SetLocale
+
+import Graphics.X11(
+	Display, Drawable, Window, Pixmap, Visual, Colormap, GC, Pixel, Atom,
+	Point(..), Position, Dimension, XEventPtr,
+	initThreads, flush, supportsLocale, setLocaleModifiers,
+	connectionNumber, openDisplay, closeDisplay, internAtom,
+	createSimpleWindow, destroyWindow, mapWindow, createGC, createPixmap,
+	rootWindow, defaultScreen, defaultScreenOfDisplay, defaultVisual,
+	defaultColormap, defaultDepth, whitePixel, blackPixel,
+	copyArea, fillRectangle, drawLine, nonconvex, coordModeOrigin,
+	setLineAttributes, lineSolid, capRound, joinRound, setForeground,
+	allocNamedColor, color_pixel,
+	allocaXEvent, pending, nextEvent,
+	setWMProtocols, selectInput, button1MotionMask, buttonReleaseMask,
+	buttonPressMask, keyPressMask, exposureMask,
+	buttonPress, buttonRelease, xK_VoidSymbol, getGeometry)
+import qualified Graphics.X11 as X(fillPolygon)
+import Graphics.X11.Xlib.Extras(Event(..), getEvent)
+import Graphics.X11.Xft(
+	XftColor, xftDrawCreate, xftFontOpen, withXftColorValue,
+	withXftColorName, xftDrawString)
+import Graphics.X11.Xrender(XRenderColor(..))
+import Graphics.X11.Xim(
+	XIC, XNInputStyle(..), openIM, createIC, getICValue, filterEvent,
+	utf8LookupString)
+
+import Control.Monad(forM_, replicateM)
+import Control.Monad.Tools(unlessM)
+import Control.Concurrent(ThreadId, forkIO, threadWaitRead)
+import Data.Bits((.|.), shift)
+import System.Locale.SetLocale(setLocale, Category(..))
 import System.Posix.Types(Fd(..))
+
+--------------------------------------------------------------------------------
 
 waitEvent :: Display -> IO ()
 waitEvent = threadWaitRead . Fd . connectionNumber
