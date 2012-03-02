@@ -1,25 +1,29 @@
 module Graphics.X11.Turtle.Move (
+	-- * types
 	Field,
 	Layer,
 	Character,
 
-	forkField,
+	-- * process Field
 	openField,
 	closeField,
-	addLayer,
-	addCharacter,
+	forkField,
+	waitField,
 	fieldSize,
-	clearLayer,
-	clearCharacter,
 	fieldColor,
+
+	-- * draws
+	moveTurtle,
+	addLayer,
+	clearLayer,
+	addCharacter,
+	clearCharacter,
+
+	-- * event
 	onclick,
 	onrelease,
 	ondrag,
-	onkeypress,
-	waitField,
-	writeString,
-
-	moveTurtle
+	onkeypress
 ) where
 
 import Graphics.X11.Turtle.State(TurtleState(..))

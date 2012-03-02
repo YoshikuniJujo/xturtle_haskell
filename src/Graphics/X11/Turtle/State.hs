@@ -19,8 +19,8 @@ data TurtleState = TurtleState {
 	undo :: Bool,
 	undonum :: Int,
 	draw :: Maybe SVG,
-	drawed :: [SVG]
- } deriving Show
+	drawed :: [SVG]}
+	deriving Show
 
 initialTurtleState :: TurtleState
 initialTurtleState = TurtleState {
@@ -37,5 +37,4 @@ initialTurtleState = TurtleState {
 	undo = False,
 	undonum = 1,
 	draw = Nothing,
-	drawed = []
- }
+	drawed = []}
