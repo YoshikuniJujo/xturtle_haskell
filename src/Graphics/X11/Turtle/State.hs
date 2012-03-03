@@ -7,7 +7,11 @@ import Text.XML.YJSVG(SVG, Color(RGB))
 
 data TurtleState = TurtleState {
 	position :: (Double, Double),
+	positionStep :: Maybe Double,
+	positionInterval :: Int,
 	direction :: Double,
+	directionStep :: Maybe Double,
+	directionInterval :: Int,
 	degrees :: Double,
 	pendown :: Bool,
 	pensize :: Double,
@@ -25,7 +29,11 @@ data TurtleState = TurtleState {
 initialTurtleState :: TurtleState
 initialTurtleState = TurtleState {
 	position = (0, 0),
+	positionStep = Just 10,
+	positionInterval = 50000,
 	direction = 0,
+	directionStep = Just $ 1 / 72,
+	directionInterval = 10000,
 	degrees = 360,
 	pendown = True,
 	pensize = 1,
@@ -35,6 +43,6 @@ initialTurtleState = TurtleState {
 	visible = True,
 	clear = False,
 	undo = False,
-	undonum = 1,
+	undonum = 0,
 	draw = Nothing,
 	drawed = []}

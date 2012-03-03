@@ -122,6 +122,7 @@ newTurtle f = do
 		 }
 	tid <- forkField f $ zipWithM_ (moveTurtle f ch l) sts $ tail sts
 	shape t "classic"
+	sendCommand t $ Undonum 0
 	return t{thread = tid}
 
 killTurtle :: Turtle -> IO ()
