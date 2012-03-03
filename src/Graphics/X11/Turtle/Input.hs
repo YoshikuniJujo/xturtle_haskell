@@ -1,21 +1,27 @@
 module Graphics.X11.Turtle.Input (
+	-- * types
 	TurtleState,
 	TurtleInput(..),
 
-	getTurtleStates,
+	-- * get TurtlsStates in timeline
+	getTurtleSeries,
+
+	-- * read TurtleState members
 	position,
-	pendown,
-	undonum,
-	visible,
 	direction,
 	degrees,
+	pendown,
+	visible,
+	undonum,
 	drawed,
 ) where
 
 import Graphics.X11.Turtle.State(TurtleState(..), initialTurtleState)
-import Control.Concurrent.Chan(Chan, newChan, getChanContents)
-import Prelude hiding(Left)
 import Text.XML.YJSVG(SVG(..), Color(..), Position(..))
+
+import Control.Concurrent.Chan(Chan, newChan, getChanContents)
+
+--------------------------------------------------------------------------------
 
 data TurtleInput
 	= Shape [(Double, Double)]
@@ -30,7 +36,7 @@ data TurtleInput
 	| Undo
 	| Clear
 	| Forward Double
-	| Left Double
+	| TurnLeft Double
 	| Undonum Int
 	| Pencolor Color
 	| Pensize Double
@@ -38,8 +44,8 @@ data TurtleInput
 	| Write String Double String
 	deriving (Show, Read)
 
-getTurtleStates :: IO (Chan TurtleInput, [TurtleInput], [TurtleState])
-getTurtleStates = do
+getTurtleSeries :: IO (Chan TurtleInput, [TurtleInput], [TurtleState])
+getTurtleSeries = do
 	let	ts0 = initialTurtleState
 	c <- newChan
 	tis <- getChanContents c
@@ -89,7 +95,7 @@ inputToTurtle tsbs ts0 (Forward len : tis) = let
 	x = x0 + len * cos (dir * 2 * pi)
 	y = y0 + len * sin (dir * 2 * pi) in
 	inputToTurtle tsbs ts0 $ Goto x y : tis
-inputToTurtle tsbs ts0 (Left dd : tis) =
+inputToTurtle tsbs ts0 (TurnLeft dd : tis) =
 	inputToTurtle tsbs ts0 $ Rotate (direction ts0 + dd) : tis
 inputToTurtle tsbs ts0 (ti : tis) =
 	let ts1 = nextTurtle ts0 ti in ts1 : inputToTurtle (ts0 : tsbs) ts1 tis

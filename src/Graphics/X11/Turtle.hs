@@ -79,7 +79,7 @@ import Graphics.X11.Turtle.Move(
  )
 import Graphics.X11.Turtle.Input(
 	TurtleInput(..), TurtleState,
-	getTurtleStates, undonum, visible, direction,
+	getTurtleSeries, undonum, visible, direction,
 	drawed
  )
 import qualified Graphics.X11.Turtle.Input as S(degrees, pendown, position)
@@ -87,7 +87,6 @@ import Graphics.X11.Turtle.Shape(nameToShape)
 import Text.XML.YJSVG(SVG(..), Color(..))
 import Control.Concurrent(Chan, writeChan, ThreadId, killThread)
 import Control.Monad(replicateM_, zipWithM_)
-import Prelude hiding(Left)
 import Data.IORef(IORef, newIORef, readIORef, modifyIORef)
 import Data.Fixed(mod')
 
@@ -109,7 +108,7 @@ newTurtle :: Field -> IO Turtle
 newTurtle f = do
 	ch <- addCharacter f
 	l <- addLayer f
-	(ic, tis, sts) <- getTurtleStates
+	(ic, tis, sts) <- getTurtleSeries
 	si <- newIORef 1
 	let	t = Turtle {
 			field = f,
@@ -152,7 +151,7 @@ forward t = sendCommand t . Forward
 backward t = forward t . negate
 
 left, right, setheading :: Turtle -> Double -> IO ()
-left t = sendCommand t . Left
+left t = sendCommand t . TurnLeft
 right t = left t . negate
 setheading t = sendCommand t . Rotate
 
