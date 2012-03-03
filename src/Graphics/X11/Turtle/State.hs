@@ -30,9 +30,9 @@ initialTurtleState :: TurtleState
 initialTurtleState = TurtleState {
 	position = (0, 0),
 	positionStep = Just 10,
-	positionInterval = 50000,
+	positionInterval = 10000,
 	direction = 0,
-	directionStep = Just $ 1 / 72,
+	directionStep = Just $ 1 / 36,
 	directionInterval = 10000,
 	degrees = 360,
 	pendown = True,

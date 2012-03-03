@@ -35,6 +35,7 @@ module Graphics.X11.Turtle (
 	-- * change turtle state
 	shape,
 	shapesize,
+	speed,
 	showturtle,
 	hideturtle,
 	pendown,
@@ -206,6 +207,24 @@ bgcolor f = fieldColor f . getColor
 
 pensize :: Turtle -> Double -> IO ()
 pensize t = sendCommand t . Pensize
+
+speed :: Turtle -> String -> IO ()
+speed t "fastest" = do
+	sendCommand t $ PositionStep Nothing
+	sendCommand t $ DirectionStep Nothing
+speed t "fast" = do
+	sendCommand t $ PositionStep $ Just 60
+	sendCommand t $ DirectionStep $ Just $ 1 / 6
+speed t "normal" = do
+	sendCommand t $ PositionStep $ Just 20
+	sendCommand t $ DirectionStep $ Just $ 1 / 18
+speed t "slow" = do
+	sendCommand t $ PositionStep $ Just 10
+	sendCommand t $ DirectionStep $ Just $ 1 / 36
+speed t "slowest" = do
+	sendCommand t $ PositionStep $ Just 3
+	sendCommand t $ DirectionStep $ Just $ 1 / 108
+speed _ _ = putStrLn "no such speed"
 
 degrees :: Turtle -> Double -> IO ()
 degrees t = sendCommand t . Degrees

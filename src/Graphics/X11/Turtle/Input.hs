@@ -20,6 +20,8 @@ import Text.XML.YJSVG(SVG(..), Color(..), Position(..))
 data TurtleInput
 	= Shape [(Double, Double)]
 	| ShapeSize Double
+	| PositionStep (Maybe Double)
+	| DirectionStep (Maybe Double)
 	| Goto Double Double
 	| Rotate Double
 	| Penup
@@ -46,6 +48,8 @@ getTurtleStates = do
 nextTurtle :: TurtleState -> TurtleInput -> TurtleState
 nextTurtle t (Shape sh) = (clearState t){shape = sh}
 nextTurtle t (ShapeSize ss) = (clearState t){shapesize = ss}
+nextTurtle t (PositionStep ps) = (clearState t){positionStep = ps}
+nextTurtle t (DirectionStep ds) = (clearState t){directionStep = ds}
 nextTurtle t (Goto x y) = (clearState t){position = (x, y),
 	drawed = if pendown t then ln : drawed t else drawed t,
 	draw = if pendown t then Just ln else Nothing}
