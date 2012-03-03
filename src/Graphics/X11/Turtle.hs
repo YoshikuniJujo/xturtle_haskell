@@ -213,16 +213,16 @@ speed t "fastest" = do
 	sendCommand t $ DirectionStep Nothing
 speed t "fast" = do
 	sendCommand t $ PositionStep $ Just 60
-	sendCommand t $ DirectionStep $ Just $ 1 / 6
+	sendCommand t $ DirectionStep $ Just $ 60
 speed t "normal" = do
 	sendCommand t $ PositionStep $ Just 20
-	sendCommand t $ DirectionStep $ Just $ 1 / 18
+	sendCommand t $ DirectionStep $ Just $ 20
 speed t "slow" = do
 	sendCommand t $ PositionStep $ Just 10
-	sendCommand t $ DirectionStep $ Just $ 1 / 36
+	sendCommand t $ DirectionStep $ Just $ 10
 speed t "slowest" = do
 	sendCommand t $ PositionStep $ Just 3
-	sendCommand t $ DirectionStep $ Just $ 1 / 108
+	sendCommand t $ DirectionStep $ Just $ 3
 speed _ _ = putStrLn "no such speed"
 
 degrees :: Turtle -> Double -> IO ()
@@ -253,7 +253,7 @@ ycor = fmap snd . position
 heading :: Turtle -> IO Double
 heading t = do
 	deg <- getDegrees t
-	dir <- fmap (direction . (states t !!)) $ readIORef $ stateIndex t
+	dir <- fmap ((* (deg / (2 * pi))) . direction . (states t !!)) $ readIORef $ stateIndex t
 	return $ dir `mod'` deg
 
 towards :: Turtle -> Double -> Double -> IO Double
