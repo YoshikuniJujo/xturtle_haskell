@@ -79,7 +79,7 @@ import Graphics.X11.Turtle.Move(
  )
 import Graphics.X11.Turtle.Input(
 	TurtleInput(..), TurtleState,
-	getTurtleSeries, undonum, visible, direction,
+	turtleSeries, undonum, visible, direction,
 	drawed
  )
 import qualified Graphics.X11.Turtle.Input as S(degrees, pendown, position)
@@ -108,7 +108,7 @@ newTurtle :: Field -> IO Turtle
 newTurtle f = do
 	ch <- addCharacter f
 	l <- addLayer f
-	(ic, tis, sts) <- getTurtleSeries
+	(ic, tis, sts) <- turtleSeries
 	si <- newIORef 1
 	let	t = Turtle {
 			field = f,
@@ -144,7 +144,7 @@ shape :: Turtle -> String -> IO ()
 shape t = sendCommand t . Shape . nameToShape
 
 shapesize :: Turtle -> Double -> Double -> IO ()
-shapesize t sx sy = sendCommand t $ ShapeSize sx sy
+shapesize t sx sy = sendCommand t $ Shapesize sx sy
 
 forward, backward :: Turtle -> Double -> IO ()
 forward t = sendCommand t . Forward
@@ -186,8 +186,8 @@ getDegrees Turtle{stateIndex = si, states = s} =
 	fmap (S.degrees . (s !!)) $ readIORef si
 
 penup, pendown :: Turtle -> IO ()
-penup = flip sendCommand Penup
-pendown = flip sendCommand Pendown
+penup = flip sendCommand $ SetPendown False
+pendown = flip sendCommand $ SetPendown True
 
 pencolor :: ColorClass c => Turtle -> c -> IO ()
 pencolor t c = sendCommand t $ Pencolor $ getColor c
