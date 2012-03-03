@@ -25,7 +25,7 @@ main = do
 	goto clrT (width / 2 - 10) (height / 2 - 10)
 	pendown clrT
 	shape t "turtle"
-	shapesize t 2
+	shapesize t 2 2
 	pensize t 10
 	hideturtle t
 	penup t

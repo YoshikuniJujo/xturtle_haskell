@@ -143,8 +143,8 @@ sendCommand Turtle{inputChan = c, stateIndex = si} ti = do
 shape :: Turtle -> String -> IO ()
 shape t = sendCommand t . Shape . nameToShape
 
-shapesize :: Turtle -> Double -> IO ()
-shapesize t = sendCommand t . ShapeSize
+shapesize :: Turtle -> Double -> Double -> IO ()
+shapesize t sx sy = sendCommand t $ ShapeSize sx sy
 
 forward, backward :: Turtle -> Double -> IO ()
 forward t = sendCommand t . Forward

@@ -25,7 +25,7 @@ import Control.Concurrent.Chan(Chan, newChan, getChanContents)
 
 data TurtleInput
 	= Shape [(Double, Double)]
-	| ShapeSize Double
+	| ShapeSize Double Double
 	| PositionStep (Maybe Double)
 	| DirectionStep (Maybe Double)
 	| Goto Double Double
@@ -53,7 +53,7 @@ getTurtleSeries = do
 
 nextTurtle :: TurtleState -> TurtleInput -> TurtleState
 nextTurtle t (Shape sh) = (clearState t){shape = sh}
-nextTurtle t (ShapeSize ss) = (clearState t){shapesize = ss}
+nextTurtle t (ShapeSize sx sy) = (clearState t){shapesize = (sx, sy)}
 nextTurtle t (PositionStep ps) = (clearState t){positionStep = ps}
 nextTurtle t (DirectionStep ds) = (clearState t){directionStep = ds}
 nextTurtle t (Goto x y) = (clearState t){position = (x, y),

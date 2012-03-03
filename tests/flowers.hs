@@ -37,7 +37,7 @@ twoFlowers = do
 	goto t1 (- 150) 0
 	goto t2 100 (- 80)
 	shape t1 "turtle"
-	shapesize t1 2
+	shapesize t1 2 2
 	shape t2 "turtle"
 	forkIO $ flower t1 10 >> writeChan wait ()
 	forkIO $ flower t2 5 >> writeChan wait ()
@@ -66,7 +66,7 @@ randomTurtle = do
 	threadDelay 1000000
 	t <- newTurtle f
 	shape t "turtle"
-	shapesize t 3
+	shapesize t 3 3
 	penup t
 	forward t 150
 	pendown t
@@ -108,7 +108,7 @@ initForTest = do
 	threadDelay 1000000
 	t <- newTurtle f
 	shape t "turtle"
-	shapesize t 3
+	shapesize t 3 3
 	forward t 150
 	forward t 500
 	backward t 500
@@ -125,13 +125,13 @@ testModuleCharAndBG = do
 	s <- newTurtle w
 	s1 <- newTurtle w
 	shape s1 "turtle"
-	shapesize s1 1
+	shapesize s1 1 1
 	goto s 50 105
 	goto s1 100 30
 	goto s 25 100
 	goto s1 10 30
 	goto s 150 100
-	shapesize s1 2
+	shapesize s1 2 2
 	undo s
 	goto s 150 150
 	left s1 90

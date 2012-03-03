@@ -3,6 +3,7 @@ module Main where
 import Graphics.X11.Turtle
 import System.Random
 import Control.Monad
+import Control.Concurrent
 
 main :: IO ()
 main = initTurtle >>= forever . hitWall -- >> threadDelay 1000000
@@ -10,10 +11,11 @@ main = initTurtle >>= forever . hitWall -- >> threadDelay 1000000
 initTurtle :: IO Turtle
 initTurtle = do
 	f <- openField
+	threadDelay 1000000
 	t <- newTurtle f
 	bgcolor f "gray" -- (128, 128, 128)
 	shape t "turtle"
-	shapesize t 2
+	shapesize t 2 2
 	pensize t 10
 	pencolor t "white"
 	radians t
@@ -39,6 +41,7 @@ hitWall t = do
 		BottomWall -> getBottom t >>= toY t >> turnBottom t
 		LeftWall -> getLeft t >>= toX t >> turnLeft t
 		RightWall -> getRight t >>= toX t >> turnRight t
+	threadDelay 10000
 
 getWall :: Turtle -> IO Wall
 getWall t = do

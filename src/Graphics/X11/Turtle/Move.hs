@@ -100,7 +100,7 @@ drawTurtle :: Field -> Character -> TurtleState -> Double ->
 drawTurtle f c t d (px, py) = maybe (drawCharacter f c (pencolor t) sp)
 	(uncurry $ drawCharacterAndLine f c (pencolor t) sp (pensize t) px py)
 	where
-	sp = let s = shapesize t in
-		map (((+ px) *** (+ py)) . rotate . ((* s) *** (* s))) $ shape t
+	sp = let (sx, sy) = shapesize t in
+		map (((+ px) *** (+ py)) . rotate . ((* sx) *** (* sy))) $ shape t
 	rotate (x, y) = let rad = d * 2 * pi in
 		(x * cos rad - y * sin rad, x * sin rad + y * cos rad)

@@ -11,7 +11,7 @@ main = do
 	pencolor t (0, 128, 0)
 	pensize t 10
 	shape t "turtle"
-	shapesize t 2
+	shapesize t 2 2
 	penup t
 	left t 130
 	forward t 170
