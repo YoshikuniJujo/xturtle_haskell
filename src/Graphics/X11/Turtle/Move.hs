@@ -46,28 +46,31 @@ import Data.Maybe(isJust)
 
 moveTurtle :: Field -> Character -> Layer -> TurtleState -> TurtleState -> IO ()
 moveTurtle f c l t0 t1 = do
-	when (undo t1 && clear t0) $ flushField f redraw
-	when (undo t1 && isJust (draw t0)) $ flushField f $ do
-		unlessM (undoLayer l) $ clearLayer l >> redraw
-		when (visible t1) $ drawT dir1 pos0
+	when (undo t1) $ do
+		when (clear t0) $ flushField f redraw
+		when (isJust $ draw t0) $ flushField f $ do
+			unlessM (undoLayer l) $ clearLayer l >> redraw
+			when (visible t1) $ drawT dir1 $ position t0
 	when (visible t1) $ do
-		forM_ (directions t0 t1) $ \d -> flushField f $
-			drawT d pos0 >> threadDelay (directionInterval t0)
-		forM_ (positions t0 t1) $ \p -> flushField f $
-			drawT dir1 p >> threadDelay (positionInterval t0)
-		flushField f $ drawT dir1 pos1
-	when (visible t0 && not (visible t1)) $ clearCharacter c
-	when (clear t1) $ flushField f $ clearLayer l
-	unless (undo t1) $ flushField f $ maybe (return ()) (drawSVG f l) (draw t1)
+		forM_ (directions t0 t1) $ \d -> flushField f $ do
+			drawT d (position t0)
+			threadDelay (directionInterval t0)
+		forM_ (positions t0 t1) $ \p -> flushField f $ do
+			drawT dir1 p
+			threadDelay (positionInterval t0)
+		flushField f $ drawT dir1 $ position t1
+	unless (undo t1) $ do
+		when (visible t0 && not (visible t1)) $ clearCharacter c
+		when (clear t1) $ flushField f $ clearLayer l
+		flushField f $ maybe (return ()) (drawSVG f l) (draw t1)
 	where
-	pos0 = position t0
-	pos1 = position t1
 	dir1 = direction t1 / degrees t1
 	redraw = mapM_ (drawSVG f l) $ reverse $ drawed t1
 	drawT d p = drawTurtle f c (pencolor t1) (shape t1) (shapesize t1) d
 		(pensize t1) p lineOrigin
-	(tl, to) = if undo t1 then (t0, t1) else (t1, t0)
-	lineOrigin = if pendown tl then Just $ position to else Nothing
+	lineOrigin = if undo t1
+		then if pendown t0 then Just $ position t1 else Nothing
+		else if pendown t1 then Just $ position t0 else Nothing
 
 drawSVG :: Field -> Layer -> SVG -> IO ()
 drawSVG f l (Line (Center x0 y0) (Center x1 y1) clr lw) =
