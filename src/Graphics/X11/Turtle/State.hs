@@ -1,26 +1,9 @@
 module Graphics.X11.Turtle.State (
 	TurtleState(..),
-	initialTurtleState,
-	getDirection,
-	setDirection,
-	getDirectionStep,
-	setDirectionStep
+	initialTurtleState
 ) where
 
 import Text.XML.YJSVG(SVG, Color(RGB))
-
-getDirection :: TurtleState -> Double
-getDirection ts = direction ts -- * (2 * pi) / degrees ts
-
-setDirection :: TurtleState -> Double -> TurtleState
-setDirection ts d = ts{direction = d * 2 * pi / degrees ts}
-
-getDirectionStep :: TurtleState -> Maybe Double
-getDirectionStep ts = directionStep ts -- (* ((2 * pi) / degrees ts)) `fmap` directionStep ts
-
-setDirectionStep :: TurtleState -> Maybe Double -> TurtleState
-setDirectionStep ts Nothing = ts{directionStep = Nothing}
-setDirectionStep ts (Just ds) = ts{directionStep = Just $ ds * 2 * pi / degrees ts}
 
 data TurtleState = TurtleState {
 	position :: (Double, Double),

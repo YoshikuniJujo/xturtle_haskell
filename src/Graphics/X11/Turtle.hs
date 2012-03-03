@@ -213,16 +213,16 @@ speed t "fastest" = do
 	sendCommand t $ DirectionStep Nothing
 speed t "fast" = do
 	sendCommand t $ PositionStep $ Just 60
-	sendCommand t $ DirectionStep $ Just $ 60
+	sendCommand t $ DirectionStep $ Just $ pi / 3
 speed t "normal" = do
 	sendCommand t $ PositionStep $ Just 20
-	sendCommand t $ DirectionStep $ Just $ 20
+	sendCommand t $ DirectionStep $ Just $ pi / 9
 speed t "slow" = do
 	sendCommand t $ PositionStep $ Just 10
-	sendCommand t $ DirectionStep $ Just $ 10
+	sendCommand t $ DirectionStep $ Just $ pi / 18
 speed t "slowest" = do
 	sendCommand t $ PositionStep $ Just 3
-	sendCommand t $ DirectionStep $ Just $ 3
+	sendCommand t $ DirectionStep $ Just $ pi / 60
 speed _ _ = putStrLn "no such speed"
 
 degrees :: Turtle -> Double -> IO ()

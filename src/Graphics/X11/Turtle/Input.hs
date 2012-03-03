@@ -16,8 +16,7 @@ module Graphics.X11.Turtle.Input (
 	drawed,
 ) where
 
-import Graphics.X11.Turtle.State(TurtleState(..), initialTurtleState, setDirection,
-	getDirection, setDirectionStep)
+import Graphics.X11.Turtle.State(TurtleState(..), initialTurtleState)
 import Text.XML.YJSVG(SVG(..), Color(..), Position(..))
 
 import Control.Concurrent.Chan(Chan, newChan, getChanContents)
@@ -57,12 +56,12 @@ inputToTurtle (tsb : tsbs) _ (Undo : tis) =
 	let ts1 = tsb{undo = True} in ts1 : inputToTurtle tsbs ts1 tis
 inputToTurtle tsbs ts0 (Forward len : tis) = let
 	(x0, y0) = position ts0
-	dir = getDirection ts0
+	dir = direction ts0
 	x = x0 + len * cos dir
 	y = y0 + len * sin dir in
 	inputToTurtle tsbs ts0 $ Goto x y : tis
-inputToTurtle tsbs ts0 (TurnLeft dd : tis) =
-	inputToTurtle tsbs ts0 $ Rotate (getDirection ts0 * degrees ts0 / (2 * pi) + dd) : tis
+inputToTurtle tsbs ts0 (TurnLeft dd : tis) = inputToTurtle tsbs ts0 $
+		Rotate (direction ts0 * degrees ts0 / (2 * pi) + dd) : tis
 inputToTurtle tsbs ts0 (ti : tis) =
 	let ts1 = nextTurtle ts0 ti in ts1 : inputToTurtle (ts0 : tsbs) ts1 tis
 inputToTurtle _ _ [] = error "no more input"
@@ -74,10 +73,9 @@ nextTurtle t (Pencolor c) = (clearState t){pencolor = c}
 nextTurtle t (Pensize ps) = (clearState t){pensize = ps}
 nextTurtle t (SetPendown pd) = (clearState t){pendown = pd}
 nextTurtle t (SetVisible v) = (clearState t){visible = v}
-nextTurtle t (Degrees ds) = (clearState t){
-	degrees = ds} -- , direction = direction t * ds / degrees t}
+nextTurtle t (Degrees ds) = (clearState t){degrees = ds}
 nextTurtle t (PositionStep ps) = (clearState t){positionStep = ps}
-nextTurtle t (DirectionStep ds) = (clearState t) `setDirectionStep` ds -- {directionStep = ds}
+nextTurtle t (DirectionStep ds) = (clearState t){directionStep = ds}
 nextTurtle t (Undonum un) = (clearState t){undonum = un}
 nextTurtle t (Goto x y) = (clearState t){
 	position = (x, y),
@@ -86,7 +84,7 @@ nextTurtle t (Goto x y) = (clearState t){
 	where
 	(x0, y0) = position t
 	ln = Line (Center x0 y0) (Center x y) (pencolor t) (pensize t)
-nextTurtle t (Rotate d) = (clearState t) `setDirection` d
+nextTurtle t (Rotate d) = (clearState t){direction = d * 2 * pi / degrees t}
 nextTurtle t (Write fnt sz str) = (clearState t){
 	draw = Just txt, drawed = txt : drawed t}
 	where txt = Text (uncurry Center $ position t) sz (pencolor t) fnt str
