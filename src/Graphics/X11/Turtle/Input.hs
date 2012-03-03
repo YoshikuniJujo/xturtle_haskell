@@ -69,31 +69,27 @@ inputToTurtle _ _ [] = error "no more input"
 nextTurtle :: TurtleState -> TurtleInput -> TurtleState
 nextTurtle t (Shape sh) = (clearState t){shape = sh}
 nextTurtle t (Shapesize sx sy) = (clearState t){shapesize = (sx, sy)}
-nextTurtle t (PositionStep ps) = (clearState t){positionStep = ps}
-nextTurtle t (DirectionStep ds) = (clearState t){directionStep = ds}
-nextTurtle t (Goto x y) = (clearState t){position = (x, y),
-	drawed = if pendown t then ln : drawed t else drawed t,
-	draw = if pendown t then Just ln else Nothing}
-	where
-	ln = Line (uncurry Center $ position t) (Center x y) (pencolor t)
-		(pensize t)
-nextTurtle t (Rotate d) = (clearState t){direction = d}
-nextTurtle t (SetPendown pd) = (clearState t){pendown = pd}
-nextTurtle t (SetVisible v) = (clearState t){visible = v}
-nextTurtle t (Undonum un) = (clearState t){undonum = un}
-nextTurtle t (Clear) = (clearState t){clear = True, drawed = []}
 nextTurtle t (Pencolor c) = (clearState t){pencolor = c}
 nextTurtle t (Pensize ps) = (clearState t){pensize = ps}
+nextTurtle t (SetPendown pd) = (clearState t){pendown = pd}
+nextTurtle t (SetVisible v) = (clearState t){visible = v}
 nextTurtle t (Degrees ds) = (clearState t){
-	degrees = ds,
-	direction = direction t * ds / degrees t
- }
-nextTurtle t (Write fnt sz str) = (clearState t){
-	draw = Just d, drawed = d : drawed t
- }
+	degrees = ds, direction = direction t * ds / degrees t}
+nextTurtle t (PositionStep ps) = (clearState t){positionStep = ps}
+nextTurtle t (DirectionStep ds) = (clearState t){directionStep = ds}
+nextTurtle t (Undonum un) = (clearState t){undonum = un}
+nextTurtle t (Goto x y) = (clearState t){
+	position = (x, y),
+	draw = if pendown t then Just ln else Nothing,
+	drawed = if pendown t then ln : drawed t else drawed t}
 	where
-	(x, y) = position t
-	d = Text (Center x y) sz (pencolor t) fnt str
+	(x0, y0) = position t
+	ln = Line (Center x0 y0) (Center x y) (pencolor t) (pensize t)
+nextTurtle t (Rotate d) = (clearState t){direction = d}
+nextTurtle t (Write fnt sz str) = (clearState t){
+	draw = Just txt, drawed = txt : drawed t}
+	where txt = Text (uncurry Center $ position t) sz (pencolor t) fnt str
+nextTurtle t (Clear) = (clearState t){clear = True, drawed = []}
 nextTurtle _ _ = error "not defined"
 
 clearState :: TurtleState -> TurtleState

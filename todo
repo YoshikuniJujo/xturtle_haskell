@@ -16,6 +16,7 @@ Functions
 
 Bugs
 * repair closeField
+* direction should be independent from degrees
 
 ?
 * How can I set Chan buffer size
