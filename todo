@@ -9,8 +9,6 @@ Functions
 * fill
 (* save as png by pixmap)
 * get Mouse move event
-* change turtle speed
-* change turtle width and height separately
 (* get X events)
 * get timer event
 * raise exception if bad shape name
