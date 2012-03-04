@@ -13,6 +13,7 @@ module Graphics.X11.Turtle.Move (
 	fieldColor,
 
 	-- * draws
+	flushField,
 	moveTurtle,
 	addLayer,
 	clearLayer,

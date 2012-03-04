@@ -75,7 +75,7 @@ import Graphics.X11.Turtle.Move(
 	forkField, openField, closeField,
 	addCharacter, addLayer, fieldSize, clearLayer, clearCharacter,
 	fieldColor, onclick, onrelease, ondrag, onkeypress, waitField,
-	moveTurtle
+	moveTurtle, flushField
  )
 import Graphics.X11.Turtle.Input(
 	TurtleInput(..), TurtleState,
@@ -126,7 +126,7 @@ newTurtle f = do
 	return t{thread = tid}
 
 killTurtle :: Turtle -> IO ()
-killTurtle t = do
+killTurtle t = flushField (field t) $ do
 	clearLayer $ layer t
 	clearCharacter $ character t
 	killThread $ thread t

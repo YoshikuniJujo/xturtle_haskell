@@ -10,3 +10,4 @@
 * change pensize and undo (fixed)
 * closeField, openField and newTurtle then turtle at wrong center
 * use IORef with thread
+* don't work killTurtle if randomTurtle run
