@@ -1,4 +1,4 @@
-module Graphics.X11.Turtle.Input (
+module Graphics.X11.Turtle.Input(
 	-- * types
 	TurtleState,
 	TurtleInput(..),
@@ -56,12 +56,11 @@ inputToTurtle (tsb : tsbs) _ (Undo : tis) =
 	let ts1 = tsb{undo = True} in ts1 : inputToTurtle tsbs ts1 tis
 inputToTurtle tsbs ts0 (Forward len : tis) = let
 	(x0, y0) = position ts0
-	dir = direction ts0
-	x = x0 + len * cos dir
-	y = y0 + len * sin dir in
+	x = x0 + len * cos (direction ts0)
+	y = y0 + len * sin (direction ts0) in
 	inputToTurtle tsbs ts0 $ Goto x y : tis
 inputToTurtle tsbs ts0 (TurnLeft dd : tis) = inputToTurtle tsbs ts0 $
-		Rotate (direction ts0 * degrees ts0 / (2 * pi) + dd) : tis
+	Rotate (direction ts0 * degrees ts0 / (2 * pi) + dd) : tis
 inputToTurtle tsbs ts0 (ti : tis) =
 	let ts1 = nextTurtle ts0 ti in ts1 : inputToTurtle (ts0 : tsbs) ts1 tis
 inputToTurtle _ _ [] = error "no more input"
@@ -92,4 +91,4 @@ nextTurtle t (Clear) = (clearState t){clear = True, drawed = []}
 nextTurtle _ _ = error "not defined"
 
 clearState :: TurtleState -> TurtleState
-clearState t = t{undo = False, undonum = 1, clear = False, draw = Nothing}
+clearState t = t{undonum = 1, undo = False, clear = False, draw = Nothing}
