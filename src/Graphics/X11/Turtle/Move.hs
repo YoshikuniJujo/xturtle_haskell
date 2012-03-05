@@ -10,7 +10,6 @@ module Graphics.X11.Turtle.Move (
 	forkField,
 	waitField,
 	fieldSize,
-	fieldColor,
 
 	-- * draws
 	flushField,

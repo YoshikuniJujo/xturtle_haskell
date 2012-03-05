@@ -70,28 +70,28 @@ module Graphics.X11.Turtle (
 	getSVG
 ) where
 
+import Graphics.X11.Turtle.Shape(nameToShape)
+import Graphics.X11.Turtle.Input(
+	TurtleState, TurtleInput(..),
+	turtleSeries, direction, visible, undonum, drawed)
+import qualified Graphics.X11.Turtle.Input as S(position, degrees, pendown)
 import Graphics.X11.Turtle.Move(
 	Field, Layer, Character,
-	forkField, openField, closeField,
-	addCharacter, addLayer, fieldSize, clearLayer, clearCharacter,
-	onclick, onrelease, ondrag, onkeypress, waitField,
-	moveTurtle, flushField
- )
-import Graphics.X11.Turtle.Input(
-	TurtleInput(..), TurtleState,
-	turtleSeries, undonum, visible, direction,
-	drawed
- )
-import qualified Graphics.X11.Turtle.Input as S(degrees, pendown, position)
-import Graphics.X11.Turtle.Shape(nameToShape)
+	openField, closeField, forkField, waitField, fieldSize, flushField,
+	moveTurtle, addLayer, clearLayer, addCharacter, clearCharacter,
+	onclick, onrelease, ondrag, onkeypress)
 import Text.XML.YJSVG(SVG(..), Color(..))
+
 import Control.Concurrent(Chan, writeChan, ThreadId, killThread)
 import Control.Monad(replicateM_, zipWithM_)
-import Data.IORef(IORef, newIORef, readIORef, modifyIORef)
+import Data.IORef(IORef, newIORef, readIORef)
+import Data.IORef.Tools(atomicModifyIORef_)
 import Data.Fixed(mod')
 
+--------------------------------------------------------------------------------
+
 xturtleVersion :: (Int, String)
-xturtleVersion = (42, "0.0.17a")
+xturtleVersion = (43, "0.0.17b")
 
 data Turtle = Turtle {
 	field :: Field,
@@ -137,7 +137,7 @@ showturtle t = sendCommand t $ SetVisible True
 
 sendCommand :: Turtle -> TurtleInput -> IO ()
 sendCommand Turtle{inputChan = c, stateIndex = si} ti = do
-	modifyIORef si (+ 1)
+	atomicModifyIORef_ si (+ 1)
 	writeChan c ti
 
 shape :: Turtle -> String -> IO ()

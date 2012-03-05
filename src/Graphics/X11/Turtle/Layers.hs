@@ -20,6 +20,7 @@ module Graphics.X11.Turtle.Layers(
 
 import Control.Monad(when, unless)
 import Data.IORef(IORef, newIORef, readIORef, atomicModifyIORef)
+import Data.IORef.Tools(atomicModifyIORef_)
 import Data.List.Tools(setAt, modifyAt)
 
 --------------------------------------------------------------------------------
@@ -122,6 +123,3 @@ setCharacter Character{characterId = cid, characterLayers = rls} act = do
 		ls{characters = setAt (characters ls) cid act}
 	readIORef rls >>= \ls ->
 		clearCharactersAction ls >> sequence_ (characters ls)
-
-atomicModifyIORef_ :: IORef a -> (a -> a) -> IO ()
-atomicModifyIORef_ ref f =  atomicModifyIORef ref $ \x -> (f x, ())
