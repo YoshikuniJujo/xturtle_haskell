@@ -44,6 +44,8 @@ data TurtleInput
 	| Forward Double
 	| TurnLeft Double
 	| Sleep Int
+	| SetFlush Bool
+	| Flush
 	deriving (Show, Read)
 
 turtleSeries :: IO (Chan TurtleInput, [TurtleInput], [TurtleState])
@@ -102,9 +104,12 @@ nextTurtle t (Write fnt sz str) = (clearState t){
 	where txt = Text (uncurry Center $ position t) sz (pencolor t) fnt str
 nextTurtle t (Bgcolor c) = (clearState t){
 	bgcolor = c, drawed = init (drawed t) ++ [Fill c]}
-nextTurtle t (Clear) = (clearState t){clear = True, drawed = [last $ drawed t]}
+nextTurtle t Clear = (clearState t){clear = True, drawed = [last $ drawed t]}
 nextTurtle t (Sleep time) = (clearState t){sleep = Just time}
+nextTurtle t (SetFlush ss) = (clearState t){stepbystep = ss}
+nextTurtle t Flush = (clearState t){flush = True}
 nextTurtle _ _ = error "not defined"
 
 clearState :: TurtleState -> TurtleState
-clearState t = t{undonum = 1, undo = False, clear = False, draw = Nothing, sleep = Nothing}
+clearState t = t{undonum = 1, undo = False, clear = False, draw = Nothing,
+	sleep = Nothing, flush = False}

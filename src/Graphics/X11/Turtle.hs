@@ -33,6 +33,9 @@ module Graphics.X11.Turtle (
 	clear,
 	undo,
 	sleep,
+	flushoff,
+	flushon,
+	flush,
 
 	-- * change turtle state
 	shape,
@@ -94,7 +97,7 @@ import Data.Fixed(mod')
 --------------------------------------------------------------------------------
 
 xturtleVersion :: (Int, String)
-xturtleVersion = (46, "0.1.0")
+xturtleVersion = (47, "0.1.1")
 
 --------------------------------------------------------------------------------
 
@@ -139,7 +142,7 @@ newTurtle f = do
 	return t
 
 killTurtle :: Turtle -> IO ()
-killTurtle t = flushField (field t) $ do
+killTurtle t = flushField (field t) True $ do
 	clearLayer $ layer t
 	clearCharacter $ character t
 	killThread $ thread t
@@ -197,6 +200,13 @@ undo t = readIORef (stateIndex t)
 
 sleep :: Turtle -> Int -> IO ()
 sleep t = input t . Sleep
+
+flushoff, flushon :: Turtle -> IO ()
+flushoff = (`input` SetFlush False)
+flushon = (`input` SetFlush True)
+
+flush :: Turtle -> IO ()
+flush = (`input` Flush)
 
 --------------------------------------------------------------------------------
 

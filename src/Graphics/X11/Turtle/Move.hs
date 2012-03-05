@@ -46,25 +46,27 @@ import Data.Maybe(isJust)
 
 moveTurtle :: Field -> Character -> Layer -> TurtleState -> TurtleState -> IO ()
 moveTurtle _ _ _ _ TurtleState{sleep = Just t} = threadDelay $ 1000 * t
+moveTurtle f _ _ _ TurtleState{flush = True} = flushField f True $ return ()
 moveTurtle f c l t0 t1 = do
-	when (undo t1) $ flushField f $ do
+	when (undo t1) $ flushField f fl $ do
 		when (clear t0) redraw
 		when (isJust $ draw t0) $ do
 			unlessM (undoLayer l) $ clearLayer l >> redraw
 			when (visible t1) $ drawT (direction t1) $ position t0
 	when (visible t1) $ do
-		forM_ (directions t0 t1) $ \dir -> flushField f $
+		forM_ (directions t0 t1) $ \dir -> flushField f fl $
 			drawT dir (position t0) >> threadDelay (interval t0)
-		forM_ (positions t0 t1) $ \p -> flushField f $
+		forM_ (positions t0 t1) $ \p -> flushField f fl $
 			drawT (direction t1) p >> threadDelay (interval t0)
-		flushField f $ drawT (direction t1) $ position t1
+		flushField f fl $ drawT (direction t1) $ position t1
 	when (bgcolor t0 /= bgcolor t1) $
-		flushField f $ fieldColor f l $ bgcolor t1
-	unless (undo t1) $ flushField f $ do
+		flushField f fl $ fieldColor f l $ bgcolor t1
+	unless (undo t1) $ flushField f fl $ do
 		when (visible t0 && not (visible t1)) $ clearCharacter c
 		when (clear t1) $ clearLayer l
 		maybe (return ()) (drawSVG f l) (draw t1)
 	where
+	fl = stepbystep t0
 	redraw = mapM_ (drawSVG f l) $ reverse $ drawed t1
 	drawT d p = drawTurtle f c t1 d p lineOrigin
 	lineOrigin	| undo t1 && pendown t0 = Just $ position t1

@@ -24,10 +24,14 @@ main = do
 			waitField f
 		["1"] -> do
 			f <- openField
+			onkeypress f $ return . (/= 'q')
 			t <- newTurtle f
+			hideturtle t
+			flushoff t
 			bgcolor t "blue"
 			flower t 5
-			threadDelay 1000000
+			flush t
+--			threadDelay 1000000
 			w <- windowWidth t
 			h <- windowHeight t
 			getSVG t >>= putStrLn . showSVG w h

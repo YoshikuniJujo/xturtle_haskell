@@ -12,12 +12,15 @@ main = do
 	f <- openField
 	onkeypress f $ return . (/= 'q')
 	t <- newTurtle f
+	flushoff t
 	hideturtle t
 	bgcolor t "black"
-	threadDelay 1000000
+	flush t
+--	threadDelay 1000000
 	house t (- 100) (- 150)
 	house t (- 200) (- 150)
 	uncurry (star t 1) `mapM_` take 30 smallStars
+	flush t
 	waitField f
 
 smallStars = [
@@ -37,6 +40,7 @@ star t s x y = do
 	beginfill t
 	replicateM_ 5 $ forward t (s * 5 - s * 5 / (1 + sin18)) >> left t 72
 	endfill t
+--	flush t
 	where
 	sin18 = sin $ pi / 10
 
@@ -81,3 +85,4 @@ house t x y = do
 	left t 90
 	forward t 10
 	endfill t
+--	flush t

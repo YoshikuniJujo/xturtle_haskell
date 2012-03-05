@@ -52,7 +52,7 @@ import Graphics.X11.Turtle.Layers(
 	makeCharacter, setCharacter)
 import Text.XML.YJSVG(Color(..))
 
-import Control.Monad(forever, replicateM)
+import Control.Monad(forever, replicateM, when)
 import Control.Monad.Tools(doWhile_, doWhile, whenM)
 import Control.Arrow((***))
 import Control.Concurrent(
@@ -154,7 +154,7 @@ runLoop f = allocaXEvent $ \e -> do
 
 processEvent :: Field -> XEventPtr -> Event -> IO Bool
 processEvent f e ev = case ev of
-	ExposeEvent{} -> flushField f $ do
+	ExposeEvent{} -> flushField f True $ do
 		windowSize (fDisplay f) (fWindow f) >>= writeIORef (fSize f)
 		redrawLayers $ fLayers f
 		return True
@@ -205,14 +205,15 @@ forkField f act = do
 	modifyIORef (fRunning f) (tid :)
 	return tid
 
-flushField :: Field -> IO a -> IO a
-flushField f act = do
+flushField :: Field -> Bool -> IO a -> IO a
+flushField f real act = do
 	readChan $ fLock f
 	ret <- act
-	(w, h) <- readIORef $ fSize f
-	copyArea (fDisplay f) (topBuf $ fBufs f) (fWindow f)
-		(gcForeground $ fGCs f) 0 0 w h 0 0
-	flush $ fDisplay f
+	when real $ do
+		(w, h) <- readIORef $ fSize f
+		copyArea (fDisplay f) (topBuf $ fBufs f) (fWindow f)
+			(gcForeground $ fGCs f) 0 0 w h 0 0
+		flush $ fDisplay f
 	writeChan (fLock f) ()
 	return ret
 
