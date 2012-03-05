@@ -1,6 +1,7 @@
 module Main where
 
 import Graphics.X11.Turtle
+import Text.XML.YJSVG
 import System.Random
 import Control.Monad
 import Control.Concurrent
@@ -12,20 +13,26 @@ main = do
 	case args of
 		[] -> do
 			(f, t1, t2) <- twoFlowers
-			replicateM_ 400 $ undo t1 >> undo t2
+			replicateM_ 500 $ undo t1 >> undo t2
 			waitField f
 		["1"] -> do
 			f <- openField
+			onkeypress f $ return . (/= 'q')
 			t <- newTurtle f
+			bgcolor t "blue"
 			flower t 5
-			replicateM_ 400 $ undo t
+			threadDelay 1000000
+			w <- windowWidth t
+			h <- windowHeight t
+			getSVG t >>= putStrLn . showSVG w h
+--			replicateM_ 500 $ undo t
 			waitField f
 
 qcircle :: Turtle -> Double -> IO ()
 qcircle t s = replicateM_ 9 $ forward t s >> right t 10
 
 leaf :: Turtle -> Double -> IO ()
-leaf t s = qcircle t s >> right t 90 >> qcircle t s
+leaf t s = beginfill t >> qcircle t s >> right t 90 >> qcircle t s >> endfill t
 
 twoFlowers :: IO (Field, Turtle, Turtle)
 twoFlowers = do
@@ -34,6 +41,8 @@ twoFlowers = do
 	onkeypress f $ return . (/= 'q')
 	t1 <- newTurtle f
 	t2 <- newTurtle f
+	bgcolor t1 "skyblue"
+	bgcolor t2 "blue"
 	goto t1 (- 150) 0
 	goto t2 100 (- 80)
 	shape t1 "turtle"

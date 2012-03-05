@@ -41,6 +41,8 @@ module Graphics.X11.Turtle (
 	showturtle,
 	penup,
 	pendown,
+	beginfill,
+	endfill,
 	pencolor,
 	pensize,
 	degrees,
@@ -212,6 +214,10 @@ showturtle = (`input` SetVisible True)
 penup, pendown :: Turtle -> IO ()
 penup = (`input` SetPendown False)
 pendown = (`input` SetPendown True)
+
+beginfill, endfill :: Turtle -> IO ()
+beginfill = (`input` SetFill True)
+endfill = (`input` SetFill False)
 
 pencolor :: ColorClass c => Turtle -> c -> IO ()
 pencolor t = input t . Pencolor . getColor

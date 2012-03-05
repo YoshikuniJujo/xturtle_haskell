@@ -29,6 +29,7 @@ data TurtleInput
 	| Pencolor Color
 	| Pensize Double
 	| SetPendown Bool
+	| SetFill Bool
 	| SetVisible Bool
 	| Degrees Double
 	| PositionStep (Maybe Double)
@@ -72,6 +73,15 @@ nextTurtle t (Shapesize sx sy) = (clearState t){shapesize = (sx, sy)}
 nextTurtle t (Pencolor c) = (clearState t){pencolor = c}
 nextTurtle t (Pensize ps) = (clearState t){pensize = ps}
 nextTurtle t (SetPendown pd) = (clearState t){pendown = pd}
+nextTurtle t (SetFill f) = (clearState t){
+	fill = f,
+	draw = if fill t && not f then Just fl else Nothing,
+	drawed = if fill t && not f then fl : drawed t else drawed t,
+	fillPoints = if f then [(x0, y0)] else []}
+	where
+	(x0, y0) = position t
+	fl = Polyline (uncurry Center `map` fillPoints t)
+		(pencolor t) (pencolor t) 0
 nextTurtle t (SetVisible v) = (clearState t){visible = v}
 nextTurtle t (Degrees ds) = (clearState t){degrees = ds}
 nextTurtle t (PositionStep ps) = (clearState t){positionStep = ps}
@@ -80,7 +90,8 @@ nextTurtle t (Undonum un) = (clearState t){undonum = un}
 nextTurtle t (Goto x y) = (clearState t){
 	position = (x, y),
 	draw = if pendown t then Just ln else Nothing,
-	drawed = if pendown t then ln : drawed t else drawed t}
+	drawed = if pendown t then ln : drawed t else drawed t,
+	fillPoints = if fill t then (x, y) : fillPoints t else fillPoints t}
 	where
 	(x0, y0) = position t
 	ln = Line (Center x0 y0) (Center x y) (pencolor t) (pensize t)
@@ -90,7 +101,7 @@ nextTurtle t (Write fnt sz str) = (clearState t){
 	where txt = Text (uncurry Center $ position t) sz (pencolor t) fnt str
 nextTurtle t (Bgcolor c) = (clearState t){
 	bgcolor = c, drawed = init (drawed t) ++ [Fill c]}
-nextTurtle t (Clear) = (clearState t){clear = True, drawed = []}
+nextTurtle t (Clear) = (clearState t){clear = True, drawed = [last $ drawed t]}
 nextTurtle _ _ = error "not defined"
 
 clearState :: TurtleState -> TurtleState

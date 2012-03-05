@@ -18,6 +18,7 @@ module Graphics.X11.Turtle.Field(
 	-- ** to Layer
 	addLayer,
 	drawLine,
+	fillPolygon,
 	writeString,
 	undoLayer,
 	clearLayer,
@@ -41,9 +42,10 @@ import Graphics.X11.Turtle.XTools(
 	GCs, gcForeground, gcBackground, Event(..),
 	forkIOX, openWindow, destroyWindow, closeDisplay, windowSize,
 	flush, getColorPixel, setForeground, copyArea, fillRectangle,
-	fillPolygon, drawLineXT, writeStringXT,
+	drawLineXT, writeStringXT,
 	allocaXEvent, waitEvent, pending, nextEvent, getEvent, filterEvent,
 	utf8LookupString, buttonPress, buttonRelease, xK_VoidSymbol)
+import qualified Graphics.X11.Turtle.XTools as X(fillPolygon)
 import Graphics.X11.Turtle.Layers(
 	Layers, Layer, Character, newLayers, redrawLayers,
 	makeLayer, addDraw, setBackground, undoLayer, clearLayer,
@@ -240,6 +242,14 @@ writeString f l fname size clr xc yc str = addDraw l (ws undoBuf, ws bgBuf)
 		(x, y) <- topLeft f xc yc
 		writeStringXT (fDisplay f) (bf $ fBufs f) fname size clr x y str
 
+fillPolygon :: Field -> Layer -> [(Double, Double)] -> Color -> IO ()
+fillPolygon f l psc clr = addDraw l (fp undoBuf, fp bgBuf)
+	where fp bf = do
+		ps <- mapM (fmap (uncurry Point) . uncurry (topLeft f)) psc
+		getColorPixel (fDisplay f) clr >>= maybe (return ())
+			(setForeground (fDisplay f) (gcForeground $ fGCs f))
+		X.fillPolygon (fDisplay f) (bf $ fBufs f) (gcForeground $ fGCs f) ps
+
 drawLineBuf :: Field -> (Bufs -> Pixmap) -> Int -> Color ->
 	Double -> Double -> Double -> Double -> IO ()
 drawLineBuf f bf lw c x1_ y1_ x2_ y2_ = do
@@ -271,7 +281,7 @@ drawShape f clr psc = do
 	ps <- mapM (fmap (uncurry Point) . uncurry (topLeft f)) psc
 	getColorPixel (fDisplay f) clr >>= maybe (return ())
 		(setForeground (fDisplay f) (gcForeground $ fGCs f))
-	fillPolygon (fDisplay f) (topBuf $ fBufs f) (gcForeground $ fGCs f) ps
+	X.fillPolygon (fDisplay f) (topBuf $ fBufs f) (gcForeground $ fGCs f) ps
 
 clearCharacter :: Character -> IO ()
 clearCharacter c = setCharacter c $ return ()

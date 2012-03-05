@@ -13,6 +13,7 @@ data TurtleState = TurtleState {
 	directionStep :: Maybe Double,
 	interval :: Int,
 	pendown :: Bool,
+	fill :: Bool,
 	pensize :: Double,
 	pencolor :: Color,
 	bgcolor :: Color,
@@ -23,7 +24,8 @@ data TurtleState = TurtleState {
 	undo :: Bool,
 	undonum :: Int,
 	draw :: Maybe SVG,
-	drawed :: [SVG]}
+	drawed :: [SVG],
+	fillPoints :: [(Double, Double)]}
 	deriving Show
 
 initialTurtleState :: TurtleState
@@ -35,6 +37,7 @@ initialTurtleState = TurtleState {
 	directionStep = Just $ pi / 18,
 	interval = 10000,
 	pendown = True,
+	fill = False,
 	pensize = 1,
 	pencolor = RGB 0 0 0,
 	bgcolor = RGB 255 255 255,
@@ -45,4 +48,5 @@ initialTurtleState = TurtleState {
 	undo = False,
 	undonum = 0,
 	draw = Nothing,
-	drawed = [Fill $ RGB 255 255 255]}
+	drawed = [Fill $ RGB 255 255 255],
+	fillPoints = []}
