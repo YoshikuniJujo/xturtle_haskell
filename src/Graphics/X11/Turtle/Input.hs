@@ -43,6 +43,7 @@ data TurtleInput
 	| Clear
 	| Forward Double
 	| TurnLeft Double
+	| Sleep Int
 	deriving (Show, Read)
 
 turtleSeries :: IO (Chan TurtleInput, [TurtleInput], [TurtleState])
@@ -102,7 +103,8 @@ nextTurtle t (Write fnt sz str) = (clearState t){
 nextTurtle t (Bgcolor c) = (clearState t){
 	bgcolor = c, drawed = init (drawed t) ++ [Fill c]}
 nextTurtle t (Clear) = (clearState t){clear = True, drawed = [last $ drawed t]}
+nextTurtle t (Sleep time) = (clearState t){sleep = Just time}
 nextTurtle _ _ = error "not defined"
 
 clearState :: TurtleState -> TurtleState
-clearState t = t{undonum = 1, undo = False, clear = False, draw = Nothing}
+clearState t = t{undonum = 1, undo = False, clear = False, draw = Nothing, sleep = Nothing}

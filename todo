@@ -7,11 +7,12 @@ Functions
 * scrolling
 (* save as png by pixmap)
 (* get X events)
+* sleep turtle
+* noflush
 
 Bugs
 * repair closeField
 * direction should be independent from degrees
 
 ?
-* sleep turtle
 * How can I set Chan buffer size

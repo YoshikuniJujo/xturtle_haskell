@@ -32,6 +32,7 @@ module Graphics.X11.Turtle (
 	home,
 	clear,
 	undo,
+	sleep,
 
 	-- * change turtle state
 	shape,
@@ -193,6 +194,9 @@ clear t = input t Clear
 undo :: Turtle -> IO ()
 undo t = readIORef (stateIndex t)
 	>>= flip replicateM_ (input t Undo) . undonum . (states t !!)
+
+sleep :: Turtle -> Int -> IO ()
+sleep t = input t . Sleep
 
 --------------------------------------------------------------------------------
 

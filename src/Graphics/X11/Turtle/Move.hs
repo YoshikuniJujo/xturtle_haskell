@@ -45,6 +45,7 @@ import Data.Maybe(isJust)
 --------------------------------------------------------------------------------
 
 moveTurtle :: Field -> Character -> Layer -> TurtleState -> TurtleState -> IO ()
+moveTurtle _ _ _ _ TurtleState{sleep = Just t} = threadDelay $ 1000 * t
 moveTurtle f c l t0 t1 = do
 	when (undo t1) $ flushField f $ do
 		when (clear t0) redraw

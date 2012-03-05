@@ -25,7 +25,8 @@ data TurtleState = TurtleState {
 	undonum :: Int,
 	draw :: Maybe SVG,
 	drawed :: [SVG],
-	fillPoints :: [(Double, Double)]}
+	fillPoints :: [(Double, Double)],
+	sleep :: Maybe Int}
 	deriving Show
 
 initialTurtleState :: TurtleState
@@ -49,4 +50,5 @@ initialTurtleState = TurtleState {
 	undonum = 0,
 	draw = Nothing,
 	drawed = [Fill $ RGB 255 255 255],
-	fillPoints = []}
+	fillPoints = [],
+	sleep = Nothing}

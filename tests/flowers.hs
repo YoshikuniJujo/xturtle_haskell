@@ -17,7 +17,9 @@ main = do
 			onkeypress f $ \c -> do
 				writeChan w ()
 				return $ c /= 'q'
-			readChan w
+			sleep t1 1000
+			sleep t2 1000
+--			readChan w
 			replicateM_ 500 $ undo t1 >> undo t2
 			waitField f
 		["1"] -> do
