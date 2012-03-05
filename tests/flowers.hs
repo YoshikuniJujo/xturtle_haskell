@@ -12,12 +12,16 @@ main = do
 	args <- getArgs
 	case args of
 		[] -> do
+			w <- newChan
 			(f, t1, t2) <- twoFlowers
+			onkeypress f $ \c -> do
+				writeChan w ()
+				return $ c /= 'q'
+			readChan w
 			replicateM_ 500 $ undo t1 >> undo t2
 			waitField f
 		["1"] -> do
 			f <- openField
-			onkeypress f $ return . (/= 'q')
 			t <- newTurtle f
 			bgcolor t "blue"
 			flower t 5
@@ -52,6 +56,8 @@ twoFlowers = do
 	forkIO $ flower t2 5 >> writeChan wait ()
 	readChan wait
 	readChan wait
+	hideturtle t1
+	hideturtle t2
 	return (f, t1, t2)
 
 flower :: Turtle -> Double -> IO ()
@@ -62,8 +68,12 @@ flower t s = do
 	clear t
 	replicateM_ 9 $ leaf t s >> right t 10
 	right t 180
+	penup t
+	forward t $ 6 * s
+	pendown t
 	pencolor t "green"
-	forward t $ 20 * s
+	pensize t s
+	forward t $ 14 * s
 	right t 180
 	forward t $ 3 * s
 	right t 20
