@@ -60,10 +60,11 @@ newLayers un cla ula cca = newIORef Layers{
  }
 
 makeLayer :: IORef Layers -> IO Layer
-makeLayer rls = atomicModifyIORef rls $ \ls ->
-	(ls{layers = layers ls ++ [[]], buffed = buffed ls ++ [return ()],
+makeLayer rls = atomicModifyIORef rls $ \ls -> (ls{
+		layers = layers ls ++ [[]],
+		buffed = buffed ls ++ [return ()],
 		background = background ls ++[return ()]},
-		Layer{layerId = length $ layers ls, layerLayers = rls})
+	Layer{layerId = length $ layers ls, layerLayers = rls})
 
 makeCharacter :: IORef Layers -> IO Character
 makeCharacter rls = atomicModifyIORef rls $ \ls ->
@@ -75,7 +76,7 @@ makeCharacter rls = atomicModifyIORef rls $ \ls ->
 
 redrawLayers :: IORef Layers -> IO ()
 redrawLayers rls = readIORef rls >>= \ls -> do
-	sequence_ (background ls)
+	sequence_ $ background ls
 	clearLayersAction ls >> sequence_ (buffed ls)
 	undoLayersAction ls >> mapM_ snd (concat $ layers ls)
 	clearCharactersAction ls >> sequence_ (characters ls)
@@ -94,7 +95,8 @@ addDraw Layer{layerId = lid, layerLayers = rls} acts@(_, act) = do
 
 setBackground :: Layer -> IO () -> IO ()
 setBackground Layer{layerId = lid, layerLayers = rls} act = do
-	atomicModifyIORef_ rls $ \ls -> ls{background = setAt (background ls) lid act}
+	atomicModifyIORef_ rls $ \ls ->
+		ls{background = setAt (background ls) lid act}
 	redrawLayers rls
 
 undoLayer :: Layer -> IO Bool

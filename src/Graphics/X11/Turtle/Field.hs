@@ -217,9 +217,9 @@ flushField f act = do
 fieldColor :: Field -> Layer -> Color -> IO ()
 fieldColor f l c = setBackground l $ do
 	clr <- getColorPixel (fDisplay f) c
-	(w, h) <- readIORef $ fSize f
 	setForeground (fDisplay f) (gcBackground $ fGCs f) clr
-	fillRectangle (fDisplay f) (undoBuf $ fBufs f) (gcBackground $ fGCs f) 0 0 w h
+	readIORef (fSize f) >>= uncurry (fillRectangle
+		(fDisplay f) (undoBuf $ fBufs f) (gcBackground $ fGCs f) 0 0)
 
 --------------------------------------------------------------------------------
 

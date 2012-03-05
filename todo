@@ -2,9 +2,6 @@
 	-- Turtle.hs
 
 Functions
-* bgcolor may should be Turtle -> Color -> IO () instead of Field -> ...
-	-- Because change bg color is drawing element
-	-- How do I make in SVG <- draw square and draw rest
 * fill
 (* save as png by pixmap)
 * get Mouse move event

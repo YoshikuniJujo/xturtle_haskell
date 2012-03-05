@@ -91,7 +91,7 @@ import Data.IORef(IORef, newIORef, readIORef, modifyIORef)
 import Data.Fixed(mod')
 
 xturtleVersion :: (Int, String)
-xturtleVersion = (41, "0.0.17")
+xturtleVersion = (42, "0.0.17a")
 
 data Turtle = Turtle {
 	field :: Field,
