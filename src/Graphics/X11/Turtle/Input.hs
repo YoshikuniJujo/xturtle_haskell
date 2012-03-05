@@ -90,7 +90,7 @@ nextTurtle t (Write fnt sz str) = (clearState t){
 	where txt = Text (uncurry Center $ position t) sz (pencolor t) fnt str
 nextTurtle t (Bgcolor c) = (clearState t){
 	bgcolor = c,
-	drawed = drawed t} -- ++ [Fill c]}
+	drawed = init (drawed t) ++ [Fill c]}
 nextTurtle t (Clear) = (clearState t){clear = True, drawed = []}
 nextTurtle _ _ = error "not defined"
 

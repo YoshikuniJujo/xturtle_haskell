@@ -35,7 +35,7 @@ main = do
 			1 -> goto t x y >> pendown t >> forward t 0 >> return True
 			3 -> clear t >> return True
 			2 -> modifyIORef bgclr (+ 1) >> readIORef bgclr >>=
-				(\c -> bgcolor f c) . (colors !!) >> return True
+				(\c -> bgcolor t c) . (colors !!) >> return True
 			4 -> goto t x y >> modifyIORef clr (+ 6) >> readIORef clr >>=
 				(\c -> pencolor t c >> pencolor clrT c) . (colors !!) >>
 				forward clrT 0 >> return True
@@ -50,7 +50,9 @@ main = do
 		print inputs
 		print $ length inputs
 -}
-		getSVG t >>= putStrLn . showSVG 1000 1000
+		w <- windowWidth t
+		h <- windowHeight t
+		getSVG t >>= putStrLn . showSVG w h
 		inputs <- getInputs t
 		when (read save) $ writeFile fn $ show $ drop 5 inputs
 		return False

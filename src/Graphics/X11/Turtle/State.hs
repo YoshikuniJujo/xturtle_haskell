@@ -3,7 +3,7 @@ module Graphics.X11.Turtle.State (
 	initialTurtleState
 ) where
 
-import Text.XML.YJSVG(SVG, Color(RGB))
+import Text.XML.YJSVG(SVG(Fill), Color(RGB))
 
 data TurtleState = TurtleState {
 	position :: (Double, Double),
@@ -45,4 +45,4 @@ initialTurtleState = TurtleState {
 	undo = False,
 	undonum = 0,
 	draw = Nothing,
-	drawed = []}
+	drawed = [Fill $ RGB 255 255 255]}

@@ -76,6 +76,7 @@ drawSVG f l (Line (Center x0 y0) (Center x1 y1) clr lw) =
 	drawLine f l lw clr x0 y0 x1 y1
 drawSVG f l (Text (Center x y) sz clr fnt str) =
 	writeString f l fnt sz clr x y str
+drawSVG _ _ (Fill _) = return ()
 drawSVG _ _ _ = error "not implemented"
 
 positions :: TurtleState -> TurtleState -> [(Double, Double)]
