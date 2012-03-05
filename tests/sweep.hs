@@ -13,7 +13,7 @@ initTurtle = do
 	f <- openField
 	threadDelay 1000000
 	t <- newTurtle f
-	bgcolor f "gray" -- (128, 128, 128)
+	bgcolor t "gray" -- (128, 128, 128)
 	shape t "turtle"
 	shapesize t 2 2
 	pensize t 10
