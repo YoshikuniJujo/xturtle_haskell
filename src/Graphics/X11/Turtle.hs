@@ -23,11 +23,12 @@ module Graphics.X11.Turtle (
 	goto,
 	setx,
 	sety,
-	right,
 	left,
+	right,
 	setheading,
 	circle,
 	write,
+	bgcolor,
 	home,
 	clear,
 	undo,
@@ -36,12 +37,11 @@ module Graphics.X11.Turtle (
 	shape,
 	shapesize,
 	speed,
-	showturtle,
 	hideturtle,
-	pendown,
+	showturtle,
 	penup,
+	pendown,
 	pencolor,
-	bgcolor,
 	pensize,
 	degrees,
 	radians,
@@ -93,6 +93,8 @@ import Data.Fixed(mod')
 xturtleVersion :: (Int, String)
 xturtleVersion = (43, "0.0.17b")
 
+--------------------------------------------------------------------------------
+
 data Turtle = Turtle {
 	field :: Field,
 	layer :: Layer,
@@ -104,26 +106,34 @@ data Turtle = Turtle {
 	thread :: ThreadId
  }
 
+class ColorClass a where getColor :: a -> Color
+
+instance ColorClass String where getColor = ColorName
+
+instance (Integral r, Integral g, Integral b) => ColorClass (r, g, b) where
+	getColor (r, g, b) =
+		RGB (fromIntegral r) (fromIntegral g) (fromIntegral b)
+
+--------------------------------------------------------------------------------
+
 newTurtle :: Field -> IO Turtle
 newTurtle f = do
-	ch <- addCharacter f
 	l <- addLayer f
+	ch <- addCharacter f
 	(ic, tis, sts) <- turtleSeries
 	si <- newIORef 1
+	tid <- forkField f $ zipWithM_ (moveTurtle f ch l) sts $ tail sts
 	let	t = Turtle {
 			field = f,
-			inputChan = ic,
 			layer = l,
 			character = ch,
+			inputChan = ic,
 			states = sts,
 			inputs = tis,
 			stateIndex = si,
-			thread = undefined
-		 }
-	tid <- forkField f $ zipWithM_ (moveTurtle f ch l) sts $ tail sts
-	shape t "classic"
-	sendCommand t $ Undonum 0
-	return t{thread = tid}
+			thread = tid}
+	shape t "classic" >> sendCommand t (Undonum 0)
+	return t
 
 killTurtle :: Turtle -> IO ()
 killTurtle t = flushField (field t) $ do
@@ -131,29 +141,11 @@ killTurtle t = flushField (field t) $ do
 	clearCharacter $ character t
 	killThread $ thread t
 
-hideturtle, showturtle :: Turtle -> IO ()
-hideturtle t = sendCommand t $ SetVisible False
-showturtle t = sendCommand t $ SetVisible True
-
-sendCommand :: Turtle -> TurtleInput -> IO ()
-sendCommand Turtle{inputChan = c, stateIndex = si} ti = do
-	atomicModifyIORef_ si (+ 1)
-	writeChan c ti
-
-shape :: Turtle -> String -> IO ()
-shape t = sendCommand t . Shape . nameToShape
-
-shapesize :: Turtle -> Double -> Double -> IO ()
-shapesize t sx sy = sendCommand t $ Shapesize sx sy
+--------------------------------------------------------------------------------
 
 forward, backward :: Turtle -> Double -> IO ()
 forward t = sendCommand t . Forward
 backward t = forward t . negate
-
-left, right, setheading :: Turtle -> Double -> IO ()
-left t = sendCommand t . TurnLeft
-right t = left t . negate
-setheading t = sendCommand t . Rotate
 
 goto :: Turtle -> Double -> Double -> IO ()
 goto t x y = sendCommand t $ Goto x y
@@ -166,11 +158,10 @@ sety t y = do
 	(x, _) <- position t
 	sendCommand t $ Goto x y
 
-home :: Turtle -> IO ()
-home t = goto t 0 0 >> sendCommand t (Rotate 0)
-
-clear :: Turtle -> IO ()
-clear t = sendCommand t Clear
+left, right, setheading :: Turtle -> Double -> IO ()
+left t = sendCommand t . TurnLeft
+right t = left t . negate
+setheading t = sendCommand t . Rotate
 
 circle :: Turtle -> Double -> IO ()
 circle t r = do
@@ -181,31 +172,34 @@ circle t r = do
 	forward t (r * pi / 36)
 	sendCommand t $ Undonum 74
 
-getDegrees :: Turtle -> IO Double
-getDegrees Turtle{stateIndex = si, states = s} =
-	fmap (S.degrees . (s !!)) $ readIORef si
-
-penup, pendown :: Turtle -> IO ()
-penup = flip sendCommand $ SetPendown False
-pendown = flip sendCommand $ SetPendown True
-
-pencolor :: ColorClass c => Turtle -> c -> IO ()
-pencolor t c = sendCommand t $ Pencolor $ getColor c
-
-class ColorClass a where
-	getColor :: a -> Color
-
-instance ColorClass String where
-	getColor = ColorName
-
-instance (Integral r, Integral g, Integral b) => ColorClass (r, g, b) where
-	getColor (r, g, b) = RGB (fromIntegral r) (fromIntegral g) (fromIntegral b)
+write :: Turtle -> String -> Double -> String -> IO ()
+write t fnt sz = sendCommand t . Write fnt sz
 
 bgcolor :: ColorClass c => Turtle -> c -> IO ()
 bgcolor t = sendCommand t . Bgcolor . getColor
 
-pensize :: Turtle -> Double -> IO ()
-pensize t = sendCommand t . Pensize
+home :: Turtle -> IO ()
+home t = goto t 0 0 >> sendCommand t (Rotate 0)
+
+clear :: Turtle -> IO ()
+clear t = sendCommand t Clear
+
+undo :: Turtle -> IO ()
+undo t = readIORef (stateIndex t)
+	>>= flip replicateM_ (sendCommand t Undo) . undonum . (states t !!)
+
+sendCommand :: Turtle -> TurtleInput -> IO ()
+sendCommand Turtle{inputChan = c, stateIndex = si} ti = do
+	atomicModifyIORef_ si (+ 1)
+	writeChan c ti
+
+--------------------------------------------------------------------------------
+
+shape :: Turtle -> String -> IO ()
+shape t = sendCommand t . Shape . nameToShape
+
+shapesize :: Turtle -> Double -> Double -> IO ()
+shapesize t sx sy = sendCommand t $ Shapesize sx sy
 
 speed :: Turtle -> String -> IO ()
 speed t "fastest" = do
@@ -225,22 +219,31 @@ speed t "slowest" = do
 	sendCommand t $ DirectionStep $ Just $ pi / 60
 speed _ _ = putStrLn "no such speed"
 
+hideturtle, showturtle :: Turtle -> IO ()
+hideturtle t = sendCommand t $ SetVisible False
+showturtle t = sendCommand t $ SetVisible True
+
+penup, pendown :: Turtle -> IO ()
+penup = flip sendCommand $ SetPendown False
+pendown = flip sendCommand $ SetPendown True
+
+pencolor :: ColorClass c => Turtle -> c -> IO ()
+pencolor t c = sendCommand t $ Pencolor $ getColor c
+
+pensize :: Turtle -> Double -> IO ()
+pensize t = sendCommand t . Pensize
+
 degrees :: Turtle -> Double -> IO ()
 degrees t = sendCommand t . Degrees
 
 radians :: Turtle -> IO ()
 radians = flip degrees $ 2 * pi
 
-write :: Turtle -> String -> Double -> String -> IO ()
-write t fnt sz = sendCommand t . Write fnt sz
+getDegrees :: Turtle -> IO Double
+getDegrees Turtle{stateIndex = si, states = s} =
+	fmap (S.degrees . (s !!)) $ readIORef si
 
-undo :: Turtle -> IO ()
-undo t = readIORef (stateIndex t)
-	>>= flip replicateM_ (sendCommand t Undo) . undonum . (states t !!)
-
-windowWidth, windowHeight :: Turtle -> IO Double
-windowWidth = fmap fst . fieldSize . field
-windowHeight = fmap snd . fieldSize . field
+--------------------------------------------------------------------------------
 
 position :: Turtle -> IO (Double, Double)
 position Turtle{stateIndex = si, states = s} =
@@ -273,6 +276,12 @@ isdown t = fmap (S.pendown . (states t !!)) $ readIORef $ stateIndex t
 
 isvisible :: Turtle -> IO Bool
 isvisible t = fmap (visible . (states t !!)) $ readIORef $ stateIndex t
+
+windowWidth, windowHeight :: Turtle -> IO Double
+windowWidth = fmap fst . fieldSize . field
+windowHeight = fmap snd . fieldSize . field
+
+--------------------------------------------------------------------------------
 
 getInputs :: Turtle -> IO [TurtleInput]
 getInputs t = do
