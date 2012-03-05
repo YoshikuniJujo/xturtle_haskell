@@ -1,4 +1,4 @@
-module Graphics.X11.Turtle.Shape(nameToShape) where
+module Graphics.X11.Turtle.Data(nameToShape, nameToSpeed) where
 
 import Control.Arrow(second, (&&&))
 
@@ -11,3 +11,15 @@ nameToShape name = error $ "There is no shape named " ++ name
 
 unfold :: [(Double, Double)] -> [(Double, Double)]
 unfold = uncurry (++) . (id &&& (reverse . map (second negate)))
+
+nameToSpeed :: String -> Maybe (Maybe Double, Maybe Double)
+nameToSpeed str = lookup str speedTable
+
+speedTable :: [(String, (Maybe Double, Maybe Double))]
+speedTable = [
+	("fastest", (Nothing, Nothing)),
+	("fast", (Just 60, Just $ pi / 3)),
+	("normal", (Just 20, Just $ pi / 9)),
+	("slow", (Just 10, Just $ pi / 18)),
+	("slowest", (Just 3, Just $ pi / 60))
+ ]

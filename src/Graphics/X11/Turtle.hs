@@ -70,7 +70,7 @@ module Graphics.X11.Turtle (
 	getSVG
 ) where
 
-import Graphics.X11.Turtle.Shape(nameToShape)
+import Graphics.X11.Turtle.Data(nameToShape, nameToSpeed)
 import Graphics.X11.Turtle.Input(
 	TurtleState, TurtleInput(..),
 	turtleSeries, direction, visible, undonum, drawed)
@@ -201,33 +201,20 @@ shapesize :: Turtle -> Double -> Double -> IO ()
 shapesize t sx sy = input t $ Shapesize sx sy
 
 speed :: Turtle -> String -> IO ()
-speed t "fastest" = do
-	input t $ PositionStep Nothing
-	input t $ DirectionStep Nothing
-speed t "fast" = do
-	input t $ PositionStep $ Just 60
-	input t $ DirectionStep $ Just $ pi / 3
-speed t "normal" = do
-	input t $ PositionStep $ Just 20
-	input t $ DirectionStep $ Just $ pi / 9
-speed t "slow" = do
-	input t $ PositionStep $ Just 10
-	input t $ DirectionStep $ Just $ pi / 18
-speed t "slowest" = do
-	input t $ PositionStep $ Just 3
-	input t $ DirectionStep $ Just $ pi / 60
-speed _ _ = putStrLn "no such speed"
+speed t str = case nameToSpeed str of
+	Just (ps, ds) -> input t (PositionStep ps) >> input t (DirectionStep ds)
+	Nothing -> putStrLn "no such speed"
 
 hideturtle, showturtle :: Turtle -> IO ()
-hideturtle t = input t $ SetVisible False
-showturtle t = input t $ SetVisible True
+hideturtle = (`input` SetVisible False)
+showturtle = (`input` SetVisible True)
 
 penup, pendown :: Turtle -> IO ()
-penup = flip input $ SetPendown False
-pendown = flip input $ SetPendown True
+penup = (`input` SetPendown False)
+pendown = (`input` SetPendown True)
 
 pencolor :: ColorClass c => Turtle -> c -> IO ()
-pencolor t c = input t $ Pencolor $ getColor c
+pencolor t = input t . Pencolor . getColor
 
 pensize :: Turtle -> Double -> IO ()
 pensize t = input t . Pensize
@@ -236,7 +223,7 @@ degrees :: Turtle -> Double -> IO ()
 degrees t = input t . Degrees
 
 radians :: Turtle -> IO ()
-radians = flip degrees $ 2 * pi
+radians = (`degrees` (2 * pi))
 
 --------------------------------------------------------------------------------
 
@@ -249,9 +236,9 @@ xcor = fmap fst . position
 ycor = fmap snd . position
 
 heading :: Turtle -> IO Double
-heading t = do
+heading t@Turtle{stateIndex = si, states = s} = do
 	deg <- getDegrees t
-	dir <- fmap ((* (deg / (2 * pi))) . direction . (states t !!)) $ readIORef $ stateIndex t
+	dir <- fmap ((* (deg / (2 * pi))) . direction . (s !!)) $ readIORef si
 	return $ dir `mod'` deg
 
 getDegrees :: Turtle -> IO Double
@@ -270,10 +257,8 @@ distance t x0 y0 = do
 	(x, y) <- position t
 	return $ ((x - x0) ** 2 + (y - y0) ** 2) ** (1 / 2)
 
-isdown :: Turtle -> IO Bool
+isdown, isvisible :: Turtle -> IO Bool
 isdown t = fmap (S.pendown . (states t !!)) $ readIORef $ stateIndex t
-
-isvisible :: Turtle -> IO Bool
 isvisible t = fmap (visible . (states t !!)) $ readIORef $ stateIndex t
 
 windowWidth, windowHeight :: Turtle -> IO Double
