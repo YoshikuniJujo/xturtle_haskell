@@ -133,11 +133,12 @@ windowSize dpy win = do
 
 --------------------------------------------------------------------------------
 
-getColorPixel :: Display -> Color -> IO Pixel
-getColorPixel _ (RGB r g b) = return $ shift (fromIntegral r) 16 .|.
+getColorPixel :: Display -> Color -> IO (Maybe Pixel)
+getColorPixel _ (RGB r g b) = return $ Just $ shift (fromIntegral r) 16 .|.
 	shift (fromIntegral g) 8 .|. fromIntegral b
-getColorPixel dpy (ColorName cn) = fmap (color_pixel . fst) $
-	allocNamedColor dpy (defaultColormap dpy $ defaultScreen dpy) cn
+getColorPixel dpy (ColorName cn) = fmap (Just . color_pixel . fst)
+	(allocNamedColor dpy (defaultColormap dpy $ defaultScreen dpy) cn) `catch`
+		const (putStrLn "no such color" >> return Nothing)
 
 fillPolygon :: Display -> Drawable -> GC -> [Point] -> IO ()
 fillPolygon d w gc ps = X.fillPolygon d w gc ps nonconvex coordModeOrigin
@@ -145,7 +146,7 @@ fillPolygon d w gc ps = X.fillPolygon d w gc ps nonconvex coordModeOrigin
 drawLineXT :: Display -> GC -> Drawable -> Int -> Color ->
 	Position -> Position -> Position -> Position -> IO ()
 drawLineXT dpy gc bf lw c x1 y1 x2 y2 = do
-	getColorPixel dpy c >>= setForeground dpy gc
+	getColorPixel dpy c >>= maybe (return ()) (setForeground dpy gc)
 	setLineAttributes dpy gc (fromIntegral lw) lineSolid capRound joinRound
 	drawLine dpy bf gc x1 y1 x2 y2
 

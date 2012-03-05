@@ -216,8 +216,9 @@ flushField f act = do
 
 fieldColor :: Field -> Layer -> Color -> IO ()
 fieldColor f l c = setBackground l $ do
-	clr <- getColorPixel (fDisplay f) c
-	setForeground (fDisplay f) (gcBackground $ fGCs f) clr
+	getColorPixel (fDisplay f) c >>=
+		maybe (return ())
+			(setForeground (fDisplay f) (gcBackground $ fGCs f))
 	readIORef (fSize f) >>= uncurry (fillRectangle
 		(fDisplay f) (undoBuf $ fBufs f) (gcBackground $ fGCs f) 0 0)
 
@@ -268,8 +269,8 @@ drawCharacterAndLine f c clr sh lw x1 y1 x2 y2 = setCharacter c $
 drawShape :: Field -> Color -> [(Double, Double)] -> IO ()
 drawShape f clr psc = do
 	ps <- mapM (fmap (uncurry Point) . uncurry (topLeft f)) psc
-	pxl <- getColorPixel (fDisplay f) clr
-	setForeground (fDisplay f) (gcForeground $ fGCs f) pxl
+	getColorPixel (fDisplay f) clr >>= maybe (return ())
+		(setForeground (fDisplay f) (gcForeground $ fGCs f))
 	fillPolygon (fDisplay f) (topBuf $ fBufs f) (gcForeground $ fGCs f) ps
 
 clearCharacter :: Character -> IO ()
