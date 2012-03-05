@@ -74,7 +74,7 @@ import Graphics.X11.Turtle.Move(
 	Field, Layer, Character,
 	forkField, openField, closeField,
 	addCharacter, addLayer, fieldSize, clearLayer, clearCharacter,
-	fieldColor, onclick, onrelease, ondrag, onkeypress, waitField,
+	onclick, onrelease, ondrag, onkeypress, waitField,
 	moveTurtle, flushField
  )
 import Graphics.X11.Turtle.Input(
@@ -201,8 +201,8 @@ instance ColorClass String where
 instance (Integral r, Integral g, Integral b) => ColorClass (r, g, b) where
 	getColor (r, g, b) = RGB (fromIntegral r) (fromIntegral g) (fromIntegral b)
 
-bgcolor :: ColorClass c => Field -> c -> IO ()
-bgcolor f = fieldColor f . getColor
+bgcolor :: ColorClass c => Turtle -> c -> IO ()
+bgcolor t = sendCommand t . Bgcolor . getColor
 
 pensize :: Turtle -> Double -> IO ()
 pensize t = sendCommand t . Pensize

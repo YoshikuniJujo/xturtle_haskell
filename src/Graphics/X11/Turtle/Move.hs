@@ -58,6 +58,8 @@ moveTurtle f c l t0 t1 = do
 		forM_ (positions t0 t1) $ \p -> flushField f $
 			drawT (direction t1) p >> threadDelay (interval t0)
 		flushField f $ drawT (direction t1) $ position t1
+	when (bgcolor t0 /= bgcolor t1) $ flushField f $ do
+		fieldColor f l (bgcolor t1)
 	unless (undo t1) $ flushField f $ do
 		when (visible t0 && not (visible t1)) $ clearCharacter c
 		when (clear t1) $ clearLayer l

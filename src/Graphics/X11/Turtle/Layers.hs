@@ -12,6 +12,7 @@ module Graphics.X11.Turtle.Layers(
 	-- * draws
 	redrawLayers,
 	addDraw,
+	setBackground,
 	undoLayer,
 	clearLayer,
 	setCharacter
@@ -28,6 +29,7 @@ data Layers = Layers{
 	clearLayersAction :: IO (),
 	undoLayersAction :: IO (),
 	clearCharactersAction :: IO (),
+	background :: [IO ()],
 	buffed :: [IO ()],
 	layers :: [[(IO (), IO ())]],
 	characters :: [IO ()]
@@ -51,6 +53,7 @@ newLayers un cla ula cca = newIORef Layers{
 	clearLayersAction = cla,
 	undoLayersAction = ula,
 	clearCharactersAction = cca,
+	background = [],
 	buffed = [],
 	layers = [],
 	characters = []
@@ -58,7 +61,8 @@ newLayers un cla ula cca = newIORef Layers{
 
 makeLayer :: IORef Layers -> IO Layer
 makeLayer rls = atomicModifyIORef rls $ \ls ->
-	(ls{layers = layers ls ++ [[]], buffed = buffed ls ++ [return ()]},
+	(ls{layers = layers ls ++ [[]], buffed = buffed ls ++ [return ()],
+		background = background ls ++[return ()]},
 		Layer{layerId = length $ layers ls, layerLayers = rls})
 
 makeCharacter :: IORef Layers -> IO Character
@@ -71,6 +75,7 @@ makeCharacter rls = atomicModifyIORef rls $ \ls ->
 
 redrawLayers :: IORef Layers -> IO ()
 redrawLayers rls = readIORef rls >>= \ls -> do
+	sequence_ (background ls)
 	clearLayersAction ls >> sequence_ (buffed ls)
 	undoLayersAction ls >> mapM_ snd (concat $ layers ls)
 	clearCharactersAction ls >> sequence_ (characters ls)
@@ -86,6 +91,11 @@ addDraw Layer{layerId = lid, layerLayers = rls} acts@(_, act) = do
 		else let (a, _) : as = layers ls !! lid in ls{
 			layers = setAt (layers ls) lid $ as ++ [acts],
 			buffed = modifyAt (buffed ls) lid (>> a)}
+
+setBackground :: Layer -> IO () -> IO ()
+setBackground Layer{layerId = lid, layerLayers = rls} act = do
+	atomicModifyIORef_ rls $ \ls -> ls{background = setAt (background ls) lid act}
+	redrawLayers rls
 
 undoLayer :: Layer -> IO Bool
 undoLayer Layer{layerId = lid, layerLayers = rls} = do

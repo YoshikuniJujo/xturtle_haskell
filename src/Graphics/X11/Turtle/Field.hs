@@ -46,10 +46,11 @@ import Graphics.X11.Turtle.XTools(
 	utf8LookupString, buttonPress, buttonRelease, xK_VoidSymbol)
 import Graphics.X11.Turtle.Layers(
 	Layers, Layer, Character, newLayers, redrawLayers,
-	makeLayer, addDraw, undoLayer, clearLayer, makeCharacter, setCharacter)
+	makeLayer, addDraw, setBackground, undoLayer, clearLayer,
+	makeCharacter, setCharacter)
 import Text.XML.YJSVG(Color(..))
 
-import Control.Monad(forever, forM_, replicateM)
+import Control.Monad(forever, replicateM)
 import Control.Monad.Tools(doWhile_, doWhile, whenM)
 import Control.Arrow((***))
 import Control.Concurrent(
@@ -213,14 +214,12 @@ flushField f act = do
 	writeChan (fLock f) ()
 	return ret
 
-fieldColor :: Field -> Color -> IO ()
-fieldColor f c = flushField f $ do
+fieldColor :: Field -> Layer -> Color -> IO ()
+fieldColor f l c = setBackground l $ do
 	clr <- getColorPixel (fDisplay f) c
-	setForeground (fDisplay f) (gcBackground $ fGCs f) clr
 	(w, h) <- readIORef $ fSize f
-	forM_ [undoBuf $ fBufs f, bgBuf $ fBufs f, topBuf $ fBufs f] $ \bf ->
-		fillRectangle (fDisplay f) bf (gcBackground $ fGCs f) 0 0 w h
-	redrawLayers $ fLayers f
+	setForeground (fDisplay f) (gcBackground $ fGCs f) clr
+	fillRectangle (fDisplay f) (undoBuf $ fBufs f) (gcBackground $ fGCs f) 0 0 w h
 
 --------------------------------------------------------------------------------
 
