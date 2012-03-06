@@ -2,6 +2,7 @@ import Graphics.X11.Turtle
 import Control.Monad
 import System.Random
 import Control.Concurrent
+import Text.XML.YJSVG
 
 main = do
 	g1 <- newStdGen
@@ -22,6 +23,9 @@ main = do
 	uncurry (star t 1) `mapM_` take 30 smallStars
 	flush t
 	waitField f
+	w <- windowWidth t
+	h <- windowHeight t
+	getSVG t >>= putStr . showSVG w h
 
 smallStars = [
 	(- 100, 100),

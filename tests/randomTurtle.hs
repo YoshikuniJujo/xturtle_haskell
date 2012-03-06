@@ -23,12 +23,14 @@ randomTurtle t = do
 	penup t
 	shape t "turtle"
 	shapesize t 2 2
+	(x0, y0) <- position t
 	forward t 100
 	pendown t
 	left t 90
 	circle t 100
 	penup t
-	home t
+	goto t x0 y0
+--	home t
 	pendown t
 	position t >>= print
 	sequence_ $ repeat $ do
@@ -39,6 +41,6 @@ randomTurtle t = do
 		pencolor t (r, g, b)
 		left t d
 		forward t 15
-		d <- distance t 0 0
+		d <- distance t x0 y0
 		when (d > 100) $ undo t
 		threadDelay 10000

@@ -1,18 +1,16 @@
 * refactoring
 
 Functions
+* insert picture
 * get Mouse move event
 * get timer event
 * raise exception if bad shape name
 * scrolling
 (* save as png by pixmap)
 (* get X events)
-* sleep turtle
-* noflush
 
 Bugs
 * repair closeField
-* direction should be independent from degrees
 
 ?
 * How can I set Chan buffer size
