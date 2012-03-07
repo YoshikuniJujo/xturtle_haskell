@@ -199,7 +199,7 @@ getPicture fp nw nh = do
 	contextSetImage img
 	w <- fmap fromIntegral imageGetWidth
 	h <- fmap fromIntegral imageGetHeight
-	nimg <- createCroppedScaledImage (0 :: Int) (0 :: Int) w h nw nh
+	nimg <- createCroppedScaledImage (0 :: Int) (0 :: Int) (w :: Int) (h :: Int) nw nh
 	contextSetImage nimg
 	dat <- imageGetData
 	return (nw, nh, dat)
@@ -210,7 +210,7 @@ drawPicture dpy win gc x0 y0 (w, h, dat) = do
 	ptr <- newIORef dat
 	forM_ [0 .. w * h - 1] $ \i -> do
 		readIORef ptr >>= peek >>= setForeground dpy gc
-		let	x = (fromIntegral i) `mod` w
-			y = (fromIntegral i) `div` w
+		let	x = fromIntegral i `mod` w
+			y = fromIntegral i `div` w
 		drawPoint dpy win gc (x0 + fromIntegral x) (y0 + fromIntegral y)
 		atomicModifyIORef_ ptr $ flip advancePtr 1

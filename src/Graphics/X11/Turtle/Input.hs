@@ -81,7 +81,7 @@ nextTurtle t (SetFill f) = (clearState t){
 	fill = f,
 	draw = if fill t && not f then Just fl else Nothing,
 	drawed = if fill t && not f then fl : drawed t else drawed t,
-	fillPoints = if f then [(x0, y0)] else []}
+	fillPoints = [(x0, y0) | f]}
 	where
 	(x0, y0) = position t
 	fl = Polyline (uncurry Center `map` fillPoints t)

@@ -1,7 +1,6 @@
 * refactoring
 
 Functions
-* insert picture
 * get Mouse move event
 * get timer event
 * raise exception if bad shape name
