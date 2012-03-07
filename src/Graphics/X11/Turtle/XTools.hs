@@ -191,18 +191,23 @@ waitEvent = threadWaitRead . Fd . connectionNumber
 
 drawImage :: Display -> Drawable -> GC -> FilePath -> Position -> Position ->
 	Dimension -> Dimension -> IO ()
-drawImage dpy win gc fp x y w h = getPicture fp w h >>= drawPicture dpy win gc x y
+drawImage dpy win gc fp x y w h = getPicture fp w h >>=
+	maybe (return ()) (drawPicture dpy win gc x y)
 
-getPicture :: FilePath -> Dimension -> Dimension -> IO (Dimension, Dimension, Ptr Word32)
+getPicture :: FilePath -> Dimension -> Dimension ->
+	IO (Maybe (Dimension, Dimension, Ptr Word32))
 getPicture fp nw nh = do
-	img <- loadImageImmediately fp
-	contextSetImage img
-	w <- fmap fromIntegral imageGetWidth
-	h <- fmap fromIntegral imageGetHeight
-	nimg <- createCroppedScaledImage (0 :: Int) (0 :: Int) (w :: Int) (h :: Int) nw nh
-	contextSetImage nimg
-	dat <- imageGetData
-	return (nw, nh, dat)
+	(img, err) <- loadImageWithErrorReturn fp
+	case err of
+		ImlibLoadErrorNone -> do
+			contextSetImage img
+			w <- fmap fromIntegral imageGetWidth
+			h <- fmap fromIntegral imageGetHeight
+			nimg <- createCroppedScaledImage (0 :: Int) (0 :: Int) (w :: Int) (h :: Int) nw nh
+			contextSetImage nimg
+			dat <- imageGetData
+			return $ Just (nw, nh, dat)
+		_ -> print err >> return Nothing
 
 drawPicture :: Display -> Drawable -> GC -> Position -> Position ->
 	(Dimension, Dimension, Ptr Word32) -> IO ()
