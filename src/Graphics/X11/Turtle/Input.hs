@@ -38,6 +38,7 @@ data TurtleInput
 	| Goto Double Double
 	| Rotate Double
 	| Write String Double String
+	| PutImage FilePath Double Double
 	| Bgcolor Color
 	| Undo
 	| Clear
@@ -102,6 +103,9 @@ nextTurtle t (Rotate d) = (clearState t){direction = d * 2 * pi / degrees t}
 nextTurtle t (Write fnt sz str) = (clearState t){
 	draw = Just txt, drawed = txt : drawed t}
 	where txt = Text (uncurry Center $ position t) sz (pencolor t) fnt str
+nextTurtle t (PutImage fp w h) = (clearState t){
+	draw = Just img, drawed = img : drawed t}
+	where img = Image (uncurry Center $ position t) w h fp
 nextTurtle t (Bgcolor c) = (clearState t){
 	bgcolor = c, drawed = init (drawed t) ++ [Fill c]}
 nextTurtle t Clear = (clearState t){clear = True, drawed = [last $ drawed t]}

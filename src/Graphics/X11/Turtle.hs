@@ -28,6 +28,7 @@ module Graphics.X11.Turtle (
 	setheading,
 	circle,
 	write,
+	image,
 	bgcolor,
 	home,
 	clear,
@@ -184,6 +185,9 @@ circle t r = do
 
 write :: Turtle -> String -> Double -> String -> IO ()
 write t fnt sz = input t . Write fnt sz
+
+image :: Turtle -> FilePath -> Double -> Double -> IO ()
+image t fp w h = input t $ PutImage fp w h
 
 bgcolor :: ColorClass c => Turtle -> c -> IO ()
 bgcolor t = input t . Bgcolor . getColor

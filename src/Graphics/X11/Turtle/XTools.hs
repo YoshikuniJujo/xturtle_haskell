@@ -34,6 +34,7 @@ module Graphics.X11.Turtle.XTools(
 	fillPolygon,
 	drawLineXT,
 	writeStringXT,
+	drawImage,
 
 	-- * event
 	allocaXEvent,
@@ -64,7 +65,7 @@ import Graphics.X11(
 	allocaXEvent, pending, nextEvent,
 	setWMProtocols, selectInput, button1MotionMask, buttonReleaseMask,
 	buttonPressMask, keyPressMask, exposureMask,
-	buttonPress, buttonRelease, xK_VoidSymbol, getGeometry)
+	buttonPress, buttonRelease, xK_VoidSymbol, getGeometry, drawPoint)
 import qualified Graphics.X11 as X(fillPolygon)
 import Graphics.X11.Xlib.Extras(Event(..), getEvent)
 import Graphics.X11.Xft(
@@ -82,6 +83,14 @@ import Data.Bits((.|.), shift)
 import System.Locale.SetLocale(setLocale, Category(..))
 import System.Posix.Types(Fd(..))
 import Numeric(showFFloat)
+
+import Data.IORef
+import Data.IORef.Tools(atomicModifyIORef_)
+import Foreign.Ptr
+import Foreign.Storable
+import Foreign.Marshal.Array
+import Data.Word
+import Graphics.Imlib
 
 --------------------------------------------------------------------------------
 
@@ -179,3 +188,29 @@ withXftColor dpy visual colormap (ColorName cn) action =
 
 waitEvent :: Display -> IO ()
 waitEvent = threadWaitRead . Fd . connectionNumber
+
+drawImage :: Display -> Drawable -> GC -> FilePath -> Position -> Position ->
+	Dimension -> Dimension -> IO ()
+drawImage dpy win gc fp x y w h = getPicture fp w h >>= drawPicture dpy win gc x y
+
+getPicture :: FilePath -> Dimension -> Dimension -> IO (Dimension, Dimension, Ptr Word32)
+getPicture fp nw nh = do
+	img <- loadImageImmediately fp
+	contextSetImage img
+	w <- fmap fromIntegral imageGetWidth
+	h <- fmap fromIntegral imageGetHeight
+	nimg <- createCroppedScaledImage (0 :: Int) (0 :: Int) w h nw nh
+	contextSetImage nimg
+	dat <- imageGetData
+	return (nw, nh, dat)
+
+drawPicture :: Display -> Drawable -> GC -> Position -> Position ->
+	(Dimension, Dimension, Ptr Word32) -> IO ()
+drawPicture dpy win gc x0 y0 (w, h, dat) = do
+	ptr <- newIORef dat
+	forM_ [0 .. w * h - 1] $ \i -> do
+		readIORef ptr >>= peek >>= setForeground dpy gc
+		let	x = (fromIntegral i) `mod` w
+			y = (fromIntegral i) `div` w
+		drawPoint dpy win gc (x0 + fromIntegral x) (y0 + fromIntegral y)
+		atomicModifyIORef_ ptr $ flip advancePtr 1

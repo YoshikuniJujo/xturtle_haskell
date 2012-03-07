@@ -20,6 +20,7 @@ module Graphics.X11.Turtle.Field(
 	drawLine,
 	fillPolygon,
 	writeString,
+	drawImage,
 	undoLayer,
 	clearLayer,
 
@@ -45,7 +46,7 @@ import Graphics.X11.Turtle.XTools(
 	drawLineXT, writeStringXT,
 	allocaXEvent, waitEvent, pending, nextEvent, getEvent, filterEvent,
 	utf8LookupString, buttonPress, buttonRelease, xK_VoidSymbol)
-import qualified Graphics.X11.Turtle.XTools as X(fillPolygon)
+import qualified Graphics.X11.Turtle.XTools as X(fillPolygon, drawImage)
 import Graphics.X11.Turtle.Layers(
 	Layers, Layer, Character, newLayers, redrawLayers,
 	makeLayer, addDraw, setBackground, undoLayer, clearLayer,
@@ -242,6 +243,13 @@ writeString f l fname size clr xc yc str = addDraw l (ws undoBuf, ws bgBuf)
 	where ws bf = do
 		(x, y) <- topLeft f xc yc
 		writeStringXT (fDisplay f) (bf $ fBufs f) fname size clr x y str
+
+drawImage :: Field -> Layer -> FilePath -> Double -> Double -> Double -> Double -> IO ()
+drawImage f l fp xc yc w h = addDraw l (di undoBuf, di bgBuf)
+	where di bf = do
+		(x, y) <- topLeft f xc yc
+		X.drawImage (fDisplay f) (bf $ fBufs f) (gcForeground $ fGCs f)
+			fp x y (round w) (round h)
 
 fillPolygon :: Field -> Layer -> [(Double, Double)] -> Color -> IO ()
 fillPolygon f l psc clr = addDraw l (fp undoBuf, fp bgBuf)
