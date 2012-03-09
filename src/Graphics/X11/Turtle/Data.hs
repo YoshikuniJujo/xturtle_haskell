@@ -1,4 +1,7 @@
-module Graphics.X11.Turtle.Data(shapeTable, speedTable) where
+module Graphics.X11.Turtle.Data(
+	-- * tables
+	shapeTable, speedTable
+) where
 
 import Control.Arrow(second, (&&&))
 

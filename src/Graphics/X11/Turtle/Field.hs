@@ -44,7 +44,7 @@ import Graphics.X11.Turtle.XTools(
 	XEventPtr, XIC, Bufs, undoBuf, bgBuf, topBuf,
 	GCs, gcForeground, gcBackground, Event(..),
 	forkIOX, openWindow, destroyWindow, closeDisplay, windowSize,
-	flush, getColorPixel, setForeground, copyArea, fillRectangle,
+	flush, colorPixel, setForeground, copyArea, fillRectangle,
 	drawLineXT, writeStringXT,
 	allocaXEvent, waitEvent, pending, nextEvent, getEvent, filterEvent,
 	utf8LookupString, buttonPress, buttonRelease, xK_VoidSymbol)
@@ -242,7 +242,7 @@ flushField f real act = do
 
 fieldColor :: Field -> Layer -> Color -> IO ()
 fieldColor f l c = setBackground l $ do
-	getColorPixel (fDisplay f) c >>=
+	colorPixel (fDisplay f) c >>=
 		maybe (return ())
 			(setForeground (fDisplay f) (gcBackground $ fGCs f))
 	readIORef (fSize f) >>= uncurry (fillRectangle
@@ -277,7 +277,7 @@ fillPolygon :: Field -> Layer -> [(Double, Double)] -> Color -> IO ()
 fillPolygon f l psc clr = addDraw l (fp undoBuf, fp bgBuf)
 	where fp bf = do
 		ps <- mapM (fmap (uncurry Point) . uncurry (topLeft f)) psc
-		getColorPixel (fDisplay f) clr >>= maybe (return ())
+		colorPixel (fDisplay f) clr >>= maybe (return ())
 			(setForeground (fDisplay f) (gcForeground $ fGCs f))
 		X.fillPolygon (fDisplay f) (bf $ fBufs f) (gcForeground $ fGCs f) ps
 
@@ -310,7 +310,7 @@ drawCharacterAndLine f c clr sh lw x1 y1 x2 y2 = setCharacter c $
 drawShape :: Field -> Color -> [(Double, Double)] -> IO ()
 drawShape f clr psc = do
 	ps <- mapM (fmap (uncurry Point) . uncurry (topLeft f)) psc
-	getColorPixel (fDisplay f) clr >>= maybe (return ())
+	colorPixel (fDisplay f) clr >>= maybe (return ())
 		(setForeground (fDisplay f) (gcForeground $ fGCs f))
 	X.fillPolygon (fDisplay f) (topBuf $ fBufs f) (gcForeground $ fGCs f) ps
 

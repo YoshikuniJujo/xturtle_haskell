@@ -3,12 +3,11 @@ module Graphics.X11.Turtle.XTools(
 	Display,
 	Window,
 	Pixmap,
+	XIC,
 	Atom,
 	Point(..),
 	Position,
 	Dimension,
-	XEventPtr,
-	XIC,
 	Bufs,
 	undoBuf,
 	bgBuf,
@@ -16,9 +15,12 @@ module Graphics.X11.Turtle.XTools(
 	GCs,
 	gcForeground,
 	gcBackground,
+
+	-- ** event
+	XEventPtr,
 	Event(..),
 
-	-- * open window
+	-- * basic functions
 	forkIOX,
 	openWindow,
 	destroyWindow,
@@ -27,7 +29,7 @@ module Graphics.X11.Turtle.XTools(
 
 	-- * draws
 	flush,
-	getColorPixel,
+	colorPixel,
 	setForeground,
 	copyArea,
 	fillRectangle,
@@ -144,7 +146,8 @@ windowSize dpy win = do
 
 --------------------------------------------------------------------------------
 
-getColorPixel :: Display -> Color -> IO (Maybe Pixel)
+colorPixel, getColorPixel :: Display -> Color -> IO (Maybe Pixel)
+colorPixel = getColorPixel
 getColorPixel _ (RGB r g b) = return $ Just $ shift (fromIntegral r) 16 .|.
 	shift (fromIntegral g) 8 .|. fromIntegral b
 getColorPixel dpy (ColorName cn) = fmap (Just . color_pixel . fst)
