@@ -14,6 +14,7 @@ data TurtleState = TurtleState {
 	interval :: Int,
 	pendown :: Bool,
 	fill :: Bool,
+	poly :: Bool,
 	pensize :: Double,
 	pencolor :: Color,
 	bgcolor :: Color,
@@ -26,6 +27,7 @@ data TurtleState = TurtleState {
 	draw :: Maybe SVG,
 	drawed :: [SVG],
 	fillPoints :: [(Double, Double)],
+	polyPoints :: [(Double, Double)],
 	sleep :: Maybe Int,
 	stepbystep :: Bool,
 	flush :: Bool}
@@ -41,6 +43,7 @@ initialTurtleState = TurtleState {
 	interval = 10000,
 	pendown = True,
 	fill = False,
+	poly = False,
 	pensize = 1,
 	pencolor = RGB 0 0 0,
 	bgcolor = RGB 255 255 255,
@@ -53,6 +56,7 @@ initialTurtleState = TurtleState {
 	draw = Nothing,
 	drawed = [Fill $ RGB 255 255 255],
 	fillPoints = [],
+	polyPoints = [],
 	sleep = Nothing,
 	stepbystep = True,
 	flush = False}

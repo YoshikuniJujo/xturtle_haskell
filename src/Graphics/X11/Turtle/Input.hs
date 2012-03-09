@@ -14,6 +14,7 @@ module Graphics.X11.Turtle.Input(
 	visible,
 	undonum,
 	drawed,
+	polyPoints
 ) where
 
 import Graphics.X11.Turtle.State(TurtleState(..), initialTurtleState)
@@ -30,6 +31,7 @@ data TurtleInput
 	| Pensize Double
 	| SetPendown Bool
 	| SetFill Bool
+	| SetPoly Bool
 	| SetVisible Bool
 	| Degrees Double
 	| PositionStep (Maybe Double)
@@ -86,6 +88,9 @@ nextTurtle t (SetFill f) = (clearState t){
 	(x0, y0) = position t
 	fl = Polyline (uncurry Center `map` fillPoints t)
 		(pencolor t) (pencolor t) 0
+nextTurtle t (SetPoly p) = (clearState t){
+	poly = p,
+	polyPoints = if p then [position t] else polyPoints t}
 nextTurtle t (SetVisible v) = (clearState t){visible = v}
 nextTurtle t (Degrees ds) = (clearState t){degrees = ds}
 nextTurtle t (PositionStep ps) = (clearState t){positionStep = ps}
@@ -95,7 +100,8 @@ nextTurtle t (Goto x y) = (clearState t){
 	position = (x, y),
 	draw = if pendown t then Just ln else Nothing,
 	drawed = if pendown t then ln : drawed t else drawed t,
-	fillPoints = if fill t then (x, y) : fillPoints t else fillPoints t}
+	fillPoints = if fill t then (x, y) : fillPoints t else fillPoints t,
+	polyPoints = if poly t then (x, y) : polyPoints t else polyPoints t}
 	where
 	(x0, y0) = position t
 	ln = Line (Center x0 y0) (Center x y) (pencolor t) (pensize t)

@@ -39,6 +39,8 @@ module Graphics.X11.Turtle (
 	flush,
 
 	-- * change turtle state
+	addshape,
+	getshapes,
 	shape,
 	shapesize,
 	speed,
@@ -48,6 +50,8 @@ module Graphics.X11.Turtle (
 	pendown,
 	beginfill,
 	endfill,
+	beginpoly,
+	endpoly,
 	pencolor,
 	pensize,
 	degrees,
@@ -80,7 +84,7 @@ module Graphics.X11.Turtle (
 import Graphics.X11.Turtle.Data(nameToShape, nameToSpeed)
 import Graphics.X11.Turtle.Input(
 	TurtleState, TurtleInput(..),
-	turtleSeries, direction, visible, undonum, drawed)
+	turtleSeries, direction, visible, undonum, drawed, polyPoints)
 import qualified Graphics.X11.Turtle.Input as S(position, degrees, pendown)
 import Graphics.X11.Turtle.Move(
 	Field, Layer, Character,
@@ -91,14 +95,15 @@ import Text.XML.YJSVG(SVG(..), Color(..))
 
 import Control.Concurrent(Chan, writeChan, ThreadId, killThread)
 import Control.Monad(replicateM_, zipWithM_)
-import Data.IORef(IORef, newIORef, readIORef)
+import Data.IORef(IORef, newIORef, readIORef, modifyIORef)
 import Data.IORef.Tools(atomicModifyIORef_)
 import Data.Fixed(mod')
+import Data.Maybe(fromJust)
 
 --------------------------------------------------------------------------------
 
 xturtleVersion :: (Int, String)
-xturtleVersion = (50, "0.1.4")
+xturtleVersion = (51, "0.1.4a")
 
 --------------------------------------------------------------------------------
 
@@ -110,7 +115,8 @@ data Turtle = Turtle {
 	states :: [TurtleState],
 	inputs :: [TurtleInput],
 	stateIndex :: IORef Int,
-	thread :: ThreadId
+	thread :: ThreadId,
+	shapes :: IORef [(String, [(Double, Double)])]
  }
 
 class ColorClass a where getColor :: a -> Color
@@ -130,6 +136,7 @@ newTurtle f = do
 	(ic, tis, sts) <- turtleSeries
 	si <- newIORef 1
 	tid <- forkField f $ zipWithM_ (moveTurtle f ch l) sts $ tail sts
+	shps <- newIORef $ map (\n -> (n, nameToShape n)) ["classic", "turtle"]
 	let	t = Turtle {
 			field = f,
 			layer = l,
@@ -138,7 +145,8 @@ newTurtle f = do
 			states = sts,
 			inputs = tis,
 			stateIndex = si,
-			thread = tid}
+			thread = tid,
+			shapes = shps}
 	shape t "classic" >> input t (Undonum 0)
 	return t
 
@@ -214,8 +222,14 @@ flush = (`input` Flush)
 
 --------------------------------------------------------------------------------
 
+addshape :: Turtle -> String -> [(Double, Double)] -> IO ()
+addshape t n s = modifyIORef (shapes t) ((n, s) :)
+
+getshapes :: Turtle -> IO [String]
+getshapes t = fmap (map fst) $ readIORef (shapes t)
+
 shape :: Turtle -> String -> IO ()
-shape t = input t . Shape . nameToShape
+shape t n = readIORef (shapes t) >>= input t . Shape . fromJust . lookup n
 
 shapesize :: Turtle -> Double -> Double -> IO ()
 shapesize t sx sy = input t $ Shapesize sx sy
@@ -236,6 +250,14 @@ pendown = (`input` SetPendown True)
 beginfill, endfill :: Turtle -> IO ()
 beginfill = (`input` SetFill True)
 endfill = (`input` SetFill False)
+
+beginpoly :: Turtle -> IO ()
+beginpoly = (`input` SetPoly True)
+
+endpoly :: Turtle -> IO [(Double, Double)]
+endpoly t@Turtle{stateIndex = si, states = s} = do
+	input t $ SetPoly False
+	fmap (polyPoints . (s !!)) $ readIORef si
 
 pencolor :: ColorClass c => Turtle -> c -> IO ()
 pencolor t = input t . Pencolor . getColor
