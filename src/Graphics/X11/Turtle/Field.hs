@@ -35,7 +35,8 @@ module Graphics.X11.Turtle.Field(
 	onrelease,
 	ondrag,
 	onmotion,
-	onkeypress
+	onkeypress,
+	ontimer
 ) where
 
 import Graphics.X11.Turtle.XTools(
@@ -54,11 +55,11 @@ import Graphics.X11.Turtle.Layers(
 	makeCharacter, setCharacter)
 import Text.XML.YJSVG(Color(..))
 
-import Control.Monad(forever, replicateM, when)
+import Control.Monad(forever, replicateM, when, join, unless)
 import Control.Monad.Tools(doWhile_, doWhile, whenM)
 import Control.Arrow((***))
 import Control.Concurrent(
-	forkIO, ThreadId, killThread, Chan, newChan, readChan, writeChan)
+	forkIO, ThreadId, killThread, Chan, newChan, readChan, writeChan, threadDelay)
 
 import Data.IORef(IORef, newIORef, readIORef, writeIORef, modifyIORef)
 import Data.Maybe(fromMaybe)
@@ -74,9 +75,11 @@ data Field = Field{
 	fDrag :: IORef (Double -> Double -> IO ()),
 	fMotion :: IORef (Double -> Double -> IO ()),
 	fKeypress :: IORef (Char -> IO Bool), fPressed :: IORef Bool,
+	fTimerEvent :: IORef (IO Bool),
 
 	fLayers :: IORef Layers, fRunning :: IORef [ThreadId],
-	fLock, fClose, fEnd :: Chan ()
+	fLock, fClose, fEnd :: Chan (),
+	fInputChan :: Chan InputType
  }
 
 makeField :: Display -> Window -> Bufs -> GCs -> XIC -> Atom ->
@@ -87,19 +90,21 @@ makeField dpy win bufs gcs ic del sizeRef ls = do
 	motion <- newIORef $ \_ _ -> return ()
 	keypress <- newIORef $ \_ -> return True
 	pressed <- newIORef False
+	timer <- newIORef $ return True
 	running <- newIORef []
 	[lock, close, end] <- replicateM 3 newChan
+	inputChan <- newChan
 	writeChan lock ()
 	return Field{
 		fDisplay = dpy, fWindow = win, fBufs = bufs, fGCs = gcs,
 		fIC = ic, fDel = del, fSize = sizeRef,
 
 		fClick = click, fRelease = release, fDrag = drag, fMotion = motion,
-		fKeypress = keypress, fPressed = pressed,
+		fKeypress = keypress, fPressed = pressed, fTimerEvent = timer,
 
 		fLayers = ls,
 		fRunning = running,
-		fLock = lock, fClose = close, fEnd = end
+		fLock = lock, fClose = close, fEnd = end, fInputChan = inputChan
 	 }
 
 --------------------------------------------------------------------------------
@@ -120,25 +125,38 @@ openField = do
 	flush dpy
 	return f
 
-waitInput :: Field -> IO (Chan Bool, Chan ())
+data InputType = XInput | End | Timer
+
+waitInput :: Field -> IO (Chan InputType, Chan ())
 waitInput f = do
-	go <- newChan
+--	go <- newChan
+	let	go = fInputChan f
 	empty <- newChan
 	tid <- forkIOX $ forever $ do
 		waitEvent $ fDisplay f
-		writeChan go True
+		writeChan go XInput
 		readChan empty
+	modifyIORef (fRunning f) (tid :)
 	_ <- forkIO $ do
 		readChan $ fClose f
 		killThread tid
-		writeChan go False
+		writeChan go End
 	return (go, empty)
 
 runLoop :: Field -> IO ()
 runLoop f = allocaXEvent $ \e -> do
 	(go, empty) <- waitInput f
 	doWhile_ $ do
-		notEnd <- readChan go
+		iType <- readChan go
+		cont' <- case iType of
+			Timer -> do
+				c <- join $ readIORef $ fTimerEvent f
+				unless c $ readIORef (fRunning f) >>= mapM_ killThread
+				return c -- readIORef (fTimerEvent f) >>= k
+			_ -> return True
+		let	notEnd = case iType of
+				End -> False
+				_ -> True
 		cont <- doWhile True $ const $ do
 			evN <- pending $ fDisplay f
 			if evN > 0 then do
@@ -149,7 +167,7 @@ runLoop f = allocaXEvent $ \e -> do
 							c <- processEvent f e ev
 							return (c, c)
 				else return (True, False)
-		if notEnd && cont then writeChan empty () >> return True
+		if notEnd && cont && cont' then writeChan empty () >> return True
 			else return False
 	readIORef (fRunning f) >>= mapM_ killThread
 	destroyWindow (fDisplay f) (fWindow f)
@@ -310,3 +328,9 @@ onmotion = writeIORef . fMotion
 
 onkeypress :: Field -> (Char -> IO Bool) -> IO ()
 onkeypress = writeIORef . fKeypress
+
+ontimer :: Field -> Int -> IO Bool -> IO ()
+ontimer f t fun = do
+	writeIORef (fTimerEvent f) fun
+	threadDelay $ t * 1000
+	writeChan (fInputChan f) Timer
