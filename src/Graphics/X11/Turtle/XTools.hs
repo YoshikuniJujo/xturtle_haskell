@@ -65,6 +65,7 @@ import Graphics.X11(
 	allocaXEvent, pending, nextEvent,
 	setWMProtocols, selectInput, button1MotionMask, buttonReleaseMask,
 	buttonPressMask, keyPressMask, exposureMask,
+	pointerMotionMask,
 	buttonPress, buttonRelease, xK_VoidSymbol, getGeometry, drawPoint)
 import qualified Graphics.X11 as X(fillPolygon)
 import Graphics.X11.Xlib.Extras(Event(..), getEvent)
@@ -131,7 +132,8 @@ openWindow = do
 	forM_ bufs $ \bf -> fillRectangle dpy bf gcBG 0 0 rWidth rHeight
 	setWMProtocols dpy win [del]
 	selectInput dpy win $ fevent .|. exposureMask .|. keyPressMask .|.
-		buttonPressMask .|. buttonReleaseMask .|. button1MotionMask
+		buttonPressMask .|. buttonReleaseMask .|. button1MotionMask .|.
+		pointerMotionMask
 	size <- mapWindow dpy win >> windowSize dpy win
 	return (dpy, win, Bufs ub bb tb, GCs gc gcBG, ic, del, size)
 

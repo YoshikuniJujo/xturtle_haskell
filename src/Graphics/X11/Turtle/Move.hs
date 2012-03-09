@@ -23,6 +23,7 @@ module Graphics.X11.Turtle.Move (
 	onclick,
 	onrelease,
 	ondrag,
+	onmotion,
 	onkeypress
 ) where
 
@@ -33,7 +34,7 @@ import Graphics.X11.Turtle.Field(
 	forkField, flushField, fieldColor,
 	addLayer, drawLine, writeString, undoLayer, clearLayer, fillPolygon,
 	addCharacter, drawCharacter, drawCharacterAndLine, clearCharacter,
-	onclick, onrelease, ondrag, onkeypress, drawImage)
+	onclick, onrelease, ondrag, onmotion, onkeypress, drawImage)
 import Text.XML.YJSVG(SVG(..), Position(..))
 
 import Control.Concurrent(threadDelay)

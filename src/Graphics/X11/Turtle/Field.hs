@@ -34,6 +34,7 @@ module Graphics.X11.Turtle.Field(
 	onclick,
 	onrelease,
 	ondrag,
+	onmotion,
 	onkeypress
 ) where
 
@@ -71,6 +72,7 @@ data Field = Field{
 
 	fClick, fRelease :: IORef (Int -> Double -> Double -> IO Bool),
 	fDrag :: IORef (Double -> Double -> IO ()),
+	fMotion :: IORef (Double -> Double -> IO ()),
 	fKeypress :: IORef (Char -> IO Bool), fPressed :: IORef Bool,
 
 	fLayers :: IORef Layers, fRunning :: IORef [ThreadId],
@@ -82,6 +84,7 @@ makeField :: Display -> Window -> Bufs -> GCs -> XIC -> Atom ->
 makeField dpy win bufs gcs ic del sizeRef ls = do
 	[click, release] <- replicateM 2 $ newIORef $ \_ _ _ -> return True
 	drag <- newIORef $ \_ _ -> return ()
+	motion <- newIORef $ \_ _ -> return ()
 	keypress <- newIORef $ \_ -> return True
 	pressed <- newIORef False
 	running <- newIORef []
@@ -91,7 +94,7 @@ makeField dpy win bufs gcs ic del sizeRef ls = do
 		fDisplay = dpy, fWindow = win, fBufs = bufs, fGCs = gcs,
 		fIC = ic, fDel = del, fSize = sizeRef,
 
-		fClick = click, fRelease = release, fDrag = drag,
+		fClick = click, fRelease = release, fDrag = drag, fMotion = motion,
 		fKeypress = keypress, fPressed = pressed,
 
 		fLayers = ls,
@@ -181,6 +184,7 @@ processEvent f e ev = case ev of
 		pos <- center (ev_x ev) (ev_y ev)
 		whenM (readIORef $ fPressed f) $
 			readIORef (fDrag f) >>= ($ pos) . uncurry
+		readIORef (fMotion f) >>= ($ pos) . uncurry
 		return True
 	ClientMessageEvent{} -> return $ convert (head $ ev_data ev) /= fDel f
 	_ -> return True
@@ -300,8 +304,9 @@ clearCharacter c = setCharacter c $ return ()
 onclick, onrelease :: Field -> (Int -> Double -> Double -> IO Bool) -> IO ()
 (onclick, onrelease) = (writeIORef .) *** (writeIORef .) $ (fClick, fRelease)
 
-ondrag :: Field -> (Double -> Double -> IO ()) -> IO ()
+ondrag, onmotion :: Field -> (Double -> Double -> IO ()) -> IO ()
 ondrag = writeIORef . fDrag
+onmotion = writeIORef . fMotion
 
 onkeypress :: Field -> (Char -> IO Bool) -> IO ()
 onkeypress = writeIORef . fKeypress

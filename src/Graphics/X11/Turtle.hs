@@ -73,6 +73,7 @@ module Graphics.X11.Turtle (
 	onclick,
 	onrelease,
 	ondrag,
+	onmotion,
 	onkeypress,
 
 	-- * save and load
@@ -90,7 +91,7 @@ import Graphics.X11.Turtle.Move(
 	Field, Layer, Character,
 	openField, closeField, forkField, waitField, fieldSize, flushField,
 	moveTurtle, addLayer, clearLayer, addCharacter, clearCharacter,
-	onclick, onrelease, ondrag, onkeypress)
+	onclick, onrelease, ondrag, onmotion, onkeypress)
 import Text.XML.YJSVG(SVG(..), Color(..))
 
 import Control.Concurrent(Chan, writeChan, ThreadId, killThread)
@@ -103,7 +104,7 @@ import Data.Maybe(fromJust)
 --------------------------------------------------------------------------------
 
 xturtleVersion :: (Int, String)
-xturtleVersion = (51, "0.1.4a")
+xturtleVersion = (52, "0.1.4b")
 
 --------------------------------------------------------------------------------
 
