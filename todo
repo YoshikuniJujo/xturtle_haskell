@@ -1,11 +1,7 @@
-* refactoring
+* refactoring !!!
 
 Functions
-* get timer event
-* raise exception if bad shape name
 * scrolling
-(* save as png by pixmap)
-(* get X events)
 
 Bugs
 * repair closeField
@@ -13,3 +9,4 @@ Bugs
 ?
 * How can I set Chan buffer size
 * windowWidth -> windowwidth, windowHeight -> windowheight
+* raise exception if bad shape name

@@ -83,7 +83,7 @@ module Graphics.X11.Turtle (
 	getSVG
 ) where
 
-import Graphics.X11.Turtle.Data(nameToShape, nameToSpeed)
+import Graphics.X11.Turtle.Data(shapeTable, speedTable)
 import Graphics.X11.Turtle.Input(
 	TurtleState, TurtleInput(..),
 	turtleSeries, direction, visible, undonum, drawed, polyPoints)
@@ -138,7 +138,7 @@ newTurtle f = do
 	(ic, tis, sts) <- turtleSeries
 	si <- newIORef 1
 	tid <- forkField f $ zipWithM_ (moveTurtle f ch l) sts $ tail sts
-	shps <- newIORef $ map (\n -> (n, nameToShape n)) ["classic", "turtle"]
+	shps <- newIORef shapeTable
 	let	t = Turtle {
 			field = f,
 			layer = l,
@@ -237,7 +237,7 @@ shapesize :: Turtle -> Double -> Double -> IO ()
 shapesize t sx sy = input t $ Shapesize sx sy
 
 speed :: Turtle -> String -> IO ()
-speed t str = case nameToSpeed str of
+speed t str = case lookup str speedTable of
 	Just (ps, ds) -> input t (PositionStep ps) >> input t (DirectionStep ds)
 	Nothing -> putStrLn "no such speed"
 
