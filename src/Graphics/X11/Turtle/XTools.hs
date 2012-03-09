@@ -16,7 +16,7 @@ module Graphics.X11.Turtle.XTools(
 	gcForeground,
 	gcBackground,
 
-	-- ** event
+	-- ** event types
 	XEventPtr,
 	Event(..),
 
@@ -27,7 +27,7 @@ module Graphics.X11.Turtle.XTools(
 	closeDisplay,
 	windowSize,
 
-	-- * draws
+	-- * draw functions
 	flush,
 	colorPixel,
 	setForeground,
@@ -38,7 +38,7 @@ module Graphics.X11.Turtle.XTools(
 	writeStringXT,
 	drawImage,
 
-	-- * event
+	-- * event functions
 	allocaXEvent,
 	waitEvent,
 	pending,
@@ -58,17 +58,17 @@ import Graphics.X11(
 	Point(..), Position, Dimension, XEventPtr,
 	initThreads, flush, supportsLocale, setLocaleModifiers,
 	connectionNumber, openDisplay, closeDisplay, internAtom,
-	createSimpleWindow, destroyWindow, mapWindow, createGC, createPixmap,
-	rootWindow, defaultScreen, defaultScreenOfDisplay, defaultVisual,
-	defaultColormap, defaultDepth, whitePixel, blackPixel,
-	copyArea, fillRectangle, drawLine, nonconvex, coordModeOrigin,
+	createSimpleWindow, destroyWindow, mapWindow, getGeometry,
+	createGC, createPixmap, rootWindow, defaultScreen,
+	defaultScreenOfDisplay, defaultVisual, defaultColormap, defaultDepth,
+	whitePixel, blackPixel,
+	copyArea, fillRectangle, drawLine, drawPoint,
+	nonconvex, coordModeOrigin,
 	setLineAttributes, lineSolid, capRound, joinRound, setForeground,
 	allocNamedColor, color_pixel,
-	allocaXEvent, pending, nextEvent,
-	setWMProtocols, selectInput, button1MotionMask, buttonReleaseMask,
-	buttonPressMask, keyPressMask, exposureMask,
-	pointerMotionMask,
-	buttonPress, buttonRelease, xK_VoidSymbol, getGeometry, drawPoint)
+	setWMProtocols, selectInput, allocaXEvent, pending, nextEvent,
+	exposureMask, buttonPressMask, buttonReleaseMask, pointerMotionMask,
+	keyPressMask, buttonPress, buttonRelease, xK_VoidSymbol)
 import qualified Graphics.X11 as X(fillPolygon)
 import Graphics.X11.Xlib.Extras(Event(..), getEvent)
 import Graphics.X11.Xft(
@@ -78,22 +78,23 @@ import Graphics.X11.Xrender(XRenderColor(..))
 import Graphics.X11.Xim(
 	XIC, XNInputStyle(..), openIM, createIC, getICValue, filterEvent,
 	utf8LookupString)
+import Graphics.Imlib(
+	ImlibLoadError(..), loadImageWithErrorReturn, contextSetImage,
+	imageGetWidth, imageGetHeight, imageGetData, createCroppedScaledImage)
 
+import Numeric(showFFloat)
 import Control.Monad(forM_, replicateM)
 import Control.Monad.Tools(unlessM)
 import Control.Concurrent(ThreadId, forkIO, threadWaitRead)
-import Data.Bits((.|.), shift)
-import System.Locale.SetLocale(setLocale, Category(..))
+import System.Locale.SetLocale(Category(..), setLocale)
 import System.Posix.Types(Fd(..))
-import Numeric(showFFloat)
-
-import Data.IORef
+import Data.Word(Word32)
+import Data.Bits((.|.), shift)
+import Data.IORef(newIORef, readIORef)
 import Data.IORef.Tools(atomicModifyIORef_)
-import Foreign.Ptr
-import Foreign.Storable
-import Foreign.Marshal.Array
-import Data.Word
-import Graphics.Imlib
+import Foreign.Ptr(Ptr)
+import Foreign.Storable(peek)
+import Foreign.Marshal.Array(advancePtr)
 
 --------------------------------------------------------------------------------
 
@@ -134,7 +135,7 @@ openWindow = do
 	forM_ bufs $ \bf -> fillRectangle dpy bf gcBG 0 0 rWidth rHeight
 	setWMProtocols dpy win [del]
 	selectInput dpy win $ fevent .|. exposureMask .|. keyPressMask .|.
-		buttonPressMask .|. buttonReleaseMask .|. button1MotionMask .|.
+		buttonPressMask .|. buttonReleaseMask .|.
 		pointerMotionMask
 	size <- mapWindow dpy win >> windowSize dpy win
 	return (dpy, win, Bufs ub bb tb, GCs gc gcBG, ic, del, size)
