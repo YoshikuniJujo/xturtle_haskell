@@ -33,10 +33,10 @@ module Graphics.X11.Turtle.XTools(
 	setForeground,
 	copyArea,
 	fillRectangle,
-	fillPolygon,
+	fillPolygonXT,
 	drawLineXT,
 	writeStringXT,
-	drawImage,
+	drawImageXT,
 
 	-- * event functions
 	allocaXEvent,
@@ -54,26 +54,25 @@ module Graphics.X11.Turtle.XTools(
 import Text.XML.YJSVG(Color(..))
 
 import Graphics.X11(
-	Display, Drawable, Window, Pixmap, Visual, Colormap, GC, Pixel, Atom,
-	Point(..), Position, Dimension, XEventPtr,
+	Display, Drawable, Window, Pixmap, GC, Pixel, Atom, Point(..), Position,
+	Dimension, XEventPtr,
 	initThreads, flush, supportsLocale, setLocaleModifiers,
 	connectionNumber, openDisplay, closeDisplay, internAtom,
 	createSimpleWindow, destroyWindow, mapWindow, getGeometry,
 	createGC, createPixmap, rootWindow, defaultScreen,
 	defaultScreenOfDisplay, defaultVisual, defaultColormap, defaultDepth,
 	whitePixel, blackPixel,
-	copyArea, fillRectangle, drawLine, drawPoint,
+	copyArea, fillRectangle, fillPolygon, drawLine, drawPoint,
 	nonconvex, coordModeOrigin,
 	setLineAttributes, lineSolid, capRound, joinRound, setForeground,
 	allocNamedColor, color_pixel,
 	setWMProtocols, selectInput, allocaXEvent, pending, nextEvent,
-	exposureMask, buttonPressMask, buttonReleaseMask, pointerMotionMask,
-	keyPressMask, buttonPress, buttonRelease, xK_VoidSymbol)
-import qualified Graphics.X11 as X(fillPolygon)
+	exposureMask, keyPressMask, buttonPressMask, buttonReleaseMask,
+	pointerMotionMask, buttonPress, buttonRelease, xK_VoidSymbol)
 import Graphics.X11.Xlib.Extras(Event(..), getEvent)
 import Graphics.X11.Xft(
-	XftColor, xftDrawCreate, xftFontOpen, withXftColorValue,
-	withXftColorName, xftDrawString)
+	xftDrawCreate, xftFontOpen, withXftColorValue, withXftColorName,
+	xftDrawString)
 import Graphics.X11.Xrender(XRenderColor(..))
 import Graphics.X11.Xim(
 	XIC, XNInputStyle(..), openIM, createIC, getICValue, filterEvent,
@@ -98,14 +97,8 @@ import Foreign.Marshal.Array(advancePtr)
 
 --------------------------------------------------------------------------------
 
-data Bufs = Bufs{
-	undoBuf :: Pixmap,
-	bgBuf :: Pixmap,
-	topBuf :: Pixmap}
-
-data GCs = GCs{
-	gcForeground :: GC,
-	gcBackground :: GC}
+data Bufs = Bufs{undoBuf :: Pixmap, bgBuf :: Pixmap, topBuf :: Pixmap}
+data GCs = GCs{gcForeground :: GC, gcBackground :: GC}
 
 --------------------------------------------------------------------------------
 
@@ -132,11 +125,10 @@ openWindow = do
 	fevent <- getICValue ic "filterEvents"
 	[gc, gcBG] <- replicateM 2 $ createGC dpy win
 	setForeground dpy gcBG 0xffffff
-	forM_ bufs $ \bf -> fillRectangle dpy bf gcBG 0 0 rWidth rHeight
+	forM_ bufs $ \buf -> fillRectangle dpy buf gcBG 0 0 rWidth rHeight
 	setWMProtocols dpy win [del]
 	selectInput dpy win $ fevent .|. exposureMask .|. keyPressMask .|.
-		buttonPressMask .|. buttonReleaseMask .|.
-		pointerMotionMask
+		buttonPressMask .|. buttonReleaseMask .|. pointerMotionMask
 	size <- mapWindow dpy win >> windowSize dpy win
 	return (dpy, win, Bufs ub bb tb, GCs gc gcBG, ic, del, size)
 
@@ -147,77 +139,65 @@ windowSize dpy win = do
 
 --------------------------------------------------------------------------------
 
-colorPixel, getColorPixel :: Display -> Color -> IO (Maybe Pixel)
-colorPixel = getColorPixel
-getColorPixel _ (RGB r g b) = return $ Just $ shift (fromIntegral r) 16 .|.
+colorPixel :: Display -> Color -> IO (Maybe Pixel)
+colorPixel _ (RGB r g b) = return $ Just $ shift (fromIntegral r) 16 .|.
 	shift (fromIntegral g) 8 .|. fromIntegral b
-getColorPixel dpy (ColorName cn) = fmap (Just . color_pixel . fst)
-	(allocNamedColor dpy (defaultColormap dpy $ defaultScreen dpy) cn) `catch`
-		const (putStrLn "no such color" >> return Nothing)
+colorPixel dpy (ColorName cn) = fmap (Just . color_pixel . fst)
+	(allocNamedColor dpy (defaultColormap dpy $ defaultScreen dpy) cn)
+		`catch` const (putStrLn "no such color" >> return Nothing)
 
-fillPolygon :: Display -> Drawable -> GC -> [Point] -> IO ()
-fillPolygon d w gc ps = X.fillPolygon d w gc ps nonconvex coordModeOrigin
+fillPolygonXT :: Display -> Drawable -> GC -> [Point] -> IO ()
+fillPolygonXT d w gc ps = fillPolygon d w gc ps nonconvex coordModeOrigin
 
 drawLineXT :: Display -> GC -> Drawable -> Int -> Color ->
 	Position -> Position -> Position -> Position -> IO ()
-drawLineXT dpy gc bf lw c x1 y1 x2 y2 = do
-	getColorPixel dpy c >>= maybe (return ()) (setForeground dpy gc)
+drawLineXT dpy gc buf lw c x1 y1 x2 y2 = do
+	colorPixel dpy c >>= maybe (return ()) (setForeground dpy gc)
 	setLineAttributes dpy gc (fromIntegral lw) lineSolid capRound joinRound
-	drawLine dpy bf gc x1 y1 x2 y2
+	drawLine dpy buf gc x1 y1 x2 y2
 
 writeStringXT :: Display -> Drawable -> String -> Double -> Color ->
 	Position -> Position -> String -> IO ()
 writeStringXT dpy buf fname size clr x y str = do
-	let	scrN = defaultScreenOfDisplay dpy
-		visual = defaultVisual dpy $ defaultScreen dpy
+	let	visual = defaultVisual dpy $ defaultScreen dpy
 		colormap = defaultColormap dpy $ defaultScreen dpy
+		font = fname ++ "-" ++ showFFloat (Just 0) size ""
 	xftDraw <- xftDrawCreate dpy buf visual colormap
-	xftFont <- xftFontOpen dpy scrN $
-		fname ++ "-" ++ showFFloat (Just 0) size ""
-	withXftColor dpy visual colormap clr $ \c ->
-		xftDrawString xftDraw c xftFont x y str
-
-withXftColor ::
-	Display -> Visual -> Colormap -> Color -> (XftColor -> IO a) -> IO a
-withXftColor dpy visual colormap (RGB r g b) action =
-	withXftColorValue dpy visual colormap color action
-	where
-	color = XRenderColor {
-		xrendercolor_red = fromIntegral r * 0x100,
-		xrendercolor_green = fromIntegral b * 0x100,
-		xrendercolor_blue = fromIntegral g * 0x100,
-		xrendercolor_alpha = 0xffff}
-withXftColor dpy visual colormap (ColorName cn) action =
-	withXftColorName dpy visual colormap cn action
-
---------------------------------------------------------------------------------
-
-waitEvent :: Display -> IO ()
-waitEvent = threadWaitRead . Fd . connectionNumber
-
-drawImage :: Display -> Drawable -> GC -> FilePath -> Position -> Position ->
+	xftFont <- xftFontOpen dpy (defaultScreenOfDisplay dpy) font
+	case clr of
+		RGB r g b -> withXftColorValue dpy visual colormap color $ \c ->
+			xftDrawString xftDraw c xftFont x y str
+			where
+			color = XRenderColor {
+				xrendercolor_red = fromIntegral r * 0x100,
+				xrendercolor_green = fromIntegral b * 0x100,
+				xrendercolor_blue = fromIntegral g * 0x100,
+				xrendercolor_alpha = 0xffff}
+		ColorName cn -> withXftColorName dpy visual colormap cn $ \c ->
+			xftDrawString xftDraw c xftFont x y str
+			
+drawImageXT :: Display -> Drawable -> GC -> FilePath -> Position -> Position ->
 	Dimension -> Dimension -> IO ()
-drawImage dpy win gc fp x y w h = getPicture fp w h >>=
-	maybe (return ()) (drawPicture dpy win gc x y)
+drawImageXT dpy win gc fp x y w h =
+	getImage fp w h >>= maybe (return ()) (drawBitmap dpy win gc x y w h)
 
-getPicture :: FilePath -> Dimension -> Dimension ->
-	IO (Maybe (Dimension, Dimension, Ptr Word32))
-getPicture fp nw nh = do
+getImage :: FilePath -> Dimension -> Dimension -> IO (Maybe (Ptr Word32))
+getImage fp nw nh = do
 	(img, err) <- loadImageWithErrorReturn fp
 	case err of
 		ImlibLoadErrorNone -> do
 			contextSetImage img
-			w <- fmap fromIntegral imageGetWidth
-			h <- fmap fromIntegral imageGetHeight
-			nimg <- createCroppedScaledImage (0 :: Int) (0 :: Int) (w :: Int) (h :: Int) nw nh
-			contextSetImage nimg
-			dat <- imageGetData
-			return $ Just (nw, nh, dat)
+			let	zero = 0 :: Int
+			w <- fmap fromIntegral imageGetWidth :: IO Int
+			h <- fmap fromIntegral imageGetHeight :: IO Int
+			img' <- createCroppedScaledImage zero zero w h nw nh
+			contextSetImage img'
+			fmap Just imageGetData
 		_ -> print err >> return Nothing
 
-drawPicture :: Display -> Drawable -> GC -> Position -> Position ->
-	(Dimension, Dimension, Ptr Word32) -> IO ()
-drawPicture dpy win gc x0 y0 (w, h, dat) = do
+drawBitmap :: Display -> Drawable -> GC -> Position -> Position -> Dimension ->
+	Dimension -> Ptr Word32 -> IO ()
+drawBitmap dpy win gc x0 y0 w h dat = do
 	ptr <- newIORef dat
 	forM_ [0 .. w * h - 1] $ \i -> do
 		readIORef ptr >>= peek >>= setForeground dpy gc
@@ -225,3 +205,8 @@ drawPicture dpy win gc x0 y0 (w, h, dat) = do
 			y = fromIntegral i `div` w
 		drawPoint dpy win gc (x0 + fromIntegral x) (y0 + fromIntegral y)
 		atomicModifyIORef_ ptr $ flip advancePtr 1
+
+--------------------------------------------------------------------------------
+
+waitEvent :: Display -> IO ()
+waitEvent = threadWaitRead . Fd . connectionNumber
