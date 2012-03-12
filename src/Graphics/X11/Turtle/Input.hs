@@ -21,6 +21,7 @@ import Graphics.X11.Turtle.State(TurtleState(..), initialTurtleState)
 import Text.XML.YJSVG(SVG(..), Color(..), Position(..))
 
 import Control.Concurrent.Chan(Chan, newChan, getChanContents)
+import Control.Arrow
 
 --------------------------------------------------------------------------------
 
@@ -41,6 +42,7 @@ data TurtleInput
 	| Rotate Double
 	| Write String Double String
 	| PutImage FilePath Double Double
+	| Stamp
 	| Bgcolor Color
 	| Undo
 	| Clear
@@ -112,6 +114,16 @@ nextTurtle t (Write fnt sz str) = (clearState t){
 nextTurtle t (PutImage fp w h) = (clearState t){
 	draw = Just img, drawed = img : drawed t}
 	where img = Image (uncurry Center $ position t) w h fp
+nextTurtle t Stamp = (clearState t){
+	draw = Just stamp, drawed = stamp : drawed t}
+	where
+	(x0, y0) = position t
+	sp = let (sx, sy) = shapesize t in
+		map (((+ x0) *** (+ y0)) . rotate . ((* sx) *** (* sy))) $ shape t
+	rotate (x, y) = let rad = direction t in
+		(x * cos rad - y * sin rad, x * sin rad + y * cos rad)
+	points = map (uncurry Center) sp
+	stamp = Polyline points (pencolor t) (pencolor t) 0
 nextTurtle t (Bgcolor c) = (clearState t){
 	bgcolor = c, drawed = init (drawed t) ++ [Fill c]}
 nextTurtle t Clear = (clearState t){clear = True, drawed = [last $ drawed t]}
