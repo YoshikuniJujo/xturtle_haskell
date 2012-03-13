@@ -19,6 +19,7 @@ module Graphics.X11.Turtle.Field(
 	addLayer,
 	drawLine,
 	fillPolygon,
+	fillRectangle,
 	writeString,
 	drawImage,
 	undoLayer,
@@ -44,11 +45,12 @@ import Graphics.X11.Turtle.XTools(
 	XEventPtr, XIC, Bufs, undoBuf, bgBuf, topBuf,
 	GCs, gcForeground, gcBackground, Event(..),
 	forkIOX, openWindow, destroyWindow, closeDisplay, windowSize,
-	flush, colorPixel, setForeground, copyArea, fillRectangle,
+	flush, colorPixel, setForeground, copyArea,
 	drawLineXT, writeStringXT,
 	allocaXEvent, waitEvent, pending, nextEvent, getEvent, filterEvent,
 	utf8LookupString, buttonPress, buttonRelease, xK_VoidSymbol)
-import qualified Graphics.X11.Turtle.XTools as X(fillPolygonXT, drawImageXT)
+import qualified Graphics.X11.Turtle.XTools as X(fillPolygonXT, drawImageXT,
+	fillRectangle)
 import Graphics.X11.Turtle.Layers(
 	Layers, Layer, Character, newLayers, redrawLayers,
 	makeLayer, addDraw, setBackground, undoLayer, clearLayer,
@@ -117,7 +119,7 @@ openField = do
 	sizeRef <- newIORef size
 	let getSize = readIORef sizeRef
 	ls <- newLayers 50 
-		(getSize >>= uncurry (fillRectangle dpy ub gcb 0 0))
+		(getSize >>= uncurry (X.fillRectangle dpy ub gcb 0 0))
 		(getSize >>= \(w, h) -> copyArea dpy ub bb gcf 0 0 w h 0 0)
 		(getSize >>= \(w, h) -> copyArea dpy bb tb gcf 0 0 w h 0 0)
 	f <- makeField dpy win bufs gcs ic del sizeRef ls
@@ -245,7 +247,7 @@ fieldColor f l c = setBackground l $ do
 	colorPixel (fDisplay f) c >>=
 		maybe (return ())
 			(setForeground (fDisplay f) (gcBackground $ fGCs f))
-	readIORef (fSize f) >>= uncurry (fillRectangle
+	readIORef (fSize f) >>= uncurry (X.fillRectangle
 		(fDisplay f) (undoBuf $ fBufs f) (gcBackground $ fGCs f) 0 0)
 
 --------------------------------------------------------------------------------
@@ -280,6 +282,16 @@ fillPolygon f l psc clr = addDraw l (fp undoBuf, fp bgBuf)
 		colorPixel (fDisplay f) clr >>= maybe (return ())
 			(setForeground (fDisplay f) (gcForeground $ fGCs f))
 		X.fillPolygonXT (fDisplay f) (bf $ fBufs f) (gcForeground $ fGCs f) ps
+
+fillRectangle ::
+	Field -> Layer -> Double -> Double -> Double -> Double -> Color -> IO ()
+fillRectangle f l xc0 yc0 w h clr = addDraw l (fr undoBuf, fr bgBuf)
+	where fr bf = do
+		(x0, y0) <- topLeft f xc0 yc0
+		colorPixel (fDisplay f) clr >>= maybe (return ())
+			(setForeground (fDisplay f) (gcForeground $ fGCs f))
+		X.fillRectangle (fDisplay f) (bf $ fBufs f) (gcForeground $ fGCs f)
+			x0 y0 (round w) (round h)
 
 drawLineBuf :: Field -> (Bufs -> Pixmap) -> Int -> Color ->
 	Double -> Double -> Double -> Double -> IO ()

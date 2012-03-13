@@ -43,6 +43,7 @@ data TurtleInput
 	| Write String Double String
 	| PutImage FilePath Double Double
 	| Stamp
+	| Dot Double
 	| Bgcolor Color
 	| Undo
 	| Clear
@@ -124,6 +125,10 @@ nextTurtle t Stamp = (clearState t){
 		(x * cos rad - y * sin rad, x * sin rad + y * cos rad)
 	points = map (uncurry Center) sp
 	stamp = Polyline points (pencolor t) (pencolor t) 0
+nextTurtle t (Dot sz) = (clearState t){
+	draw = Just dot, drawed = dot : drawed t}
+	where
+	dot = Rect (uncurry Center $ position t) sz sz 0 (pencolor t) (pencolor t)
 nextTurtle t (Bgcolor c) = (clearState t){
 	bgcolor = c, drawed = init (drawed t) ++ [Fill c]}
 nextTurtle t Clear = (clearState t){clear = True, drawed = [last $ drawed t]}

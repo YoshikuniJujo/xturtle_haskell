@@ -29,6 +29,7 @@ module Graphics.X11.Turtle (
 	circle,
 	write,
 	stamp,
+	dot,
 	image,
 	bgcolor,
 	home,
@@ -106,7 +107,7 @@ import Data.Maybe(fromJust)
 --------------------------------------------------------------------------------
 
 xturtleVersion :: (Int, String)
-xturtleVersion = (54, "0.1.5a")
+xturtleVersion = (55, "0.1.5b")
 
 --------------------------------------------------------------------------------
 
@@ -199,6 +200,9 @@ write t fnt sz = input t . Write fnt sz
 
 stamp :: Turtle -> IO ()
 stamp = (`input` Stamp)
+
+dot :: Turtle -> Double -> IO ()
+dot t = input t . Dot
 
 image :: Turtle -> FilePath -> Double -> Double -> IO ()
 image t fp w h = input t $ PutImage fp w h

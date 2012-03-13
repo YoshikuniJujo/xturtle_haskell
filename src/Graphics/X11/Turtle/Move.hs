@@ -34,6 +34,7 @@ import Graphics.X11.Turtle.Field(
 	openField, closeField, waitField, fieldSize,
 	forkField, flushField, fieldColor,
 	addLayer, drawLine, writeString, undoLayer, clearLayer, fillPolygon,
+	fillRectangle,
 	addCharacter, drawCharacter, drawCharacterAndLine, clearCharacter,
 	onclick, onrelease, ondrag, onmotion, onkeypress, drawImage, ontimer)
 import Text.XML.YJSVG(SVG(..), Position(..))
@@ -84,6 +85,7 @@ drawSVG f l (Polyline ps fc _ 0) = fillPolygon f l (map posToTup ps) fc
 	where
 	posToTup (Center x y) = (x, y)
 	posToTup _ = error "not implemented"
+drawSVG f l (Rect (Center x y) w h 0 fc _) = fillRectangle f l x y w h fc
 drawSVG f l (Image (Center x0 y0) w h fp) = drawImage f l fp x0 y0 w h
 drawSVG _ _ (Fill _) = return ()
 drawSVG _ _ _ = error "not implemented"
