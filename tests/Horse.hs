@@ -1,5 +1,6 @@
 module Horse(
 	start,
+	size,
 	put,
 	horse,
 	flipV,
@@ -38,7 +39,9 @@ superimpose = zipWith (zipWith (||))
 above = (++)
 sidebyside = zipWith (++)
 
-size = 4
+size = writeIORef sizeRef
+
+sizeRef = unsafePerformIO $ newIORef 1
 
 horse = unsafePerformIO $ readDots "tests/horse.txt"
 
@@ -64,17 +67,19 @@ start = do
 put :: Picture -> IO ()
 put dots = do
 	t <- readIORef turtle
+	s <- readIORef sizeRef
 	clear t
 	forM_ dots $ \ln -> do
-		forM_ ln $ (>> forward t size) . flip when (dot t size)
-		backward t $ size * (fromIntegral $ length ln)
-		right t 90 >> forward t size >> left t 90
+		forM_ ln $ (>> forward t s) . flip when (dot t s)
+		backward t $ s * (fromIntegral $ length ln)
+		right t 90 >> forward t s >> left t 90
 	left t 90
-	forward t $ size * (fromIntegral $ length dots)
+	forward t $ s * (fromIntegral $ length dots)
 	right t 90
 	flush t
 
 main = do
 	start
+	size 4
 	put $ sidebyside horse $ invertColor $ flipH horse
 	readIORef field >>= waitField

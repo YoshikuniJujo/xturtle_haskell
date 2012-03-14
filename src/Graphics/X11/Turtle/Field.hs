@@ -304,7 +304,7 @@ drawLineBuf f bf lw c x1_ y1_ x2_ y2_ = do
 topLeft :: Field -> Double -> Double -> IO (Position, Position)
 topLeft f x y = do
 	(width, height) <- fieldSize f
-	return (round $ x + width / 2, round $ - y + height / 2)
+	return (round x + round (width / 2), - round y + round (height / 2))
 
 --------------------------------------------------------------------------------
 
