@@ -45,7 +45,7 @@ import Graphics.X11.Turtle.XTools(
 	XEventPtr, XIC, Bufs, undoBuf, bgBuf, topBuf,
 	GCs, gcForeground, gcBackground, Event(..),
 	forkIOX, openWindow, destroyWindow, closeDisplay, windowSize,
-	flush, colorPixel, setForeground, copyArea,
+	flush, copyArea, setForegroundXT,
 	drawLineXT, writeStringXT,
 	allocaXEvent, waitEvent, pending, nextEvent, getEvent, filterEvent,
 	utf8LookupString, buttonPress, buttonRelease, xK_VoidSymbol)
@@ -244,9 +244,7 @@ flushField f real act = do
 
 fieldColor :: Field -> Layer -> Color -> IO ()
 fieldColor f l c = setBackground l $ do
-	colorPixel (fDisplay f) c >>=
-		maybe (return ())
-			(setForeground (fDisplay f) (gcBackground $ fGCs f))
+	setForegroundXT (fDisplay f) (gcBackground $ fGCs f) c
 	readIORef (fSize f) >>= uncurry (X.fillRectangle
 		(fDisplay f) (undoBuf $ fBufs f) (gcBackground $ fGCs f) 0 0)
 
@@ -279,8 +277,7 @@ fillPolygon :: Field -> Layer -> [(Double, Double)] -> Color -> IO ()
 fillPolygon f l psc clr = addDraw l (fp undoBuf, fp bgBuf)
 	where fp bf = do
 		ps <- mapM (fmap (uncurry Point) . uncurry (topLeft f)) psc
-		colorPixel (fDisplay f) clr >>= maybe (return ())
-			(setForeground (fDisplay f) (gcForeground $ fGCs f))
+		setForegroundXT (fDisplay f) (gcForeground $ fGCs f) clr
 		X.fillPolygonXT (fDisplay f) (bf $ fBufs f) (gcForeground $ fGCs f) ps
 
 fillRectangle ::
@@ -288,8 +285,7 @@ fillRectangle ::
 fillRectangle f l xc0 yc0 w h clr = addDraw l (fr undoBuf, fr bgBuf)
 	where fr bf = do
 		(x0, y0) <- topLeft f xc0 yc0
-		colorPixel (fDisplay f) clr >>= maybe (return ())
-			(setForeground (fDisplay f) (gcForeground $ fGCs f))
+		setForegroundXT (fDisplay f) (gcForeground $ fGCs f) clr
 		X.fillRectangle (fDisplay f) (bf $ fBufs f) (gcForeground $ fGCs f)
 			x0 y0 (round w) (round h)
 
@@ -322,8 +318,7 @@ drawCharacterAndLine f c clr sh lw x1 y1 x2 y2 = setCharacter c $
 drawShape :: Field -> Color -> [(Double, Double)] -> IO ()
 drawShape f clr psc = do
 	ps <- mapM (fmap (uncurry Point) . uncurry (topLeft f)) psc
-	colorPixel (fDisplay f) clr >>= maybe (return ())
-		(setForeground (fDisplay f) (gcForeground $ fGCs f))
+	setForegroundXT (fDisplay f) (gcForeground $ fGCs f) clr
 	X.fillPolygonXT (fDisplay f) (topBuf $ fBufs f) (gcForeground $ fGCs f) ps
 
 clearCharacter :: Character -> IO ()

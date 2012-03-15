@@ -29,8 +29,7 @@ module Graphics.X11.Turtle.XTools(
 
 	-- * draw functions
 	flush,
-	colorPixel,
-	setForeground,
+	setForegroundXT,
 	copyArea,
 	fillRectangle,
 	fillPolygonXT,
@@ -145,6 +144,10 @@ colorPixel _ (RGB r g b) = return $ Just $ shift (fromIntegral r) 16 .|.
 colorPixel dpy (ColorName cn) = fmap (Just . color_pixel . fst)
 	(allocNamedColor dpy (defaultColormap dpy $ defaultScreen dpy) cn)
 		`catch` const (putStrLn "no such color" >> return Nothing)
+
+setForegroundXT :: Display -> GC -> Color -> IO ()
+setForegroundXT dpy gc clr =
+	colorPixel dpy clr >>= maybe (return()) (setForeground dpy gc)
 
 fillPolygonXT :: Display -> Drawable -> GC -> [Point] -> IO ()
 fillPolygonXT d w gc ps = fillPolygon d w gc ps nonconvex coordModeOrigin
