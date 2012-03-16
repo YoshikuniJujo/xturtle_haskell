@@ -22,6 +22,7 @@ import Text.XML.YJSVG(SVG(..), Color(..), Position(..))
 
 import Control.Concurrent.Chan(Chan, newChan, getChanContents)
 import Control.Arrow
+import Data.Tuple.Tools
 
 --------------------------------------------------------------------------------
 
@@ -120,9 +121,7 @@ nextTurtle t Stamp = (clearState t){
 	where
 	(x0, y0) = position t
 	sp = let (sx, sy) = shapesize t in
-		map (((+ x0) *** (+ y0)) . rotate . ((* sx) *** (* sy))) $ shape t
-	rotate (x, y) = let rad = direction t in
-		(x * cos rad - y * sin rad, x * sin rad + y * cos rad)
+		map (((+ x0) *** (+ y0)) . rotate (direction t) . ((* sx) *** (* sy))) $ shape t
 	points = map (uncurry Center) sp
 	stamp = Polyline points (pencolor t) (pencolor t) 0
 nextTurtle t (Dot sz) = (clearState t){

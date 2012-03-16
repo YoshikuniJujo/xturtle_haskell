@@ -44,6 +44,7 @@ import Control.Monad(when, unless, forM_)
 import Control.Monad.Tools(unlessM)
 import Control.Arrow((***))
 import Data.Maybe(isJust)
+import Data.Tuple.Tools(rotate)
 
 --------------------------------------------------------------------------------
 
@@ -115,6 +116,4 @@ drawTurtle f c t d (px, py) = maybe (drawCharacter f c (pencolor t) sp)
 	(uncurry $ drawCharacterAndLine f c (pencolor t) sp (pensize t) px py)
 	where
 	sp = let (sx, sy) = shapesize t in
-		map (((+ px) *** (+ py)) . rotate . ((* sx) *** (* sy))) $ shape t
-	rotate (x, y) = let rad = d in
-		(x * cos rad - y * sin rad, x * sin rad + y * cos rad)
+		map (((+ px) *** (+ py)) . rotate d . ((* sx) *** (* sy))) $ shape t
