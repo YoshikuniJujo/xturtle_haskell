@@ -85,7 +85,8 @@ module Graphics.X11.Turtle (
 	getSVG,
 
 	-- * others
-	topleft
+	topleft,
+	center
 ) where
 
 import Graphics.X11.Turtle.Data(shapeTable, speedTable)
@@ -383,3 +384,6 @@ getSVG t = fmap (reverse . drawed . (states t !!)) $ readIORef $ stateIndex t
 
 topleft ::  Field -> IO ()
 topleft f = writeIORef (coordinates f) TL
+
+center :: Field -> IO ()
+center f = writeIORef (coordinates f) C
