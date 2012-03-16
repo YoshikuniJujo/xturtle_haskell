@@ -53,7 +53,7 @@ module Graphics.X11.Turtle.XTools(
 import Text.XML.YJSVG(Color(..))
 
 import Graphics.X11(
-	Display, Drawable, Window, Pixmap, GC, Pixel, Atom, Point(..), Position,
+	Display, Drawable, Window, Pixmap, GC, Atom, Point(..), Position,
 	Dimension, XEventPtr,
 	initThreads, flush, supportsLocale, setLocaleModifiers,
 	connectionNumber, openDisplay, closeDisplay, internAtom,
@@ -138,24 +138,22 @@ windowSize dpy win = do
 
 --------------------------------------------------------------------------------
 
-colorPixel :: Display -> Color -> IO (Maybe Pixel)
-colorPixel _ (RGB r g b) = return $ Just $ shift (fromIntegral r) 16 .|.
-	shift (fromIntegral g) 8 .|. fromIntegral b
-colorPixel dpy (ColorName cn) = fmap (Just . color_pixel . fst)
-	(allocNamedColor dpy (defaultColormap dpy $ defaultScreen dpy) cn)
-		`catch` const (putStrLn "no such color" >> return Nothing)
-
 setForegroundXT :: Display -> GC -> Color -> IO ()
-setForegroundXT dpy gc clr =
-	colorPixel dpy clr >>= maybe (return()) (setForeground dpy gc)
+setForegroundXT dpy gc (RGB r g b) =
+	setForeground dpy gc $ shift (fromIntegral r) 16 .|.
+		shift (fromIntegral g) 8 .|. fromIntegral b
+setForegroundXT dpy gc (ColorName cn) =
+	(allocNamedColor dpy (defaultColormap dpy $ defaultScreen dpy) cn
+		>>= setForeground dpy gc . color_pixel . fst)
+	`catch` const (putStrLn "no such color")
 
 fillPolygonXT :: Display -> Drawable -> GC -> [Point] -> IO ()
 fillPolygonXT d w gc ps = fillPolygon d w gc ps nonconvex coordModeOrigin
 
 drawLineXT :: Display -> GC -> Drawable -> Int -> Color ->
 	Position -> Position -> Position -> Position -> IO ()
-drawLineXT dpy gc buf lw c x1 y1 x2 y2 = do
-	colorPixel dpy c >>= maybe (return ()) (setForeground dpy gc)
+drawLineXT dpy gc buf lw clr x1 y1 x2 y2 = do
+	setForegroundXT dpy gc clr
 	setLineAttributes dpy gc (fromIntegral lw) lineSolid capRound joinRound
 	drawLine dpy buf gc x1 y1 x2 y2
 
@@ -173,8 +171,8 @@ writeStringXT dpy buf fname size clr x y str = do
 			where
 			color = XRenderColor {
 				xrendercolor_red = fromIntegral r * 0x100,
-				xrendercolor_green = fromIntegral b * 0x100,
 				xrendercolor_blue = fromIntegral g * 0x100,
+				xrendercolor_green = fromIntegral b * 0x100,
 				xrendercolor_alpha = 0xffff}
 		ColorName cn -> withXftColorName dpy visual colormap cn $ \c ->
 			xftDrawString xftDraw c xftFont x y str
@@ -190,9 +188,9 @@ getImage fp nw nh = do
 	case err of
 		ImlibLoadErrorNone -> do
 			contextSetImage img
-			let	zero = 0 :: Int
-			w <- fmap fromIntegral imageGetWidth :: IO Int
-			h <- fmap fromIntegral imageGetHeight :: IO Int
+			let	zero = 0 :: Position
+			w <- fmap fromIntegral imageGetWidth :: IO Dimension
+			h <- fmap fromIntegral imageGetHeight :: IO Dimension
 			img' <- createCroppedScaledImage zero zero w h nw nh
 			contextSetImage img'
 			fmap Just imageGetData
@@ -200,14 +198,13 @@ getImage fp nw nh = do
 
 drawBitmap :: Display -> Drawable -> GC -> Position -> Position -> Dimension ->
 	Dimension -> Ptr Word32 -> IO ()
-drawBitmap dpy win gc x0 y0 w h dat = do
+drawBitmap dpy win gc x0 y0 w_ h_ dat = do
 	ptr <- newIORef dat
-	forM_ [0 .. w * h - 1] $ \i -> do
+	forM_ [0 .. w * h - 1]  $ \i -> do
 		readIORef ptr >>= peek >>= setForeground dpy gc
-		let	x = fromIntegral i `mod` w
-			y = fromIntegral i `div` w
-		drawPoint dpy win gc (x0 + fromIntegral x) (y0 + fromIntegral y)
+		drawPoint dpy win gc (x0 + i `mod` w) (y0 + i `div` w)
 		atomicModifyIORef_ ptr $ flip advancePtr 1
+	where [w, h] = map fromIntegral [w_, h_]
 
 --------------------------------------------------------------------------------
 
