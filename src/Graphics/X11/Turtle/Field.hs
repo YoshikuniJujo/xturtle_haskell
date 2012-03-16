@@ -54,8 +54,8 @@ import qualified Graphics.X11.Turtle.XTools as X(fillPolygonXT, drawImageXT,
 	fillRectangle, Position)
 import Graphics.X11.Turtle.Layers(
 	Layers, Layer, Character, newLayers, redrawLayers,
-	makeLayer, addDraw, setBackground, undoLayer, clearLayer,
-	makeCharacter, setCharacter)
+	makeLayer, addDraw, background, undoLayer, clearLayer,
+	makeCharacter, character)
 import Text.XML.YJSVG(Position(..), Color(..))
 
 import Control.Monad(forever, replicateM, when, join, unless)
@@ -252,7 +252,7 @@ flushField f real act = do
 	return ret
 
 fieldColor :: Field -> Layer -> Color -> IO ()
-fieldColor f l c = setBackground l $ do
+fieldColor f l c = background l $ do
 	setForegroundXT (fDisplay f) (gcBackground $ fGCs f) c
 	readIORef (fSize f) >>= uncurry (X.fillRectangle
 		(fDisplay f) (undoBuf $ fBufs f) (gcBackground $ fGCs f) 0 0)
@@ -324,12 +324,12 @@ addCharacter :: Field -> IO Character
 addCharacter = makeCharacter . fLayers
 
 drawCharacter :: Field -> Character -> Color -> [Position] -> IO ()
-drawCharacter f c clr sh = setCharacter c $ drawShape f clr sh
+drawCharacter f c clr sh = character c $ drawShape f clr sh
 
 drawCharacterAndLine ::	Field -> Character -> Color -> [Position] ->
 	Double -> Position -> Position -> IO () -- Double -> Double -> Double -> Double -> IO ()
 drawCharacterAndLine f c clr sh lw p1 p2 = do
-	setCharacter c $
+	character c $
 		drawShape f clr sh >> drawLineBuf f topBuf (round lw) clr p1 p2
 
 drawShape :: Field -> Color -> [Position] -> IO ()
@@ -339,7 +339,7 @@ drawShape f clr psc = do
 	X.fillPolygonXT (fDisplay f) (topBuf $ fBufs f) (gcForeground $ fGCs f) ps
 
 clearCharacter :: Character -> IO ()
-clearCharacter c = setCharacter c $ return ()
+clearCharacter c = character c $ return ()
 
 --------------------------------------------------------------------------------
 

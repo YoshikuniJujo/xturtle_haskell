@@ -11,11 +11,11 @@ module Graphics.X11.Turtle.Layers(
 
 	-- * draws
 	redrawLayers,
+	background,
 	addDraw,
-	setBackground,
 	undoLayer,
 	clearLayer,
-	setCharacter
+	character
 ) where
 
 import Control.Monad(when, unless)
@@ -30,7 +30,7 @@ data Layers = Layers{
 	clearLayersAction :: IO (),
 	undoLayersAction :: IO (),
 	clearCharactersAction :: IO (),
-	background :: [IO ()],
+	layerBackground :: [IO ()],
 	buffed :: [IO ()],
 	layers :: [[(IO (), IO ())]],
 	characters :: [IO ()]
@@ -54,7 +54,7 @@ newLayers un cla ula cca = newIORef Layers{
 	clearLayersAction = cla,
 	undoLayersAction = ula,
 	clearCharactersAction = cca,
-	background = [],
+	layerBackground = [],
 	buffed = [],
 	layers = [],
 	characters = []
@@ -64,7 +64,7 @@ makeLayer :: IORef Layers -> IO Layer
 makeLayer rls = atomicModifyIORef rls $ \ls -> (ls{
 		layers = layers ls ++ [[]],
 		buffed = buffed ls ++ [return ()],
-		background = background ls ++[return ()]},
+		layerBackground = layerBackground ls ++[return ()]},
 	Layer{layerId = length $ layers ls, layerLayers = rls})
 
 makeCharacter :: IORef Layers -> IO Character
@@ -77,7 +77,7 @@ makeCharacter rls = atomicModifyIORef rls $ \ls ->
 
 redrawLayers :: IORef Layers -> IO ()
 redrawLayers rls = readIORef rls >>= \ls -> do
-	sequence_ $ background ls
+	sequence_ $ layerBackground ls
 	clearLayersAction ls >> sequence_ (buffed ls)
 	undoLayersAction ls >> mapM_ snd (concat $ layers ls)
 	clearCharactersAction ls >> sequence_ (characters ls)
@@ -94,10 +94,11 @@ addDraw Layer{layerId = lid, layerLayers = rls} acts@(_, act) = do
 			layers = setAt (layers ls) lid $ as ++ [acts],
 			buffed = modifyAt (buffed ls) lid (>> a)}
 
-setBackground :: Layer -> IO () -> IO ()
+background, setBackground :: Layer -> IO () -> IO ()
+background = setBackground
 setBackground Layer{layerId = lid, layerLayers = rls} act = do
 	atomicModifyIORef_ rls $ \ls ->
-		ls{background = setAt (background ls) lid act}
+		ls{layerBackground = setAt (layerBackground ls) lid act}
 	redrawLayers rls
 
 undoLayer :: Layer -> IO Bool
@@ -117,7 +118,8 @@ clearLayer Layer{layerId = lid, layerLayers = rls} = do
 		buffed = setAt (buffed ls) lid $ return ()}
 	redrawLayers rls
 
-setCharacter :: Character -> IO () -> IO ()
+character, setCharacter :: Character -> IO () -> IO ()
+character = setCharacter
 setCharacter Character{characterId = cid, characterLayers = rls} act = do
 	atomicModifyIORef_ rls $ \ls ->
 		ls{characters = setAt (characters ls) cid act}
