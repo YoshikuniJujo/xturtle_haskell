@@ -170,3 +170,13 @@ flushoff を実装しようと思うのだが、難しいところがある。
 flush を別で行おうと思えば、その flush が正しい切れ目で行われるように
 制御する必要がある。
 複数の亀が動いている場合にもうまくいくだろうか。
+
+2012.03.16 Fri.
+
+topleft 座標と、center 座標を切り換えられるようにしたい。
+とりあえず Field が export する関数が Position を使うようにした。
+Field 変数のなかに、topleft 系か、center 系かを check する変数を入れるか。
+それによって、position を Center x y で set するか、TopLeft x y で set するかを
+切り換えるようにしたい。
+また、その変数によって、
+onclick 等の関数がどちらの座標を使うかも切り換えるようにする。

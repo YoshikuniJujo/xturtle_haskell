@@ -95,7 +95,7 @@ import Graphics.X11.Turtle.Move(
 	openField, closeField, forkField, waitField, fieldSize, flushField,
 	moveTurtle, addLayer, clearLayer, addCharacter, clearCharacter,
 	onclick, onrelease, ondrag, onmotion, onkeypress, ontimer)
-import Text.XML.YJSVG(SVG(..), Color(..))
+import Text.XML.YJSVG(Position(..), SVG(..), Color(..))
 
 import Control.Concurrent(Chan, writeChan, ThreadId, killThread)
 import Control.Monad(replicateM_, zipWithM_)
@@ -175,10 +175,10 @@ goto t x y = input t $ Goto x y
 
 setx, sety :: Turtle -> Double -> IO ()
 setx t x = do
-	(_, y) <- position t
+	Center _ y <- position' t
 	input t $ Goto x y
 sety t y = do
-	(x, _) <- position t
+	Center x _ <- position' t
 	input t $ Goto x y
 
 left, right, setheading :: Turtle -> Double -> IO ()
@@ -284,12 +284,17 @@ radians = (`degrees` (2 * pi))
 --------------------------------------------------------------------------------
 
 position :: Turtle -> IO (Double, Double)
-position Turtle{stateIndex = si, states = s} =
+position Turtle{stateIndex = si, states = s} = do
+	Center x y <- fmap (S.position . (s !!)) $ readIORef si
+	return (x, y)
+
+position' :: Turtle -> IO Position
+position' Turtle{stateIndex = si, states = s} =
 	fmap (S.position . (s !!)) $ readIORef si
 
 xcor, ycor :: Turtle -> IO Double
-xcor = fmap fst . position
-ycor = fmap snd . position
+xcor = fmap posX . position'
+ycor = fmap posY . position'
 
 heading :: Turtle -> IO Double
 heading t@Turtle{stateIndex = si, states = s} = do
@@ -303,14 +308,14 @@ getDegrees Turtle{stateIndex = si, states = s} =
 
 towards :: Turtle -> Double -> Double -> IO Double
 towards t x0 y0 = do
-	(x, y) <- position t
+	Center x y <- position' t
 	deg <- getDegrees t
 	let	dir = atan2 (y0 - y) (x0 - x) * deg / (2 * pi)
 	return $ if dir < 0 then dir + deg else dir
 
 distance :: Turtle -> Double -> Double -> IO Double
 distance t x0 y0 = do
-	(x, y) <- position t
+	Center x y <- position' t
 	return $ ((x - x0) ** 2 + (y - y0) ** 2) ** (1 / 2)
 
 isdown, isvisible :: Turtle -> IO Bool

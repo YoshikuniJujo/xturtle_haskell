@@ -61,7 +61,7 @@ moveTurtle f c l t0 t1 = do
 		forM_ (directions t0 t1) $ \dir -> flushField f fl $
 			drawT dir (position t0) >> threadDelay (interval t0)
 		forM_ (positions t0 t1) $ \p -> flushField f fl $
-			drawT (direction t1) p >> threadDelay (interval t0)
+			drawT (direction t1) (uncurry Center p) >> threadDelay (interval t0)
 		flushField f fl $ drawT (direction t1) $ position t1
 	when (bgcolor t0 /= bgcolor t1) $
 		flushField f fl $ fieldColor f l $ bgcolor t1
@@ -78,16 +78,11 @@ moveTurtle f c l t0 t1 = do
 			| otherwise = Nothing
 
 drawSVG :: Field -> Layer -> SVG -> IO ()
-drawSVG f l (Line (Center x0 y0) (Center x1 y1) clr lw) =
-	drawLine f l lw clr x0 y0 x1 y1
-drawSVG f l (Text (Center x y) sz clr fnt str) =
-	writeString f l fnt sz clr x y str
-drawSVG f l (Polyline ps fc _ 0) = fillPolygon f l (map posToTup ps) fc
-	where
-	posToTup (Center x y) = (x, y)
-	posToTup _ = error "not implemented"
-drawSVG f l (Rect (Center x y) w h 0 fc _) = fillRectangle f l x y w h fc
-drawSVG f l (Image (Center x0 y0) w h fp) = drawImage f l fp x0 y0 w h
+drawSVG f l (Line p0 p1 clr lw) = drawLine f l lw clr p0 p1
+drawSVG f l (Text pos sz clr fnt str) = writeString f l fnt sz clr pos str
+drawSVG f l (Polyline ps fc _ 0) = fillPolygon f l ps fc
+drawSVG f l (Rect pos w h 0 fc _) = fillRectangle f l pos w h fc
+drawSVG f l (Image pos w h fp) = drawImage f l fp pos w h
 drawSVG _ _ (Fill _) = return ()
 drawSVG _ _ _ = error "not implemented"
 
@@ -98,7 +93,7 @@ positions t0 t1 = case positionStep t0 of
 		[x0, x0 + step * (x1 - x0) / dist .. ]
 		[y0, y0 + step * (y1 - y0) / dist .. ]
 	where
-	[(x0, y0), (x1, y1)] = map position [t0, t1]
+	[Center x0 y0, Center x1 y1] = map position [t0, t1]
 	dist = ((x1 - x0) ** 2 + (y1 - y0) ** 2) ** (1/2)
 
 directions :: TurtleState -> TurtleState -> [Double]
@@ -111,9 +106,9 @@ directions t0 t1 = case directionStep t0 of
 	de = direction t1
 
 drawTurtle :: Field -> Character -> TurtleState -> Double ->
-	(Double, Double) -> Maybe (Double, Double) -> IO ()
-drawTurtle f c t d (px, py) = maybe (drawCharacter f c (pencolor t) sp)
-	(uncurry $ drawCharacterAndLine f c (pencolor t) sp (pensize t) px py)
+	Position -> Maybe Position -> IO ()
+drawTurtle f c t d p0@Center{posX = px, posY = py} = maybe (drawCharacter f c (pencolor t) sp)
+	(drawCharacterAndLine f c (pencolor t) sp (pensize t) p0)
 	where
 	sp = let (sx, sy) = shapesize t in
-		map (((+ px) *** (+ py)) . rotate d . ((* sx) *** (* sy))) $ shape t
+		map (uncurry Center . ((+ px) *** (+ py)) . rotate d . ((* sx) *** (* sy))) $ shape t

@@ -67,7 +67,7 @@ inputToTurtle [] ts0 (Undo : tis) = ts0 : inputToTurtle [] ts0 tis
 inputToTurtle (tsb : tsbs) _ (Undo : tis) =
 	let ts1 = tsb{undo = True} in ts1 : inputToTurtle tsbs ts1 tis
 inputToTurtle tsbs ts0 (Forward len : tis) = let
-	(x0, y0) = position ts0
+	Center x0 y0 = position ts0
 	x = x0 + len * cos (direction ts0)
 	y = y0 + len * sin (direction ts0) in
 	inputToTurtle tsbs ts0 $ Goto x y : tis
@@ -89,37 +89,38 @@ nextTurtle t (SetFill f) = (clearState t){
 	drawed = if fill t && not f then fl : drawed t else drawed t,
 	fillPoints = [(x0, y0) | f]}
 	where
-	(x0, y0) = position t
+	Center x0 y0 = position t
 	fl = Polyline (uncurry Center `map` fillPoints t)
 		(pencolor t) (pencolor t) 0
 nextTurtle t (SetPoly p) = (clearState t){
 	poly = p,
-	polyPoints = if p then [position t] else polyPoints t}
+	polyPoints = let Center x y = position t in
+		if p then [(x, y)] else polyPoints t}
 nextTurtle t (SetVisible v) = (clearState t){visible = v}
 nextTurtle t (Degrees ds) = (clearState t){degrees = ds}
 nextTurtle t (PositionStep ps) = (clearState t){positionStep = ps}
 nextTurtle t (DirectionStep ds) = (clearState t){directionStep = ds}
 nextTurtle t (Undonum un) = (clearState t){undonum = un}
 nextTurtle t (Goto x y) = (clearState t){
-	position = (x, y),
+	position = Center x y,
 	draw = if pendown t then Just ln else Nothing,
 	drawed = if pendown t then ln : drawed t else drawed t,
 	fillPoints = if fill t then (x, y) : fillPoints t else fillPoints t,
 	polyPoints = if poly t then (x, y) : polyPoints t else polyPoints t}
 	where
-	(x0, y0) = position t
+	Center x0 y0 = position t
 	ln = Line (Center x0 y0) (Center x y) (pencolor t) (pensize t)
 nextTurtle t (Rotate d) = (clearState t){direction = d * 2 * pi / degrees t}
 nextTurtle t (Write fnt sz str) = (clearState t){
 	draw = Just txt, drawed = txt : drawed t}
-	where txt = Text (uncurry Center $ position t) sz (pencolor t) fnt str
+	where txt = Text (position t) sz (pencolor t) fnt str
 nextTurtle t (PutImage fp w h) = (clearState t){
 	draw = Just img, drawed = img : drawed t}
-	where img = Image (uncurry Center $ position t) w h fp
+	where img = Image (position t) w h fp
 nextTurtle t Stamp = (clearState t){
 	draw = Just stamp, drawed = stamp : drawed t}
 	where
-	(x0, y0) = position t
+	Center x0 y0 = position t
 	sp = let (sx, sy) = shapesize t in
 		map (((+ x0) *** (+ y0)) . rotate (direction t) . ((* sx) *** (* sy))) $ shape t
 	points = map (uncurry Center) sp
@@ -127,7 +128,7 @@ nextTurtle t Stamp = (clearState t){
 nextTurtle t (Dot sz) = (clearState t){
 	draw = Just dot, drawed = dot : drawed t}
 	where
-	dot = Rect (uncurry Center $ position t) sz sz 0 (pencolor t) (pencolor t)
+	dot = Rect (position t) sz sz 0 (pencolor t) (pencolor t)
 nextTurtle t (Bgcolor c) = (clearState t){
 	bgcolor = c, drawed = init (drawed t) ++ [Fill c]}
 nextTurtle t Clear = (clearState t){clear = True, drawed = [last $ drawed t]}

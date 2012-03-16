@@ -41,7 +41,7 @@ module Graphics.X11.Turtle.Field(
 ) where
 
 import Graphics.X11.Turtle.XTools(
-	Display, Window, Pixmap, Atom, Point(..), Position, Dimension,
+	Display, Window, Pixmap, Atom, Point(..), Dimension,
 	XEventPtr, XIC, Bufs, undoBuf, bgBuf, topBuf,
 	GCs, gcForeground, gcBackground, Event(..),
 	forkIOX, openWindow, destroyWindow, closeDisplay, windowSize,
@@ -50,12 +50,12 @@ import Graphics.X11.Turtle.XTools(
 	allocaXEvent, waitEvent, pending, nextEvent, getEvent, filterEvent,
 	utf8LookupString, buttonPress, buttonRelease, xK_VoidSymbol)
 import qualified Graphics.X11.Turtle.XTools as X(fillPolygonXT, drawImageXT,
-	fillRectangle)
+	fillRectangle, Position)
 import Graphics.X11.Turtle.Layers(
 	Layers, Layer, Character, newLayers, redrawLayers,
 	makeLayer, addDraw, setBackground, undoLayer, clearLayer,
 	makeCharacter, setCharacter)
-import Text.XML.YJSVG(Color(..))
+import Text.XML.YJSVG(Position(..), Color(..))
 
 import Control.Monad(forever, replicateM, when, join, unless)
 import Control.Monad.Tools(doWhile_, doWhile, whenM)
@@ -253,51 +253,56 @@ fieldColor f l c = setBackground l $ do
 addLayer :: Field -> IO Layer
 addLayer = makeLayer . fLayers
 
-drawLine :: Field -> Layer -> Double -> Color ->
-	Double -> Double -> Double -> Double -> IO ()
-drawLine f l lw clr x1 y1 x2 y2 =
+drawLine :: Field -> Layer -> Double -> Color -> Position -> Position -> IO ()
+--	Double -> Double -> Double -> Double -> IO ()
+drawLine f l lw clr p1 p2 = do -- x1 y1 x2 y2 = do
+	(x1, y1) <- getPosition f p1
+	(x2, y2) <- getPosition f p2
 	addDraw l (drawLineBuf f undoBuf (round lw) clr x1 y1 x2 y2,
 		drawLineBuf f bgBuf (round lw) clr x1 y1 x2 y2)
 
-writeString :: Field -> Layer -> String -> Double -> Color ->
-	Double -> Double -> String -> IO ()
-writeString f l fname size clr xc yc str = addDraw l (ws undoBuf, ws bgBuf)
+writeString :: Field -> Layer -> String -> Double -> Color -> Position ->
+	String -> IO ()
+writeString f l fname size clr pos str = addDraw l (ws undoBuf, ws bgBuf)
 	where ws bf = do
-		(x, y) <- topLeft f xc yc
+		(x, y) <- getPosition f pos
 		writeStringXT (fDisplay f) (bf $ fBufs f) fname size clr x y str
 
-drawImage :: Field -> Layer -> FilePath -> Double -> Double -> Double -> Double -> IO ()
-drawImage f l fp xc yc w h = addDraw l (di undoBuf, di bgBuf)
+drawImage :: Field -> Layer -> FilePath -> Position -> Double -> Double -> IO ()
+drawImage f l fp pos w h = addDraw l (di undoBuf, di bgBuf)
 	where di bf = do
-		(x, y) <- topLeft f xc yc
+		(x, y) <- getPosition f pos
 		X.drawImageXT (fDisplay f) (bf $ fBufs f) (gcForeground $ fGCs f)
 			fp x y (round w) (round h)
 
-fillPolygon :: Field -> Layer -> [(Double, Double)] -> Color -> IO ()
-fillPolygon f l psc clr = addDraw l (fp undoBuf, fp bgBuf)
+fillPolygon :: Field -> Layer -> [Position] -> Color -> IO ()
+fillPolygon f l poss clr = addDraw l (fp undoBuf, fp bgBuf)
 	where fp bf = do
+		let psc = map (\Center{posX = x, posY = y} -> (x, y)) poss
 		ps <- mapM (fmap (uncurry Point) . uncurry (topLeft f)) psc
 		setForegroundXT (fDisplay f) (gcForeground $ fGCs f) clr
 		X.fillPolygonXT (fDisplay f) (bf $ fBufs f) (gcForeground $ fGCs f) ps
 
-fillRectangle ::
-	Field -> Layer -> Double -> Double -> Double -> Double -> Color -> IO ()
-fillRectangle f l xc0 yc0 w h clr = addDraw l (fr undoBuf, fr bgBuf)
+fillRectangle :: Field -> Layer -> Position -> Double -> Double -> Color -> IO ()
+fillRectangle f l p w h clr = addDraw l (fr undoBuf, fr bgBuf)
 	where fr bf = do
-		(x0, y0) <- topLeft f xc0 yc0
+--		(x0, y0) <- topLeft f xc0 yc0
+		(x0, y0) <- getPosition f p
 		setForegroundXT (fDisplay f) (gcForeground $ fGCs f) clr
 		X.fillRectangle (fDisplay f) (bf $ fBufs f) (gcForeground $ fGCs f)
 			x0 y0 (round w) (round h)
 
 drawLineBuf :: Field -> (Bufs -> Pixmap) -> Int -> Color ->
-	Double -> Double -> Double -> Double -> IO ()
-drawLineBuf f bf lw c x1_ y1_ x2_ y2_ = do
-	(x1, y1) <- topLeft f x1_ y1_
-	(x2, y2) <- topLeft f x2_ y2_
+	X.Position -> X.Position -> X.Position -> X.Position -> IO ()
+drawLineBuf f bf lw c x1 y1 x2 y2 = do
 	drawLineXT (fDisplay f) (gcForeground $ fGCs f) (bf $ fBufs f) lw c
 		x1 y1 x2 y2
 
-topLeft :: Field -> Double -> Double -> IO (Position, Position)
+getPosition :: Field -> Position -> IO (X.Position, X.Position)
+getPosition f (Center x y) = topLeft f x y
+getPosition _ (TopLeft x y) = return (round x, round y)
+
+topLeft :: Field -> Double -> Double -> IO (X.Position, X.Position)
 topLeft f x y = do
 	(width, height) <- fieldSize f
 	return (round x + round (width / 2), - round y + round (height / 2))
@@ -307,17 +312,20 @@ topLeft f x y = do
 addCharacter :: Field -> IO Character
 addCharacter = makeCharacter . fLayers
 
-drawCharacter :: Field -> Character -> Color -> [(Double, Double)] -> IO ()
+drawCharacter :: Field -> Character -> Color -> [Position] -> IO ()
 drawCharacter f c clr sh = setCharacter c $ drawShape f clr sh
 
-drawCharacterAndLine ::	Field -> Character -> Color -> [(Double, Double)] ->
-	Double -> Double -> Double -> Double -> Double -> IO ()
-drawCharacterAndLine f c clr sh lw x1 y1 x2 y2 = setCharacter c $
-	drawShape f clr sh >> drawLineBuf f topBuf (round lw) clr x1 y1 x2 y2
+drawCharacterAndLine ::	Field -> Character -> Color -> [Position] ->
+	Double -> Position -> Position -> IO () -- Double -> Double -> Double -> Double -> IO ()
+drawCharacterAndLine f c clr sh lw p1 p2 = do
+	(x1, y1) <- getPosition f p1
+	(x2, y2) <- getPosition f p2
+	setCharacter c $
+		drawShape f clr sh >> drawLineBuf f topBuf (round lw) clr x1 y1 x2 y2
 
-drawShape :: Field -> Color -> [(Double, Double)] -> IO ()
+drawShape :: Field -> Color -> [Position] -> IO ()
 drawShape f clr psc = do
-	ps <- mapM (fmap (uncurry Point) . uncurry (topLeft f)) psc
+	ps <- mapM (fmap (uncurry Point) . getPosition f) psc -- uncurry (topLeft f)) psc
 	setForegroundXT (fDisplay f) (gcForeground $ fGCs f) clr
 	X.fillPolygonXT (fDisplay f) (topBuf $ fBufs f) (gcForeground $ fGCs f) ps
 
