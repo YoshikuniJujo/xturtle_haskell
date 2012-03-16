@@ -38,7 +38,7 @@ import Graphics.X11.Turtle.Field(
 	fillRectangle,
 	addCharacter, drawCharacter, drawCharacterAndLine, clearCharacter,
 	onclick, onrelease, ondrag, onmotion, onkeypress, drawImage, ontimer)
-import Text.XML.YJSVG(SVG(..), Position(..))
+import Text.XML.YJSVG(SVG(..), Position(..), topleft)
 
 import Control.Concurrent(threadDelay)
 import Control.Monad(when, unless, forM_)
@@ -53,6 +53,7 @@ moveTurtle :: Field -> Character -> Layer -> TurtleState -> TurtleState -> IO ()
 moveTurtle _ _ _ _ TurtleState{sleep = Just t} = threadDelay $ 1000 * t
 moveTurtle f _ _ _ TurtleState{flush = True} = flushField f True $ return ()
 moveTurtle f c l t0 t1 = do
+	(w, h) <- fieldSize f
 	when (undo t1) $ flushField f fl $ do
 		when (clear t0) redraw
 		when (isJust $ draw t0) $ do
@@ -61,7 +62,7 @@ moveTurtle f c l t0 t1 = do
 	when (visible t1) $ do
 		forM_ (directions t0 t1) $ \dir -> flushField f fl $
 			drawT dir (position t0) >> threadDelay (interval t0)
-		forM_ (positions t0 t1) $ \p -> flushField f fl $
+		forM_ (positions w h t0 t1) $ \p -> flushField f fl $
 			drawT (direction t1) p >> threadDelay (interval t0)
 		flushField f fl $ drawT (direction t1) $ position t1
 	when (bgcolor t0 /= bgcolor t1) $
@@ -87,21 +88,24 @@ drawSVG f l (Image pos w h fp) = drawImage f l fp pos w h
 drawSVG _ _ (Fill _) = return ()
 drawSVG _ _ _ = error "not implemented"
 
-positions :: TurtleState -> TurtleState -> [Position]
-positions t0 t1 = case positionStep t0 of
+positions :: Double -> Double -> TurtleState -> TurtleState -> [Position]
+positions w h t0 t1 = case positionStep t0 of
 	Nothing -> []
-	Just step -> case map position [t0, t1] of
-			[Center x0 y0, Center x1 y1] ->
-				let dist = ((x1 - x0) ** 2 + (y1 - y0) ** 2) ** (1/2) in
-				map (uncurry Center) $ take (floor $ dist / step) $ zip
-					[x0, x0 + step * (x1 - x0) / dist .. ]
-					[y0, y0 + step * (y1 - y0) / dist .. ]
-			[TopLeft x0 y0, TopLeft x1 y1] ->
-				let dist = ((x1 - x0) ** 2 + (y1 - y0) ** 2) ** (1/2) in
-				map (uncurry TopLeft) $ take (floor $ dist / step) $ zip
-					[x0, x0 + step * (x1 - x0) / dist .. ]
-					[y0, y0 + step * (y1 - y0) / dist .. ]
-			_ -> []
+	Just step -> getPositions w h (position t0) (position t1) step
+
+getPositions :: Double -> Double -> Position -> Position -> Double -> [Position]
+getPositions w h p1 p2 step = case (p1, p2) of
+	(Center x0 y0, Center x1 y1) ->
+		let dist = ((x1 - x0) ** 2 + (y1 - y0) ** 2) ** (1/2) in
+		map (uncurry Center) $ take (floor $ dist / step) $ zip
+			[x0, x0 + step * (x1 - x0) / dist .. ]
+			[y0, y0 + step * (y1 - y0) / dist .. ]
+	(TopLeft x0 y0, TopLeft x1 y1) ->
+		let dist = ((x1 - x0) ** 2 + (y1 - y0) ** 2) ** (1/2) in
+		map (uncurry TopLeft) $ take (floor $ dist / step) $ zip
+			[x0, x0 + step * (x1 - x0) / dist .. ]
+			[y0, y0 + step * (y1 - y0) / dist .. ]
+	_ -> getPositions w h (topleft w h p1) (topleft w h p2) step
 
 directions :: TurtleState -> TurtleState -> [Double]
 directions t0 t1 = case directionStep t0 of

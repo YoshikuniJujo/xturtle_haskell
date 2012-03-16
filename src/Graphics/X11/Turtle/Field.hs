@@ -285,15 +285,17 @@ drawImage f l fp pos w h = addDraw l (di undoBuf, di bgBuf)
 fillPolygon :: Field -> Layer -> [Position] -> Color -> IO ()
 fillPolygon f l poss clr = addDraw l (fp undoBuf, fp bgBuf)
 	where fp bf = do
-		let psc = map (\Center{posX = x, posY = y} -> (x, y)) poss
-		ps <- mapM (fmap (uncurry Point) . uncurry (topLeft f)) psc
+		ps <- mapM (getPoint f) poss
 		setForegroundXT (fDisplay f) (gcForeground $ fGCs f) clr
 		X.fillPolygonXT (fDisplay f) (bf $ fBufs f) (gcForeground $ fGCs f) ps
+
+getPoint :: Field -> Position -> IO Point
+getPoint f (Center x y) = fmap (uncurry Point) $ topLeft f x y
+getPoint _ (TopLeft x y) = return $ Point (round x) (round y)
 
 fillRectangle :: Field -> Layer -> Position -> Double -> Double -> Color -> IO ()
 fillRectangle f l p w h clr = addDraw l (fr undoBuf, fr bgBuf)
 	where fr bf = do
---		(x0, y0) <- topLeft f xc0 yc0
 		(x0, y0) <- getPosition f p
 		setForegroundXT (fDisplay f) (gcForeground $ fGCs f) clr
 		X.fillRectangle (fDisplay f) (bf $ fBufs f) (gcForeground $ fGCs f)
