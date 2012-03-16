@@ -1,8 +1,9 @@
 module Graphics.X11.Turtle.Field(
 	-- * types and classes
-	Field,
+	Field(coordinates),
 	Layer,
 	Character,
+	Coordinates(..),
 
 	-- * open and close
 	openField,
@@ -69,6 +70,8 @@ import Data.Convertible(convert)
 
 --------------------------------------------------------------------------------
 
+data Coordinates = C | TL
+
 data Field = Field{
 	fDisplay :: Display, fWindow :: Window, fBufs :: Bufs, fGCs :: GCs,
 	fIC :: XIC, fDel :: Atom, fSize :: IORef (Dimension, Dimension),
@@ -81,7 +84,8 @@ data Field = Field{
 
 	fLayers :: IORef Layers, fRunning :: IORef [ThreadId],
 	fLock, fClose, fEnd :: Chan (),
-	fInputChan :: Chan InputType
+	fInputChan :: Chan InputType,
+	coordinates :: IORef Coordinates
  }
 
 makeField :: Display -> Window -> Bufs -> GCs -> XIC -> Atom ->
@@ -96,6 +100,7 @@ makeField dpy win bufs gcs ic del sizeRef ls = do
 	running <- newIORef []
 	[lock, close, end] <- replicateM 3 newChan
 	inputChan <- newChan
+	coord <- newIORef C
 	writeChan lock ()
 	return Field{
 		fDisplay = dpy, fWindow = win, fBufs = bufs, fGCs = gcs,
@@ -106,7 +111,8 @@ makeField dpy win bufs gcs ic del sizeRef ls = do
 
 		fLayers = ls,
 		fRunning = running,
-		fLock = lock, fClose = close, fEnd = end, fInputChan = inputChan
+		fLock = lock, fClose = close, fEnd = end, fInputChan = inputChan,
+		coordinates = coord
 	 }
 
 --------------------------------------------------------------------------------
@@ -188,7 +194,10 @@ processEvent f e ev = case ev of
 			_ks = fromMaybe xK_VoidSymbol mks
 		readIORef (fKeypress f) >>= fmap and . ($ str) . mapM
 	ButtonEvent{} -> do
-		pos <- center (ev_x ev) (ev_y ev)
+		coord <- readIORef $ coordinates f
+		pos <- case coord of
+			C -> center (ev_x ev) (ev_y ev)
+			TL -> return (fromIntegral $ ev_x ev, fromIntegral $ ev_y ev)
 		let	buttonN = fromIntegral $ ev_button ev
 		case ev_event_type ev of
 			et	| et == buttonPress -> do
@@ -256,10 +265,8 @@ addLayer = makeLayer . fLayers
 drawLine :: Field -> Layer -> Double -> Color -> Position -> Position -> IO ()
 --	Double -> Double -> Double -> Double -> IO ()
 drawLine f l lw clr p1 p2 = do -- x1 y1 x2 y2 = do
-	(x1, y1) <- getPosition f p1
-	(x2, y2) <- getPosition f p2
-	addDraw l (drawLineBuf f undoBuf (round lw) clr x1 y1 x2 y2,
-		drawLineBuf f bgBuf (round lw) clr x1 y1 x2 y2)
+	addDraw l (drawLineBuf f undoBuf (round lw) clr p1 p2,
+		drawLineBuf f bgBuf (round lw) clr p1 p2)
 
 writeString :: Field -> Layer -> String -> Double -> Color -> Position ->
 	String -> IO ()
@@ -292,9 +299,11 @@ fillRectangle f l p w h clr = addDraw l (fr undoBuf, fr bgBuf)
 		X.fillRectangle (fDisplay f) (bf $ fBufs f) (gcForeground $ fGCs f)
 			x0 y0 (round w) (round h)
 
-drawLineBuf :: Field -> (Bufs -> Pixmap) -> Int -> Color ->
-	X.Position -> X.Position -> X.Position -> X.Position -> IO ()
-drawLineBuf f bf lw c x1 y1 x2 y2 = do
+drawLineBuf :: Field -> (Bufs -> Pixmap) -> Int -> Color -> Position -> Position -> IO ()
+--	X.Position -> X.Position -> X.Position -> X.Position -> IO ()
+drawLineBuf f bf lw c p1 p2 = do
+	(x1, y1) <- getPosition f p1
+	(x2, y2) <- getPosition f p2
 	drawLineXT (fDisplay f) (gcForeground $ fGCs f) (bf $ fBufs f) lw c
 		x1 y1 x2 y2
 
@@ -318,10 +327,8 @@ drawCharacter f c clr sh = setCharacter c $ drawShape f clr sh
 drawCharacterAndLine ::	Field -> Character -> Color -> [Position] ->
 	Double -> Position -> Position -> IO () -- Double -> Double -> Double -> Double -> IO ()
 drawCharacterAndLine f c clr sh lw p1 p2 = do
-	(x1, y1) <- getPosition f p1
-	(x2, y2) <- getPosition f p2
 	setCharacter c $
-		drawShape f clr sh >> drawLineBuf f topBuf (round lw) clr x1 y1 x2 y2
+		drawShape f clr sh >> drawLineBuf f topBuf (round lw) clr p1 p2
 
 drawShape :: Field -> Color -> [Position] -> IO ()
 drawShape f clr psc = do

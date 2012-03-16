@@ -12,6 +12,7 @@ main :: IO ()
 main = do
 	n <- fmap (read . head) getArgs
 	f <- openField
+	onkeypress f $ return . (/= 'q')
 	t <- newTurtle f
 	penup t
 	threadDelay 1000000

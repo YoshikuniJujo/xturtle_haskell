@@ -1,8 +1,9 @@
 module Graphics.X11.Turtle.Move (
 	-- * types
-	Field,
+	Field(coordinates),
 	Layer,
 	Character,
+	Coordinates(..),
 
 	-- * process Field
 	openField,
@@ -30,7 +31,7 @@ module Graphics.X11.Turtle.Move (
 
 import Graphics.X11.Turtle.State(TurtleState(..))
 import Graphics.X11.Turtle.Field(
-	Field, Layer, Character,
+	Field(coordinates), Layer, Character, Coordinates(..),
 	openField, closeField, waitField, fieldSize,
 	forkField, flushField, fieldColor,
 	addLayer, drawLine, writeString, undoLayer, clearLayer, fillPolygon,
@@ -61,7 +62,7 @@ moveTurtle f c l t0 t1 = do
 		forM_ (directions t0 t1) $ \dir -> flushField f fl $
 			drawT dir (position t0) >> threadDelay (interval t0)
 		forM_ (positions t0 t1) $ \p -> flushField f fl $
-			drawT (direction t1) (uncurry Center p) >> threadDelay (interval t0)
+			drawT (direction t1) p >> threadDelay (interval t0)
 		flushField f fl $ drawT (direction t1) $ position t1
 	when (bgcolor t0 /= bgcolor t1) $
 		flushField f fl $ fieldColor f l $ bgcolor t1
@@ -86,15 +87,21 @@ drawSVG f l (Image pos w h fp) = drawImage f l fp pos w h
 drawSVG _ _ (Fill _) = return ()
 drawSVG _ _ _ = error "not implemented"
 
-positions :: TurtleState -> TurtleState -> [(Double, Double)]
+positions :: TurtleState -> TurtleState -> [Position]
 positions t0 t1 = case positionStep t0 of
 	Nothing -> []
-	Just step -> take (floor $ dist / step) $ zip
-		[x0, x0 + step * (x1 - x0) / dist .. ]
-		[y0, y0 + step * (y1 - y0) / dist .. ]
-	where
-	[Center x0 y0, Center x1 y1] = map position [t0, t1]
-	dist = ((x1 - x0) ** 2 + (y1 - y0) ** 2) ** (1/2)
+	Just step -> case map position [t0, t1] of
+			[Center x0 y0, Center x1 y1] ->
+				let dist = ((x1 - x0) ** 2 + (y1 - y0) ** 2) ** (1/2) in
+				map (uncurry Center) $ take (floor $ dist / step) $ zip
+					[x0, x0 + step * (x1 - x0) / dist .. ]
+					[y0, y0 + step * (y1 - y0) / dist .. ]
+			[TopLeft x0 y0, TopLeft x1 y1] ->
+				let dist = ((x1 - x0) ** 2 + (y1 - y0) ** 2) ** (1/2) in
+				map (uncurry TopLeft) $ take (floor $ dist / step) $ zip
+					[x0, x0 + step * (x1 - x0) / dist .. ]
+					[y0, y0 + step * (y1 - y0) / dist .. ]
+			_ -> []
 
 directions :: TurtleState -> TurtleState -> [Double]
 directions t0 t1 = case directionStep t0 of
@@ -112,3 +119,8 @@ drawTurtle f c t d p0@Center{posX = px, posY = py} = maybe (drawCharacter f c (p
 	where
 	sp = let (sx, sy) = shapesize t in
 		map (uncurry Center . ((+ px) *** (+ py)) . rotate d . ((* sx) *** (* sy))) $ shape t
+drawTurtle f c t d p0@TopLeft{posX = px, posY = py} = maybe (drawCharacter f c (pencolor t) sp)
+	(drawCharacterAndLine f c (pencolor t) sp (pensize t) p0)
+	where
+	sp = let (sx, sy) = shapesize t in
+		map (uncurry TopLeft . ((+ px) *** (+ py)) . rotate (- d) . ((* sx) *** (* sy))) $ shape t

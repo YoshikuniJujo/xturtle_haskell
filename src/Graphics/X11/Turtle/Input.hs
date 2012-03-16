@@ -39,7 +39,7 @@ data TurtleInput
 	| PositionStep (Maybe Double)
 	| DirectionStep (Maybe Double)
 	| Undonum Int
-	| Goto Double Double
+	| Goto Position
 	| Rotate Double
 	| Write String Double String
 	| PutImage FilePath Double Double
@@ -66,11 +66,15 @@ inputToTurtle :: [TurtleState] -> TurtleState -> [TurtleInput] -> [TurtleState]
 inputToTurtle [] ts0 (Undo : tis) = ts0 : inputToTurtle [] ts0 tis
 inputToTurtle (tsb : tsbs) _ (Undo : tis) =
 	let ts1 = tsb{undo = True} in ts1 : inputToTurtle tsbs ts1 tis
-inputToTurtle tsbs ts0 (Forward len : tis) = let
-	Center x0 y0 = position ts0
-	x = x0 + len * cos (direction ts0)
-	y = y0 + len * sin (direction ts0) in
-	inputToTurtle tsbs ts0 $ Goto x y : tis
+inputToTurtle tsbs ts0 (Forward len : tis) = case position ts0 of
+	Center x0 y0 -> let
+		x = x0 + len * cos (direction ts0)
+		y = y0 + len * sin (direction ts0) in
+		inputToTurtle tsbs ts0 $ Goto (Center x y) : tis
+	TopLeft x0 y0 -> let
+		x = x0 + len * cos (direction ts0)
+		y = y0 - len * sin (direction ts0) in
+		inputToTurtle tsbs ts0 $ Goto (TopLeft x y) : tis
 inputToTurtle tsbs ts0 (TurnLeft dd : tis) = inputToTurtle tsbs ts0 $
 	Rotate (direction ts0 * degrees ts0 / (2 * pi) + dd) : tis
 inputToTurtle tsbs ts0 (ti : tis) =
@@ -87,29 +91,25 @@ nextTurtle t (SetFill f) = (clearState t){
 	fill = f,
 	draw = if fill t && not f then Just fl else Nothing,
 	drawed = if fill t && not f then fl : drawed t else drawed t,
-	fillPoints = [(x0, y0) | f]}
+	fillPoints = [position t | f]}
 	where
-	Center x0 y0 = position t
-	fl = Polyline (uncurry Center `map` fillPoints t)
-		(pencolor t) (pencolor t) 0
+	fl = Polyline (fillPoints t) (pencolor t) (pencolor t) 0
 nextTurtle t (SetPoly p) = (clearState t){
 	poly = p,
-	polyPoints = let Center x y = position t in
-		if p then [(x, y)] else polyPoints t}
+	polyPoints = if p then [position t] else polyPoints t}
 nextTurtle t (SetVisible v) = (clearState t){visible = v}
 nextTurtle t (Degrees ds) = (clearState t){degrees = ds}
 nextTurtle t (PositionStep ps) = (clearState t){positionStep = ps}
 nextTurtle t (DirectionStep ds) = (clearState t){directionStep = ds}
 nextTurtle t (Undonum un) = (clearState t){undonum = un}
-nextTurtle t (Goto x y) = (clearState t){
-	position = Center x y,
+nextTurtle t (Goto pos) = (clearState t){
+	position = pos,
 	draw = if pendown t then Just ln else Nothing,
 	drawed = if pendown t then ln : drawed t else drawed t,
-	fillPoints = if fill t then (x, y) : fillPoints t else fillPoints t,
-	polyPoints = if poly t then (x, y) : polyPoints t else polyPoints t}
+	fillPoints = if fill t then pos : fillPoints t else fillPoints t,
+	polyPoints = if poly t then pos : polyPoints t else polyPoints t}
 	where
-	Center x0 y0 = position t
-	ln = Line (Center x0 y0) (Center x y) (pencolor t) (pensize t)
+	ln = Line pos (position t) (pencolor t) (pensize t)
 nextTurtle t (Rotate d) = (clearState t){direction = d * 2 * pi / degrees t}
 nextTurtle t (Write fnt sz str) = (clearState t){
 	draw = Just txt, drawed = txt : drawed t}

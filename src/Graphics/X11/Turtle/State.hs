@@ -26,8 +26,8 @@ data TurtleState = TurtleState {
 	undonum :: Int,
 	draw :: Maybe SVG,
 	drawed :: [SVG],
-	fillPoints :: [(Double, Double)],
-	polyPoints :: [(Double, Double)],
+	fillPoints :: [Position],
+	polyPoints :: [Position],
 	sleep :: Maybe Int,
 	stepbystep :: Bool,
 	flush :: Bool}

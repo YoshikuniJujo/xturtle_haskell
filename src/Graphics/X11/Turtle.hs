@@ -82,7 +82,10 @@ module Graphics.X11.Turtle (
 	-- * save and load
 	getInputs,
 	sendInputs,
-	getSVG
+	getSVG,
+
+	-- * others
+	topleft
 ) where
 
 import Graphics.X11.Turtle.Data(shapeTable, speedTable)
@@ -91,15 +94,16 @@ import Graphics.X11.Turtle.Input(
 	turtleSeries, direction, visible, undonum, drawed, polyPoints)
 import qualified Graphics.X11.Turtle.Input as S(position, degrees, pendown)
 import Graphics.X11.Turtle.Move(
-	Field, Layer, Character,
+	Field(coordinates), Layer, Character, Coordinates(..),
 	openField, closeField, forkField, waitField, fieldSize, flushField,
 	moveTurtle, addLayer, clearLayer, addCharacter, clearCharacter,
 	onclick, onrelease, ondrag, onmotion, onkeypress, ontimer)
 import Text.XML.YJSVG(Position(..), SVG(..), Color(..))
+import qualified Text.XML.YJSVG as S (center, topleft)
 
 import Control.Concurrent(Chan, writeChan, ThreadId, killThread)
 import Control.Monad(replicateM_, zipWithM_)
-import Data.IORef(IORef, newIORef, readIORef, modifyIORef)
+import Data.IORef(IORef, newIORef, readIORef, modifyIORef, writeIORef)
 import Data.IORef.Tools(atomicModifyIORef_)
 import Data.Fixed(mod')
 import Data.Maybe(fromJust)
@@ -107,7 +111,7 @@ import Data.Maybe(fromJust)
 --------------------------------------------------------------------------------
 
 xturtleVersion :: (Int, String)
-xturtleVersion = (58, "0.1.7")
+xturtleVersion = (59, "0.1.7a")
 
 --------------------------------------------------------------------------------
 
@@ -171,18 +175,34 @@ forward t = input t . Forward
 backward t = forward t . negate
 
 goto :: Turtle -> Double -> Double -> IO ()
-goto t x y = input t $ Goto x y
+goto t@Turtle{field = f} x y = do
+	coord <- readIORef $ coordinates f
+	input t $ Goto $ case coord of
+		C -> Center x y
+		TL -> TopLeft x y
 
 setx, sety :: Turtle -> Double -> IO ()
-setx t x = do
-	Center _ y <- position' t
-	input t $ Goto x y
-sety t y = do
-	Center x _ <- position' t
-	input t $ Goto x y
+setx t@Turtle{field = f} x = do
+	w <- windowWidth t
+	h <- windowHeight t
+	pos <- position' t
+	coord <- readIORef $ coordinates f
+	input t $ Goto $ case coord of
+		C -> let Center _ y = S.center w h pos in Center x y
+		TL -> let TopLeft _ y = S.topleft w h pos in TopLeft x y
+sety t@Turtle{field = f} y = do
+	w <- windowWidth t
+	h <- windowHeight t
+	pos <- position' t
+	coord <- readIORef $ coordinates f
+	input t $ Goto $ case coord of
+		C -> let Center x _ = S.center w h pos in Center x y
+		TL -> let TopLeft x _ = S.topleft w h pos in TopLeft x y
 
 left, right, setheading :: Turtle -> Double -> IO ()
-left t = input t . TurnLeft
+left t@Turtle{field = f} d = do
+	coord <- readIORef $ coordinates f
+	input t $ TurnLeft $ case coord of C -> d; TL -> d
 right t = left t . negate
 setheading t = input t . Rotate
 
@@ -267,7 +287,16 @@ beginpoly = (`input` SetPoly True)
 endpoly :: Turtle -> IO [(Double, Double)]
 endpoly t@Turtle{stateIndex = si, states = s} = do
 	input t $ SetPoly False
-	fmap (polyPoints . (s !!)) $ readIORef si
+	fmap (polyPoints . (s !!)) (readIORef si) >>= mapM (getPos t)
+
+getPos :: Turtle -> Position -> IO (Double, Double)
+getPos t@Turtle{field = f} pos = do
+	w <- windowWidth t
+	h <- windowHeight t
+	coord <- readIORef $ coordinates f
+	return $ case coord of
+		C -> let Center x y = S.center w h pos in (x, y)
+		TL -> let TopLeft x y = S.topleft w h pos in (x, y)
 
 pencolor :: ColorClass c => Turtle -> c -> IO ()
 pencolor t = input t . Pencolor . getColor
@@ -284,17 +313,28 @@ radians = (`degrees` (2 * pi))
 --------------------------------------------------------------------------------
 
 position :: Turtle -> IO (Double, Double)
-position Turtle{stateIndex = si, states = s} = do
-	Center x y <- fmap (S.position . (s !!)) $ readIORef si
-	return (x, y)
+position t@Turtle{field = f, stateIndex = si, states = s} = do
+	w <- windowWidth t
+	h <- windowHeight t
+	pos <- fmap (S.position . (s !!)) $ readIORef si
+	coord <- readIORef $ coordinates f
+	case coord of
+		C -> let Center x y = S.center w h pos in return (x, y)
+		TL -> let TopLeft x y = S.topleft w h pos in return (x, y)
 
 position' :: Turtle -> IO Position
-position' Turtle{stateIndex = si, states = s} =
-	fmap (S.position . (s !!)) $ readIORef si
+position' t@Turtle{field = f, stateIndex = si, states = s} = do
+	w <- windowWidth t
+	h <- windowHeight t
+	pos <- fmap (S.position . (s !!)) $ readIORef si
+	coord <- readIORef $ coordinates f
+	return $ case coord of
+		C -> S.center w h pos
+		TL -> S.topleft w h pos
 
 xcor, ycor :: Turtle -> IO Double
-xcor = fmap posX . position'
-ycor = fmap posY . position'
+xcor = fmap fst . position
+ycor = fmap snd . position
 
 heading :: Turtle -> IO Double
 heading t@Turtle{stateIndex = si, states = s} = do
@@ -338,3 +378,8 @@ sendInputs t = mapM_ (input t)
 
 getSVG :: Turtle -> IO [SVG]
 getSVG t = fmap (reverse . drawed . (states t !!)) $ readIORef $ stateIndex t
+
+--------------------------------------------------------------------------------
+
+topleft ::  Field -> IO ()
+topleft f = writeIORef (coordinates f) TL
