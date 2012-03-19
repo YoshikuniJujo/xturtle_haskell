@@ -263,8 +263,7 @@ addLayer :: Field -> IO Layer
 addLayer = makeLayer . fLayers
 
 drawLine :: Field -> Layer -> Double -> Color -> Position -> Position -> IO ()
---	Double -> Double -> Double -> Double -> IO ()
-drawLine f l lw clr p1 p2 = do -- x1 y1 x2 y2 = do
+drawLine f l lw clr p1 p2 =
 	addDraw l (drawLineBuf f undoBuf (round lw) clr p1 p2,
 		drawLineBuf f bgBuf (round lw) clr p1 p2)
 
@@ -328,9 +327,8 @@ drawCharacter f c clr sh = character c $ drawShape f clr sh
 
 drawCharacterAndLine ::	Field -> Character -> Color -> [Position] ->
 	Double -> Position -> Position -> IO () -- Double -> Double -> Double -> Double -> IO ()
-drawCharacterAndLine f c clr sh lw p1 p2 = do
-	character c $
-		drawShape f clr sh >> drawLineBuf f topBuf (round lw) clr p1 p2
+drawCharacterAndLine f c clr sh lw p1 p2 = character c $
+	drawShape f clr sh >> drawLineBuf f topBuf (round lw) clr p1 p2
 
 drawShape :: Field -> Color -> [Position] -> IO ()
 drawShape f clr psc = do

@@ -184,21 +184,23 @@ goto t@Turtle{field = f} x y = do
 
 setx, sety :: Turtle -> Double -> IO ()
 setx t@Turtle{field = f} x = do
-	w <- windowWidth t
-	h <- windowHeight t
-	pos <- position' t
+	(w, h, pos) <- posAndSize t
 	coord <- readIORef $ coordinates f
 	input t $ Goto $ case coord of
 		C -> let Center _ y = S.center w h pos in Center x y
 		TL -> let TopLeft _ y = S.topleft w h pos in TopLeft x y
 sety t@Turtle{field = f} y = do
-	w <- windowWidth t
-	h <- windowHeight t
-	pos <- position' t
+	(w, h, pos) <- posAndSize t
 	coord <- readIORef $ coordinates f
 	input t $ Goto $ case coord of
 		C -> let Center x _ = S.center w h pos in Center x y
 		TL -> let TopLeft x _ = S.topleft w h pos in TopLeft x y
+
+posAndSize :: Turtle -> IO (Double, Double, Position)
+posAndSize t = do
+	(w, h) <- windowSize t
+	pos <- position' t
+	return (w, h, pos)
 
 left, right, setheading :: Turtle -> Double -> IO ()
 left t@Turtle{field = f} d = do
@@ -314,14 +316,11 @@ radians = (`degrees` (2 * pi))
 --------------------------------------------------------------------------------
 
 position :: Turtle -> IO (Double, Double)
-position t@Turtle{field = f, stateIndex = si, states = s} = do
-	w <- windowWidth t
-	h <- windowHeight t
-	pos <- fmap (S.position . (s !!)) $ readIORef si
-	coord <- readIORef $ coordinates f
-	case coord of
-		C -> let Center x y = S.center w h pos in return (x, y)
-		TL -> let TopLeft x y = S.topleft w h pos in return (x, y)
+position t = do
+	pos <- position' t
+	return $ case pos of
+		Center x y -> (x, y)
+		TopLeft x y -> (x, y)
 
 position' :: Turtle -> IO Position
 position' t@Turtle{field = f, stateIndex = si, states = s} = do
@@ -366,6 +365,9 @@ isvisible t = fmap (visible . (states t !!)) $ readIORef $ stateIndex t
 windowWidth, windowHeight :: Turtle -> IO Double
 windowWidth = fmap fst . fieldSize . field
 windowHeight = fmap snd . fieldSize . field
+
+windowSize :: Turtle -> IO (Double, Double)
+windowSize = fieldSize . field
 
 --------------------------------------------------------------------------------
 

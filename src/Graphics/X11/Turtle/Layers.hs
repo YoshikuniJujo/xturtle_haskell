@@ -26,7 +26,7 @@ import Data.List.Tools(setAt, modifyAt)
 --------------------------------------------------------------------------------
 
 data Layers = Layers{
-	undoNum :: Int,
+	buffSize :: Int,
 	clearLayersAction :: IO (),
 	undoLayersAction :: IO (),
 	clearCharactersAction :: IO (),
@@ -50,7 +50,7 @@ data Character = Character{
 
 newLayers :: Int -> IO () -> IO () -> IO () -> IO (IORef Layers)
 newLayers un cla ula cca = newIORef Layers{
-	undoNum = un,
+	buffSize = un,
 	clearLayersAction = cla,
 	undoLayersAction = ula,
 	clearCharactersAction = cca,
@@ -86,9 +86,9 @@ addDraw :: Layer -> (IO (), IO ()) -> IO ()
 addDraw Layer{layerId = lid, layerLayers = rls} acts@(_, act) = do
 	readIORef rls >>= \ls -> do
 		act >> clearCharactersAction ls >> sequence_ (characters ls)
-		unless (length (layers ls !! lid) < undoNum ls) $
+		unless (length (layers ls !! lid) < buffSize ls) $
 			fst $ head $ layers ls !! lid
-	atomicModifyIORef_ rls $ \ls -> if length (layers ls !! lid) < undoNum ls
+	atomicModifyIORef_ rls $ \ls -> if length (layers ls !! lid) < buffSize ls
 		then ls{layers = modifyAt (layers ls) lid (++ [acts])}
 		else let (a, _) : as = layers ls !! lid in ls{
 			layers = setAt (layers ls) lid $ as ++ [acts],
