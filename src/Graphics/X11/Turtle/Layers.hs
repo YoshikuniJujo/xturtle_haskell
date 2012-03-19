@@ -27,14 +27,13 @@ import Data.List.Tools(setAt, modifyAt)
 
 data Layers = Layers{
 	buffSize :: Int,
-	clearLayersAction :: IO (),
-	undoLayersAction :: IO (),
-	clearCharactersAction :: IO (),
-	layerBackground :: [IO ()],
-	buffed :: [IO ()],
+	clearBuffers :: IO (),
+	clearLayers :: IO (),
+	clearCharacters :: IO (),
+	backgrounds :: [IO ()],
+	buffers :: [IO ()],
 	layers :: [[(IO (), IO ())]],
-	characters :: [IO ()]
- }
+	characters :: [IO ()]}
 
 data Layer = Layer{
 	layerId :: Int,
@@ -51,11 +50,11 @@ data Character = Character{
 newLayers :: Int -> IO () -> IO () -> IO () -> IO (IORef Layers)
 newLayers un cla ula cca = newIORef Layers{
 	buffSize = un,
-	clearLayersAction = cla,
-	undoLayersAction = ula,
-	clearCharactersAction = cca,
-	layerBackground = [],
-	buffed = [],
+	clearBuffers = cla,
+	clearLayers = ula,
+	clearCharacters = cca,
+	backgrounds = [],
+	buffers = [],
 	layers = [],
 	characters = []
  }
@@ -63,8 +62,8 @@ newLayers un cla ula cca = newIORef Layers{
 makeLayer :: IORef Layers -> IO Layer
 makeLayer rls = atomicModifyIORef rls $ \ls -> (ls{
 		layers = layers ls ++ [[]],
-		buffed = buffed ls ++ [return ()],
-		layerBackground = layerBackground ls ++[return ()]},
+		buffers = buffers ls ++ [return ()],
+		backgrounds = backgrounds ls ++[return ()]},
 	Layer{layerId = length $ layers ls, layerLayers = rls})
 
 makeCharacter :: IORef Layers -> IO Character
@@ -77,28 +76,28 @@ makeCharacter rls = atomicModifyIORef rls $ \ls ->
 
 redrawLayers :: IORef Layers -> IO ()
 redrawLayers rls = readIORef rls >>= \ls -> do
-	sequence_ $ layerBackground ls
-	clearLayersAction ls >> sequence_ (buffed ls)
-	undoLayersAction ls >> mapM_ snd (concat $ layers ls)
-	clearCharactersAction ls >> sequence_ (characters ls)
+	sequence_ $ backgrounds ls
+	clearBuffers ls >> sequence_ (buffers ls)
+	clearLayers ls >> mapM_ snd (concat $ layers ls)
+	clearCharacters ls >> sequence_ (characters ls)
 
 addDraw :: Layer -> (IO (), IO ()) -> IO ()
 addDraw Layer{layerId = lid, layerLayers = rls} acts@(_, act) = do
 	readIORef rls >>= \ls -> do
-		act >> clearCharactersAction ls >> sequence_ (characters ls)
+		act >> clearCharacters ls >> sequence_ (characters ls)
 		unless (length (layers ls !! lid) < buffSize ls) $
 			fst $ head $ layers ls !! lid
 	atomicModifyIORef_ rls $ \ls -> if length (layers ls !! lid) < buffSize ls
 		then ls{layers = modifyAt (layers ls) lid (++ [acts])}
 		else let (a, _) : as = layers ls !! lid in ls{
 			layers = setAt (layers ls) lid $ as ++ [acts],
-			buffed = modifyAt (buffed ls) lid (>> a)}
+			buffers = modifyAt (buffers ls) lid (>> a)}
 
 background, setBackground :: Layer -> IO () -> IO ()
 background = setBackground
 setBackground Layer{layerId = lid, layerLayers = rls} act = do
 	atomicModifyIORef_ rls $ \ls ->
-		ls{layerBackground = setAt (layerBackground ls) lid act}
+		ls{backgrounds = setAt (backgrounds ls) lid act}
 	redrawLayers rls
 
 undoLayer :: Layer -> IO Bool
@@ -107,15 +106,15 @@ undoLayer Layer{layerId = lid, layerLayers = rls} = do
 		then (ls, False)
 		else (ls{layers = modifyAt (layers ls) lid init}, True)
 	when done $ readIORef rls >>= \ls -> do
-		undoLayersAction ls >> mapM_ snd (concat $ layers ls)
-		clearCharactersAction ls >> sequence_ (characters ls)
+		clearLayers ls >> mapM_ snd (concat $ layers ls)
+		clearCharacters ls >> sequence_ (characters ls)
 	return done
 
 clearLayer :: Layer -> IO ()
 clearLayer Layer{layerId = lid, layerLayers = rls} = do
 	atomicModifyIORef_ rls $ \ls -> ls{
 		layers = setAt (layers ls) lid [],
-		buffed = setAt (buffed ls) lid $ return ()}
+		buffers = setAt (buffers ls) lid $ return ()}
 	redrawLayers rls
 
 character, setCharacter :: Character -> IO () -> IO ()
@@ -124,4 +123,4 @@ setCharacter Character{characterId = cid, characterLayers = rls} act = do
 	atomicModifyIORef_ rls $ \ls ->
 		ls{characters = setAt (characters ls) cid act}
 	readIORef rls >>= \ls ->
-		clearCharactersAction ls >> sequence_ (characters ls)
+		clearCharacters ls >> sequence_ (characters ls)
