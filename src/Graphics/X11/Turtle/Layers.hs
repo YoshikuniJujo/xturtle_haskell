@@ -26,14 +26,14 @@ import Data.List.Tools(setAt, modifyAt)
 --------------------------------------------------------------------------------
 
 data Layers = Layers{
-	buffSize :: Int,
-	clearBuffers :: IO (),
-	clearLayers :: IO (),
-	clearCharacters :: IO (),
 	backgrounds :: [IO ()],
 	buffers :: [IO ()],
 	layers :: [[(IO (), IO ())]],
-	characters :: [IO ()]}
+	characters :: [IO ()],
+	buffSize :: Int,
+	clearBuffers :: IO (),
+	clearLayers :: IO (),
+	clearCharacters :: IO ()}
 
 data Layer = Layer{
 	layerId :: Int,
@@ -48,22 +48,21 @@ data Character = Character{
 --------------------------------------------------------------------------------
 
 newLayers :: Int -> IO () -> IO () -> IO () -> IO (IORef Layers)
-newLayers un cla ula cca = newIORef Layers{
-	buffSize = un,
-	clearBuffers = cla,
-	clearLayers = ula,
-	clearCharacters = cca,
+newLayers bsize cbuf clyr cchr = newIORef Layers{
 	backgrounds = [],
 	buffers = [],
 	layers = [],
-	characters = []
- }
+	characters = [],
+	buffSize = bsize,
+	clearBuffers = cbuf,
+	clearLayers = clyr,
+	clearCharacters = cchr}
 
 makeLayer :: IORef Layers -> IO Layer
 makeLayer rls = atomicModifyIORef rls $ \ls -> (ls{
-		layers = layers ls ++ [[]],
+		backgrounds = backgrounds ls ++[return ()],
 		buffers = buffers ls ++ [return ()],
-		backgrounds = backgrounds ls ++[return ()]},
+		layers = layers ls ++ [[]]},
 	Layer{layerId = length $ layers ls, layerLayers = rls})
 
 makeCharacter :: IORef Layers -> IO Character
@@ -76,8 +75,7 @@ makeCharacter rls = atomicModifyIORef rls $ \ls ->
 
 redrawLayers :: IORef Layers -> IO ()
 redrawLayers rls = readIORef rls >>= \ls -> do
-	sequence_ $ backgrounds ls
-	clearBuffers ls >> sequence_ (buffers ls)
+	clearBuffers ls >> sequence_ (backgrounds ls) >> sequence_ (buffers ls)
 	clearLayers ls >> mapM_ snd (concat $ layers ls)
 	clearCharacters ls >> sequence_ (characters ls)
 
@@ -113,6 +111,7 @@ undoLayer Layer{layerId = lid, layerLayers = rls} = do
 clearLayer :: Layer -> IO ()
 clearLayer Layer{layerId = lid, layerLayers = rls} = do
 	atomicModifyIORef_ rls $ \ls -> ls{
+		backgrounds = setAt (backgrounds ls) lid $ return (),
 		layers = setAt (layers ls) lid [],
 		buffers = setAt (buffers ls) lid $ return ()}
 	redrawLayers rls

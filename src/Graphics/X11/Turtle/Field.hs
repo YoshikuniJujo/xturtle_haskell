@@ -125,7 +125,8 @@ openField = do
 	sizeRef <- newIORef size
 	let getSize = readIORef sizeRef
 	ls <- newLayers 50 
-		(getSize >>= uncurry (X.fillRectangle dpy ub gcb 0 0))
+		(setForegroundXT dpy gcb (RGB 255 255 255) >>
+			getSize >>= uncurry (X.fillRectangle dpy ub gcb 0 0))
 		(getSize >>= \(w, h) -> copyArea dpy ub bb gcf 0 0 w h 0 0)
 		(getSize >>= \(w, h) -> copyArea dpy bb tb gcf 0 0 w h 0 0)
 	f <- makeField dpy win bufs gcs ic del sizeRef ls
