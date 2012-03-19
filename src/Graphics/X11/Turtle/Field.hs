@@ -1,16 +1,16 @@
 module Graphics.X11.Turtle.Field(
 	-- * types and classes
 	Field,
-	coordinates,
-	setCoordinates,
 	Layer,
 	Character,
 	Coordinates(..),
 
-	-- * open and close
+	-- * basic functions
 	openField,
 	closeField,
 	waitField,
+	setCoordinates,
+	coordinates,
 	fieldSize,
 
 	-- * draw
@@ -21,8 +21,8 @@ module Graphics.X11.Turtle.Field(
 	-- ** to Layer
 	addLayer,
 	drawLine,
-	fillPolygon,
 	fillRectangle,
+	fillPolygon,
 	writeString,
 	drawImage,
 	undoLayer,
@@ -72,7 +72,7 @@ import Data.Convertible(convert)
 
 --------------------------------------------------------------------------------
 
-data Coordinates = C | TL
+data Coordinates = CoordCenter | CoordTopLeft
 
 data Field = Field{
 	fDisplay :: Display, fWindow :: Window, fBufs :: Bufs, fGCs :: GCs,
@@ -108,7 +108,7 @@ makeField dpy win bufs gcs ic del sizeRef ls = do
 	running <- newIORef []
 	[lock, close, end] <- replicateM 3 newChan
 	inputChan <- newChan
-	coord <- newIORef C
+	coord <- newIORef CoordCenter
 	writeChan lock ()
 	return Field{
 		fDisplay = dpy, fWindow = win, fBufs = bufs, fGCs = gcs,
@@ -205,8 +205,8 @@ processEvent f e ev = case ev of
 	ButtonEvent{} -> do
 		coord <- readIORef $ coordinatesRef f
 		pos <- case coord of
-			C -> center (ev_x ev) (ev_y ev)
-			TL -> return (fromIntegral $ ev_x ev, fromIntegral $ ev_y ev)
+			CoordCenter -> center (ev_x ev) (ev_y ev)
+			CoordTopLeft -> return (fromIntegral $ ev_x ev, fromIntegral $ ev_y ev)
 		let	buttonN = fromIntegral $ ev_button ev
 		case ev_event_type ev of
 			et	| et == buttonPress -> do

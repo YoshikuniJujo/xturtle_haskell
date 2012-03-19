@@ -179,22 +179,22 @@ goto :: Turtle -> Double -> Double -> IO ()
 goto t@Turtle{field = f} x y = do
 	coord <- coordinates f
 	input t $ Goto $ case coord of
-		C -> Center x y
-		TL -> TopLeft x y
+		CoordCenter -> Center x y
+		CoordTopLeft -> TopLeft x y
 
 setx, sety :: Turtle -> Double -> IO ()
 setx t@Turtle{field = f} x = do
 	(w, h, pos) <- posAndSize t
 	coord <- coordinates f
 	input t $ Goto $ case coord of
-		C -> let Center _ y = S.center w h pos in Center x y
-		TL -> let TopLeft _ y = S.topleft w h pos in TopLeft x y
+		CoordCenter -> let Center _ y = S.center w h pos in Center x y
+		CoordTopLeft -> let TopLeft _ y = S.topleft w h pos in TopLeft x y
 sety t@Turtle{field = f} y = do
 	(w, h, pos) <- posAndSize t
 	coord <- coordinates f
 	input t $ Goto $ case coord of
-		C -> let Center x _ = S.center w h pos in Center x y
-		TL -> let TopLeft x _ = S.topleft w h pos in TopLeft x y
+		CoordCenter -> let Center x _ = S.center w h pos in Center x y
+		CoordTopLeft -> let TopLeft x _ = S.topleft w h pos in TopLeft x y
 
 posAndSize :: Turtle -> IO (Double, Double, Position)
 posAndSize t = do
@@ -205,7 +205,7 @@ posAndSize t = do
 left, right, setheading :: Turtle -> Double -> IO ()
 left t@Turtle{field = f} d = do
 	coord <- coordinates f
-	input t $ TurnLeft $ case coord of C -> d; TL -> d
+	input t $ TurnLeft $ case coord of CoordCenter -> d; CoordTopLeft -> d
 right t = left t . negate
 setheading t = input t . Rotate
 
@@ -298,8 +298,8 @@ getPos t@Turtle{field = f} pos = do
 	h <- windowHeight t
 	coord <- coordinates f
 	return $ case coord of
-		C -> let Center x y = S.center w h pos in (x, y)
-		TL -> let TopLeft x y = S.topleft w h pos in (x, y)
+		CoordCenter -> let Center x y = S.center w h pos in (x, y)
+		CoordTopLeft -> let TopLeft x y = S.topleft w h pos in (x, y)
 
 pencolor :: ColorClass c => Turtle -> c -> IO ()
 pencolor t = input t . Pencolor . getColor
@@ -329,8 +329,8 @@ position' t@Turtle{field = f, stateIndex = si, states = s} = do
 	pos <- fmap (S.position . (s !!)) $ readIORef si
 	coord <- coordinates f
 	return $ case coord of
-		C -> S.center w h pos
-		TL -> S.topleft w h pos
+		CoordCenter -> S.center w h pos
+		CoordTopLeft -> S.topleft w h pos
 
 xcor, ycor :: Turtle -> IO Double
 xcor = fmap fst . position
@@ -385,7 +385,7 @@ getSVG t = fmap (reverse . drawed . (states t !!)) $ readIORef $ stateIndex t
 --------------------------------------------------------------------------------
 
 topleft ::  Field -> IO ()
-topleft = flip setCoordinates TL
+topleft = flip setCoordinates CoordTopLeft
 
 center :: Field -> IO ()
-center = flip setCoordinates C
+center = flip setCoordinates CoordCenter
