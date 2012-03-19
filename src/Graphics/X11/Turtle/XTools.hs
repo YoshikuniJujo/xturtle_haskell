@@ -6,7 +6,7 @@ module Graphics.X11.Turtle.XTools(
 	XIC,
 	Atom,
 	Point(..),
-	Position,
+	PositionXT,
 	Dimension,
 	Bufs,
 	undoBuf,
@@ -31,7 +31,7 @@ module Graphics.X11.Turtle.XTools(
 	flush,
 	setForegroundXT,
 	copyArea,
-	fillRectangle,
+	fillRectangleXT,
 	fillPolygonXT,
 	drawLineXT,
 	writeStringXT,
@@ -96,6 +96,7 @@ import Foreign.Marshal.Array(advancePtr)
 
 --------------------------------------------------------------------------------
 
+type PositionXT = Position
 data Bufs = Bufs{undoBuf :: Pixmap, bgBuf :: Pixmap, topBuf :: Pixmap}
 data GCs = GCs{gcForeground :: GC, gcBackground :: GC}
 
@@ -146,6 +147,10 @@ setForegroundXT dpy gc (ColorName cn) =
 	(allocNamedColor dpy (defaultColormap dpy $ defaultScreen dpy) cn
 		>>= setForeground dpy gc . color_pixel . fst)
 	`catch` const (putStrLn "no such color")
+
+fillRectangleXT :: Display -> Drawable -> GC ->
+	Position -> Position -> Dimension -> Dimension -> IO ()
+fillRectangleXT = fillRectangle
 
 fillPolygonXT :: Display -> Drawable -> GC -> [Point] -> IO ()
 fillPolygonXT d w gc ps = fillPolygon d w gc ps nonconvex coordModeOrigin

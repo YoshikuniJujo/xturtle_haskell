@@ -44,28 +44,26 @@ module Graphics.X11.Turtle.Field(
 ) where
 
 import Graphics.X11.Turtle.XTools(
-	Display, Window, Pixmap, Atom, Point(..), Dimension,
+	Display, Window, Pixmap, Atom, Point(..), PositionXT, Dimension,
 	XEventPtr, XIC, Bufs, undoBuf, bgBuf, topBuf,
 	GCs, gcForeground, gcBackground, Event(..),
 	forkIOX, openWindow, destroyWindow, closeDisplay, windowSize,
 	flush, copyArea, setForegroundXT,
-	drawLineXT, writeStringXT,
+	drawLineXT, fillRectangleXT, fillPolygonXT, writeStringXT, drawImageXT,
 	allocaXEvent, waitEvent, pending, nextEvent, getEvent, filterEvent,
 	utf8LookupString, buttonPress, buttonRelease, xK_VoidSymbol)
-import qualified Graphics.X11.Turtle.XTools as X(fillPolygonXT, drawImageXT,
-	fillRectangle, Position)
 import Graphics.X11.Turtle.Layers(
 	Layers, Layer, Character, newLayers, redrawLayers,
-	makeLayer, addDraw, background, undoLayer, clearLayer,
+	makeLayer, background, addDraw, undoLayer, clearLayer,
 	makeCharacter, character)
 import Text.XML.YJSVG(Position(..), Color(..))
 
-import Control.Monad(forever, replicateM, when, join, unless)
+import Control.Monad(when, unless, forever, replicateM, join)
 import Control.Monad.Tools(doWhile_, doWhile, whenM)
 import Control.Arrow((***))
 import Control.Concurrent(
-	forkIO, ThreadId, killThread, Chan, newChan, readChan, writeChan, threadDelay)
-
+	ThreadId, forkIO, killThread, threadDelay,
+	Chan, newChan, readChan, writeChan)
 import Data.IORef(IORef, newIORef, readIORef, writeIORef, modifyIORef)
 import Data.Maybe(fromMaybe)
 import Data.Convertible(convert)
@@ -134,7 +132,7 @@ openField = do
 	let getSize = readIORef sizeRef
 	ls <- newLayers 50 
 		(setForegroundXT dpy gcb (RGB 255 255 255) >>
-			getSize >>= uncurry (X.fillRectangle dpy ub gcb 0 0))
+			getSize >>= uncurry (fillRectangleXT dpy ub gcb 0 0))
 		(getSize >>= \(w, h) -> copyArea dpy ub bb gcf 0 0 w h 0 0)
 		(getSize >>= \(w, h) -> copyArea dpy bb tb gcf 0 0 w h 0 0)
 	f <- makeField dpy win bufs gcs ic del sizeRef ls
@@ -263,7 +261,7 @@ flushField f real act = do
 fieldColor :: Field -> Layer -> Color -> IO ()
 fieldColor f l c = background l $ do
 	setForegroundXT (fDisplay f) (gcBackground $ fGCs f) c
-	readIORef (fSize f) >>= uncurry (X.fillRectangle
+	readIORef (fSize f) >>= uncurry (fillRectangleXT
 		(fDisplay f) (undoBuf $ fBufs f) (gcBackground $ fGCs f) 0 0)
 
 --------------------------------------------------------------------------------
@@ -287,7 +285,7 @@ drawImage :: Field -> Layer -> FilePath -> Position -> Double -> Double -> IO ()
 drawImage f l fp pos w h = addDraw l (di undoBuf, di bgBuf)
 	where di bf = do
 		(x, y) <- getPosition f pos
-		X.drawImageXT (fDisplay f) (bf $ fBufs f) (gcForeground $ fGCs f)
+		drawImageXT (fDisplay f) (bf $ fBufs f) (gcForeground $ fGCs f)
 			fp x y (round w) (round h)
 
 fillPolygon :: Field -> Layer -> [Position] -> Color -> IO ()
@@ -295,33 +293,32 @@ fillPolygon f l poss clr = addDraw l (fp undoBuf, fp bgBuf)
 	where fp bf = do
 		ps <- mapM (getPoint f) poss
 		setForegroundXT (fDisplay f) (gcForeground $ fGCs f) clr
-		X.fillPolygonXT (fDisplay f) (bf $ fBufs f) (gcForeground $ fGCs f) ps
-
-getPoint :: Field -> Position -> IO Point
-getPoint f (Center x y) = fmap (uncurry Point) $ topLeft f x y
-getPoint _ (TopLeft x y) = return $ Point (round x) (round y)
+		fillPolygonXT (fDisplay f) (bf $ fBufs f) (gcForeground $ fGCs f) ps
 
 fillRectangle :: Field -> Layer -> Position -> Double -> Double -> Color -> IO ()
 fillRectangle f l p w h clr = addDraw l (fr undoBuf, fr bgBuf)
 	where fr bf = do
 		(x0, y0) <- getPosition f p
 		setForegroundXT (fDisplay f) (gcForeground $ fGCs f) clr
-		X.fillRectangle (fDisplay f) (bf $ fBufs f) (gcForeground $ fGCs f)
+		fillRectangleXT (fDisplay f) (bf $ fBufs f) (gcForeground $ fGCs f)
 			x0 y0 (round w) (round h)
 
 drawLineBuf :: Field -> (Bufs -> Pixmap) -> Int -> Color -> Position -> Position -> IO ()
---	X.Position -> X.Position -> X.Position -> X.Position -> IO ()
 drawLineBuf f bf lw c p1 p2 = do
 	(x1, y1) <- getPosition f p1
 	(x2, y2) <- getPosition f p2
 	drawLineXT (fDisplay f) (gcForeground $ fGCs f) (bf $ fBufs f) lw c
 		x1 y1 x2 y2
 
-getPosition :: Field -> Position -> IO (X.Position, X.Position)
+getPosition :: Field -> Position -> IO (PositionXT, PositionXT)
 getPosition f (Center x y) = topLeft f x y
 getPosition _ (TopLeft x y) = return (round x, round y)
 
-topLeft :: Field -> Double -> Double -> IO (X.Position, X.Position)
+getPoint :: Field -> Position -> IO Point
+getPoint f (Center x y) = fmap (uncurry Point) $ topLeft f x y
+getPoint _ (TopLeft x y) = return $ Point (round x) (round y)
+
+topLeft :: Field -> Double -> Double -> IO (PositionXT, PositionXT)
 topLeft f x y = do
 	(width, height) <- fieldSize f
 	return (round x + round (width / 2), - round y + round (height / 2))
@@ -341,9 +338,9 @@ drawCharacterAndLine f c clr sh lw p1 p2 = character c $
 
 drawShape :: Field -> Color -> [Position] -> IO ()
 drawShape f clr psc = do
-	ps <- mapM (fmap (uncurry Point) . getPosition f) psc -- uncurry (topLeft f)) psc
+	ps <- mapM (fmap (uncurry Point) . getPosition f) psc
 	setForegroundXT (fDisplay f) (gcForeground $ fGCs f) clr
-	X.fillPolygonXT (fDisplay f) (topBuf $ fBufs f) (gcForeground $ fGCs f) ps
+	fillPolygonXT (fDisplay f) (topBuf $ fBufs f) (gcForeground $ fGCs f) ps
 
 clearCharacter :: Character -> IO ()
 clearCharacter c = character c $ return ()
