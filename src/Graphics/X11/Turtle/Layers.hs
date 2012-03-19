@@ -85,15 +85,15 @@ addDraw Layer{layerId = lid, layerLayers = rls} acts@(_, act) = do
 		act >> clearCharacters ls >> sequence_ (characters ls)
 		unless (length (layers ls !! lid) < buffSize ls) $
 			fst $ head $ layers ls !! lid
-	atomicModifyIORef_ rls $ \ls -> if length (layers ls !! lid) < buffSize ls
-		then ls{layers = modifyAt (layers ls) lid (++ [acts])}
-		else let (a, _) : as = layers ls !! lid in ls{
-			layers = setAt (layers ls) lid $ as ++ [acts],
-			buffers = modifyAt (buffers ls) lid (>> a)}
+	atomicModifyIORef_ rls $ \ls ->
+		if length (layers ls !! lid) < buffSize ls
+			then ls{layers = modifyAt (layers ls) lid (++ [acts])}
+			else let (a, _) : as = layers ls !! lid in ls{
+				layers = setAt (layers ls) lid $ as ++ [acts],
+				buffers = modifyAt (buffers ls) lid (>> a)}
 
-background, setBackground :: Layer -> IO () -> IO ()
-background = setBackground
-setBackground Layer{layerId = lid, layerLayers = rls} act = do
+background :: Layer -> IO () -> IO ()
+background Layer{layerId = lid, layerLayers = rls} act = do
 	atomicModifyIORef_ rls $ \ls ->
 		ls{backgrounds = setAt (backgrounds ls) lid act}
 	redrawLayers rls
@@ -112,13 +112,12 @@ clearLayer :: Layer -> IO ()
 clearLayer Layer{layerId = lid, layerLayers = rls} = do
 	atomicModifyIORef_ rls $ \ls -> ls{
 		backgrounds = setAt (backgrounds ls) lid $ return (),
-		layers = setAt (layers ls) lid [],
-		buffers = setAt (buffers ls) lid $ return ()}
+		buffers = setAt (buffers ls) lid $ return (),
+		layers = setAt (layers ls) lid []}
 	redrawLayers rls
 
-character, setCharacter :: Character -> IO () -> IO ()
-character = setCharacter
-setCharacter Character{characterId = cid, characterLayers = rls} act = do
+character :: Character -> IO () -> IO ()
+character Character{characterId = cid, characterLayers = rls} act = do
 	atomicModifyIORef_ rls $ \ls ->
 		ls{characters = setAt (characters ls) cid act}
 	readIORef rls >>= \ls ->
