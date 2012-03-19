@@ -1,6 +1,8 @@
 module Graphics.X11.Turtle.Move (
 	-- * types
-	Field(coordinates),
+	Field,
+	coordinates,
+	setCoordinates,
 	Layer,
 	Character,
 	Coordinates(..),
@@ -31,7 +33,7 @@ module Graphics.X11.Turtle.Move (
 
 import Graphics.X11.Turtle.State(TurtleState(..))
 import Graphics.X11.Turtle.Field(
-	Field(coordinates), Layer, Character, Coordinates(..),
+	Field, coordinates, setCoordinates, Layer, Character, Coordinates(..),
 	openField, closeField, waitField, fieldSize,
 	forkField, flushField, fieldColor,
 	addLayer, drawLine, writeString, undoLayer, clearLayer, fillPolygon,

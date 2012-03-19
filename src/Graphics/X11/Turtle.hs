@@ -95,7 +95,7 @@ import Graphics.X11.Turtle.Input(
 	turtleSeries, direction, visible, undonum, drawed, polyPoints)
 import qualified Graphics.X11.Turtle.Input as S(position, degrees, pendown)
 import Graphics.X11.Turtle.Move(
-	Field(coordinates), Layer, Character, Coordinates(..),
+	Field, coordinates, setCoordinates, Layer, Character, Coordinates(..),
 	openField, closeField, forkField, waitField, fieldSize, flushField,
 	moveTurtle, addLayer, clearLayer, addCharacter, clearCharacter,
 	onclick, onrelease, ondrag, onmotion, onkeypress, ontimer)
@@ -104,7 +104,7 @@ import qualified Text.XML.YJSVG as S (center, topleft)
 
 import Control.Concurrent(Chan, writeChan, ThreadId, killThread)
 import Control.Monad(replicateM_, zipWithM_)
-import Data.IORef(IORef, newIORef, readIORef, modifyIORef, writeIORef)
+import Data.IORef(IORef, newIORef, readIORef, modifyIORef)
 import Data.IORef.Tools(atomicModifyIORef_)
 import Data.Fixed(mod')
 import Data.Maybe(fromJust)
@@ -177,7 +177,7 @@ backward t = forward t . negate
 
 goto :: Turtle -> Double -> Double -> IO ()
 goto t@Turtle{field = f} x y = do
-	coord <- readIORef $ coordinates f
+	coord <- coordinates f
 	input t $ Goto $ case coord of
 		C -> Center x y
 		TL -> TopLeft x y
@@ -185,13 +185,13 @@ goto t@Turtle{field = f} x y = do
 setx, sety :: Turtle -> Double -> IO ()
 setx t@Turtle{field = f} x = do
 	(w, h, pos) <- posAndSize t
-	coord <- readIORef $ coordinates f
+	coord <- coordinates f
 	input t $ Goto $ case coord of
 		C -> let Center _ y = S.center w h pos in Center x y
 		TL -> let TopLeft _ y = S.topleft w h pos in TopLeft x y
 sety t@Turtle{field = f} y = do
 	(w, h, pos) <- posAndSize t
-	coord <- readIORef $ coordinates f
+	coord <- coordinates f
 	input t $ Goto $ case coord of
 		C -> let Center x _ = S.center w h pos in Center x y
 		TL -> let TopLeft x _ = S.topleft w h pos in TopLeft x y
@@ -204,7 +204,7 @@ posAndSize t = do
 
 left, right, setheading :: Turtle -> Double -> IO ()
 left t@Turtle{field = f} d = do
-	coord <- readIORef $ coordinates f
+	coord <- coordinates f
 	input t $ TurnLeft $ case coord of C -> d; TL -> d
 right t = left t . negate
 setheading t = input t . Rotate
@@ -296,7 +296,7 @@ getPos :: Turtle -> Position -> IO (Double, Double)
 getPos t@Turtle{field = f} pos = do
 	w <- windowWidth t
 	h <- windowHeight t
-	coord <- readIORef $ coordinates f
+	coord <- coordinates f
 	return $ case coord of
 		C -> let Center x y = S.center w h pos in (x, y)
 		TL -> let TopLeft x y = S.topleft w h pos in (x, y)
@@ -327,7 +327,7 @@ position' t@Turtle{field = f, stateIndex = si, states = s} = do
 	w <- windowWidth t
 	h <- windowHeight t
 	pos <- fmap (S.position . (s !!)) $ readIORef si
-	coord <- readIORef $ coordinates f
+	coord <- coordinates f
 	return $ case coord of
 		C -> S.center w h pos
 		TL -> S.topleft w h pos
@@ -385,7 +385,7 @@ getSVG t = fmap (reverse . drawed . (states t !!)) $ readIORef $ stateIndex t
 --------------------------------------------------------------------------------
 
 topleft ::  Field -> IO ()
-topleft f = writeIORef (coordinates f) TL
+topleft = flip setCoordinates TL
 
 center :: Field -> IO ()
-center f = writeIORef (coordinates f) C
+center = flip setCoordinates C

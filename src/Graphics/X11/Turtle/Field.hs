@@ -1,6 +1,8 @@
 module Graphics.X11.Turtle.Field(
 	-- * types and classes
-	Field(coordinates),
+	Field,
+	coordinates,
+	setCoordinates,
 	Layer,
 	Character,
 	Coordinates(..),
@@ -85,8 +87,14 @@ data Field = Field{
 	fLayers :: IORef Layers, fRunning :: IORef [ThreadId],
 	fLock, fClose, fEnd :: Chan (),
 	fInputChan :: Chan InputType,
-	coordinates :: IORef Coordinates
+	coordinatesRef :: IORef Coordinates
  }
+
+coordinates :: Field -> IO Coordinates
+coordinates = readIORef . coordinatesRef
+
+setCoordinates :: Field -> Coordinates -> IO ()
+setCoordinates = writeIORef . coordinatesRef
 
 makeField :: Display -> Window -> Bufs -> GCs -> XIC -> Atom ->
 	IORef (Dimension, Dimension) -> IORef Layers -> IO Field
@@ -112,7 +120,7 @@ makeField dpy win bufs gcs ic del sizeRef ls = do
 		fLayers = ls,
 		fRunning = running,
 		fLock = lock, fClose = close, fEnd = end, fInputChan = inputChan,
-		coordinates = coord
+		coordinatesRef = coord
 	 }
 
 --------------------------------------------------------------------------------
@@ -195,7 +203,7 @@ processEvent f e ev = case ev of
 			_ks = fromMaybe xK_VoidSymbol mks
 		readIORef (fKeypress f) >>= fmap and . ($ str) . mapM
 	ButtonEvent{} -> do
-		coord <- readIORef $ coordinates f
+		coord <- readIORef $ coordinatesRef f
 		pos <- case coord of
 			C -> center (ev_x ev) (ev_y ev)
 			TL -> return (fromIntegral $ ev_x ev, fromIntegral $ ev_y ev)
