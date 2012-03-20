@@ -9,7 +9,8 @@ module Graphics.X11.Turtle.Field(
 	openField,
 	closeField,
 	waitField,
-	setCoordinates,
+	topleft,
+	center,
 	coordinates,
 	fieldSize,
 
@@ -70,56 +71,52 @@ import Data.Convertible(convert)
 
 --------------------------------------------------------------------------------
 
-data Coordinates = CoordCenter | CoordTopLeft
-
 data Field = Field{
 	fDisplay :: Display, fWindow :: Window, fBufs :: Bufs, fGCs :: GCs,
 	fIC :: XIC, fDel :: Atom, fSize :: IORef (Dimension, Dimension),
 
 	fClick, fRelease :: IORef (Int -> Double -> Double -> IO Bool),
-	fDrag :: IORef (Double -> Double -> IO ()),
-	fMotion :: IORef (Double -> Double -> IO ()),
-	fKeypress :: IORef (Char -> IO Bool), fPressed :: IORef Bool,
+	fDrag, fMotion :: IORef (Double -> Double -> IO ()),
+	fKeypress :: IORef (Char -> IO Bool),
 	fTimerEvent :: IORef (IO Bool),
+	fPressed :: IORef Bool,
 
-	fLayers :: IORef Layers, fRunning :: IORef [ThreadId],
-	fLock, fClose, fEnd :: Chan (),
-	fInputChan :: Chan InputType,
-	coordinatesRef :: IORef Coordinates
- }
-
-coordinates :: Field -> IO Coordinates
-coordinates = readIORef . coordinatesRef
-
-setCoordinates :: Field -> Coordinates -> IO ()
-setCoordinates = writeIORef . coordinatesRef
+	fLayers :: IORef Layers, fInput :: Chan InputType,
+	fCoordinates :: IORef Coordinates, fLock, fClose, fEnd :: Chan (),
+	fRunning :: IORef [ThreadId]}
 
 makeField :: Display -> Window -> Bufs -> GCs -> XIC -> Atom ->
 	IORef (Dimension, Dimension) -> IORef Layers -> IO Field
 makeField dpy win bufs gcs ic del sizeRef ls = do
 	[click, release] <- replicateM 2 $ newIORef $ \_ _ _ -> return True
-	drag <- newIORef $ \_ _ -> return ()
-	motion <- newIORef $ \_ _ -> return ()
+	[drag, motion] <- replicateM 2 $ newIORef $ \_ _ -> return ()
 	keypress <- newIORef $ \_ -> return True
-	pressed <- newIORef False
 	timer <- newIORef $ return True
-	running <- newIORef []
-	[lock, close, end] <- replicateM 3 newChan
-	inputChan <- newChan
+	pressed <- newIORef False
+	input <- newChan
 	coord <- newIORef CoordCenter
+	[lock, close, end] <- replicateM 3 newChan
+	running <- newIORef []
 	writeChan lock ()
 	return Field{
 		fDisplay = dpy, fWindow = win, fBufs = bufs, fGCs = gcs,
 		fIC = ic, fDel = del, fSize = sizeRef,
 
-		fClick = click, fRelease = release, fDrag = drag, fMotion = motion,
-		fKeypress = keypress, fPressed = pressed, fTimerEvent = timer,
+		fClick = click, fRelease = release, fDrag = drag,
+		fMotion = motion, fKeypress = keypress, fTimerEvent = timer,
+		fPressed = pressed,
 
-		fLayers = ls,
-		fRunning = running,
-		fLock = lock, fClose = close, fEnd = end, fInputChan = inputChan,
-		coordinatesRef = coord
-	 }
+		fLayers = ls, fInput = input, fCoordinates = coord,
+		fLock = lock, fClose = close, fEnd = end, fRunning = running}
+
+data Coordinates = CoordCenter | CoordTopLeft
+
+coordinates :: Field -> IO Coordinates
+coordinates = readIORef . fCoordinates
+
+topleft, center :: Field -> IO ()
+topleft = flip (writeIORef . fCoordinates) CoordTopLeft
+center = flip (writeIORef . fCoordinates) CoordCenter
 
 --------------------------------------------------------------------------------
 
@@ -144,8 +141,7 @@ data InputType = XInput | End | Timer
 
 waitInput :: Field -> IO (Chan InputType, Chan ())
 waitInput f = do
---	go <- newChan
-	let	go = fInputChan f
+	let	go = fInput f
 	empty <- newChan
 	tid <- forkIOX $ forever $ do
 		waitEvent $ fDisplay f
@@ -201,9 +197,9 @@ processEvent f e ev = case ev of
 			_ks = fromMaybe xK_VoidSymbol mks
 		readIORef (fKeypress f) >>= fmap and . ($ str) . mapM
 	ButtonEvent{} -> do
-		coord <- readIORef $ coordinatesRef f
+		coord <- readIORef $ fCoordinates f
 		pos <- case coord of
-			CoordCenter -> center (ev_x ev) (ev_y ev)
+			CoordCenter -> cntr (ev_x ev) (ev_y ev)
 			CoordTopLeft -> return (fromIntegral $ ev_x ev, fromIntegral $ ev_y ev)
 		let	buttonN = fromIntegral $ ev_button ev
 		case ev_event_type ev of
@@ -217,7 +213,7 @@ processEvent f e ev = case ev of
 						($ pos) . uncurry . ($ buttonN)
 			_ -> error "not implement event"
 	MotionEvent{} -> do
-		pos <- center (ev_x ev) (ev_y ev)
+		pos <- cntr (ev_x ev) (ev_y ev)
 		whenM (readIORef $ fPressed f) $
 			readIORef (fDrag f) >>= ($ pos) . uncurry
 		readIORef (fMotion f) >>= ($ pos) . uncurry
@@ -225,7 +221,7 @@ processEvent f e ev = case ev of
 	ClientMessageEvent{} -> return $ convert (head $ ev_data ev) /= fDel f
 	_ -> return True
 	where
-	center x y = do
+	cntr x y = do
 		(w, h) <- fieldSize f
 		return (fromIntegral x - w / 2, fromIntegral (- y) + h / 2)
 
@@ -361,4 +357,4 @@ ontimer :: Field -> Int -> IO Bool -> IO ()
 ontimer f t fun = do
 	writeIORef (fTimerEvent f) fun
 	threadDelay $ t * 1000
-	writeChan (fInputChan f) Timer
+	writeChan (fInput f) Timer

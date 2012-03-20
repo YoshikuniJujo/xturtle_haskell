@@ -2,7 +2,8 @@ module Graphics.X11.Turtle.Move (
 	-- * types
 	Field,
 	coordinates,
-	setCoordinates,
+	topleft,
+	center,
 	Layer,
 	Character,
 	Coordinates(..),
@@ -33,14 +34,15 @@ module Graphics.X11.Turtle.Move (
 
 import Graphics.X11.Turtle.State(TurtleState(..))
 import Graphics.X11.Turtle.Field(
-	Field, coordinates, setCoordinates, Layer, Character, Coordinates(..),
+	Field, coordinates, topleft, center, Layer, Character, Coordinates(..),
 	openField, closeField, waitField, fieldSize,
 	forkField, flushField, fieldColor,
 	addLayer, drawLine, writeString, undoLayer, clearLayer, fillPolygon,
 	fillRectangle,
 	addCharacter, drawCharacter, drawCharacterAndLine, clearCharacter,
 	onclick, onrelease, ondrag, onmotion, onkeypress, drawImage, ontimer)
-import Text.XML.YJSVG(SVG(..), Position(..), topleft)
+import Text.XML.YJSVG(SVG(..), Position(..))
+import qualified Text.XML.YJSVG as S(topleft)
 
 import Control.Concurrent(threadDelay)
 import Control.Monad(when, unless, forM_)
@@ -107,7 +109,7 @@ getPositions w h p1 p2 step = case (p1, p2) of
 		map (uncurry TopLeft) $ take (floor $ dist / step) $ zip
 			[x0, x0 + step * (x1 - x0) / dist .. ]
 			[y0, y0 + step * (y1 - y0) / dist .. ]
-	_ -> getPositions w h (topleft w h p1) (topleft w h p2) step
+	_ -> getPositions w h (S.topleft w h p1) (S.topleft w h p2) step
 
 directions :: TurtleState -> TurtleState -> [Double]
 directions t0 t1 = case directionStep t0 of

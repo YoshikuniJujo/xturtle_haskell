@@ -95,7 +95,7 @@ import Graphics.X11.Turtle.Input(
 	turtleSeries, direction, visible, undonum, drawed, polyPoints)
 import qualified Graphics.X11.Turtle.Input as S(position, degrees, pendown)
 import Graphics.X11.Turtle.Move(
-	Field, coordinates, setCoordinates, Layer, Character, Coordinates(..),
+	Field, coordinates, topleft, center, Layer, Character, Coordinates(..),
 	openField, closeField, forkField, waitField, fieldSize, flushField,
 	moveTurtle, addLayer, clearLayer, addCharacter, clearCharacter,
 	onclick, onrelease, ondrag, onmotion, onkeypress, ontimer)
@@ -112,7 +112,7 @@ import Data.Maybe(fromJust)
 --------------------------------------------------------------------------------
 
 xturtleVersion :: (Int, String)
-xturtleVersion = (62, "0.1.8a")
+xturtleVersion = (63, "0.1.8b")
 
 --------------------------------------------------------------------------------
 
@@ -384,8 +384,10 @@ getSVG t = fmap (reverse . drawed . (states t !!)) $ readIORef $ stateIndex t
 
 --------------------------------------------------------------------------------
 
+{-
 topleft ::  Field -> IO ()
 topleft = flip setCoordinates CoordTopLeft
 
 center :: Field -> IO ()
 center = flip setCoordinates CoordCenter
+-}
