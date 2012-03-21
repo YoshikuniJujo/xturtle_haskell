@@ -1,7 +1,4 @@
-module Graphics.X11.Turtle.State (
-	TurtleState(..),
-	initialTurtleState
-) where
+module Graphics.X11.Turtle.State(TurtleState(..), initialTurtleState) where
 
 import Text.XML.YJSVG(Position(..), SVG(Fill), Color(RGB))
 
