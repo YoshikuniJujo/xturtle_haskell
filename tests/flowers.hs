@@ -72,6 +72,7 @@ flower t s = do
 	left t 90
 	forward t $ 5 * s
 	clear t
+	bgcolor t "blue"
 	replicateM_ 9 $ leaf t s >> right t 10
 	right t 180
 	penup t

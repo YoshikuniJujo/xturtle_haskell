@@ -65,7 +65,8 @@ import Control.Arrow((***))
 import Control.Concurrent(
 	ThreadId, forkIO, killThread, threadDelay,
 	Chan, newChan, readChan, writeChan)
-import Data.IORef(IORef, newIORef, readIORef, writeIORef, modifyIORef)
+import Data.IORef(IORef, newIORef, readIORef, writeIORef)
+import Data.IORef.Tools(atomicModifyIORef_)
 import Data.Maybe(fromMaybe)
 import Data.Convertible(convert)
 
@@ -126,7 +127,7 @@ openField = do
 	let	(ub, bb, tb) = (undoBuf bufs, bgBuf bufs, topBuf bufs)
 		(gcf, gcb) = (gcForeground gcs, gcBackground gcs)
 	sizeRef <- newIORef size
-	let getSize = readIORef sizeRef
+	let	getSize = readIORef sizeRef
 	ls <- newLayers 50 
 		(setForegroundXT dpy gcb (RGB 255 255 255) >>
 			getSize >>= uncurry (fillRectangleXT dpy ub gcb 0 0))
@@ -139,47 +140,42 @@ openField = do
 
 data InputType = XInput | End | Timer
 
-waitInput :: Field -> IO (Chan InputType, Chan ())
+waitInput :: Field -> IO (Chan ())
 waitInput f = do
-	let	go = fInput f
 	empty <- newChan
 	tid <- forkIOX $ forever $ do
 		waitEvent $ fDisplay f
-		writeChan go XInput
+		writeChan (fInput f) XInput
 		readChan empty
-	modifyIORef (fRunning f) (tid :)
+	atomicModifyIORef_ (fRunning f) (tid :)
 	_ <- forkIO $ do
 		readChan $ fClose f
 		killThread tid
-		writeChan go End
-	return (go, empty)
+		writeChan (fInput f) End
+	return empty
 
 runLoop :: Field -> IO ()
 runLoop f = allocaXEvent $ \e -> do
-	(go, empty) <- waitInput f
+	empty <- waitInput f
 	doWhile_ $ do
-		iType <- readChan go
-		cont' <- case iType of
+		iType <- readChan $ fInput f
+		cont <- case iType of
+			End -> return False
 			Timer -> do
 				c <- join $ readIORef $ fTimerEvent f
-				unless c $ readIORef (fRunning f) >>= mapM_ killThread
-				return c -- readIORef (fTimerEvent f) >>= k
-			_ -> return True
-		let	notEnd = case iType of
-				End -> False
-				_ -> True
-		cont <- doWhile True $ const $ do
-			evN <- pending $ fDisplay f
-			if evN > 0 then do
+				unless c $ readIORef (fRunning f)
+					>>= mapM_ killThread
+				return c
+			XInput -> doWhile undefined $ const $ do
+				evN <- pending $ fDisplay f
+				if evN <= 0 then return (True, False) else do
 					nextEvent (fDisplay f) e
 					filtered <- filterEvent e 0
 					if filtered then return (True, True)
 						else do	ev <- getEvent e
 							c <- processEvent f e ev
 							return (c, c)
-				else return (True, False)
-		if notEnd && cont && cont' then writeChan empty () >> return True
-			else return False
+		if cont then writeChan empty () >> return True else return False
 	readIORef (fRunning f) >>= mapM_ killThread
 	destroyWindow (fDisplay f) (fWindow f)
 	closeDisplay $ fDisplay f
@@ -239,7 +235,7 @@ fieldSize = fmap (fromIntegral *** fromIntegral) . readIORef . fSize
 forkField :: Field -> IO () -> IO ThreadId
 forkField f act = do
 	tid <- forkIOX act
-	modifyIORef (fRunning f) (tid :)
+	atomicModifyIORef_ (fRunning f) (tid :)
 	return tid
 
 flushField :: Field -> Bool -> IO a -> IO a
