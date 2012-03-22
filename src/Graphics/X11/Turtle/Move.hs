@@ -67,17 +67,13 @@ moveTurtle f c l t0 t1 = do
 		forM_ (positions w h t0 t1) $ \p -> flushField f fl $
 			drawT (direction t1) p >> threadDelay (interval t0)
 		flushField f fl $ drawT (direction t1) $ position t1
-	when (bgcolor t0 /= bgcolor t1) $
-		flushField f fl $ fieldColor f l $ bgcolor t1
 	unless (undo t1) $ flushField f fl $ do
 		when (visible t0 && not (visible t1)) $ clearCharacter c
 		when (clear t1) $ clearLayer l
 		maybe (return ()) (drawSVG f l) (draw t1)
 	where
 	fl = stepbystep t0
-	redraw = do
-		fieldColor f l $ bgcolor t1
-		mapM_ (drawSVG f l) $ reverse $ drawed t1
+	redraw = mapM_ (drawSVG f l) $ reverse $ drawed t1
 	drawT d p = drawTurtle f c t1 d p lineOrigin
 	lineOrigin	| undo t1 && pendown t0 = Just $ position t1
 			| pendown t1 = Just $ position t0
@@ -85,11 +81,11 @@ moveTurtle f c l t0 t1 = do
 
 drawSVG :: Field -> Layer -> SVG -> IO ()
 drawSVG f l (Line p0 p1 clr lw) = drawLine f l lw clr p0 p1
-drawSVG f l (Text pos sz clr fnt str) = writeString f l fnt sz clr pos str
 drawSVG f l (Polyline ps fc _ 0) = fillPolygon f l ps fc
 drawSVG f l (Rect pos w h 0 fc _) = fillRectangle f l pos w h fc
+drawSVG f l (Text pos sz clr fnt str) = writeString f l fnt sz clr pos str
 drawSVG f l (Image pos w h fp) = drawImage f l fp pos w h
-drawSVG _ _ (Fill _) = return ()
+drawSVG f l (Fill clr) = fieldColor f l clr
 drawSVG _ _ _ = error "not implemented"
 
 positions :: Double -> Double -> TurtleState -> TurtleState -> [Position]

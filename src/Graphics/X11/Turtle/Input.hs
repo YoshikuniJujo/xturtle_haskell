@@ -130,7 +130,7 @@ nextTurtle t (Dot sz) = (clearState t){
 	where
 	dot = Rect (position t) sz sz 0 (pencolor t) (pencolor t)
 nextTurtle t (Bgcolor c) = (clearState t){
-	bgcolor = c, drawed = init (drawed t) ++ [Fill c]}
+	draw = Just $ Fill c, drawed = init (drawed t) ++ [Fill c]}
 nextTurtle t Clear = (clearState t){clear = True, drawed = [last $ drawed t]}
 nextTurtle t (Sleep time) = (clearState t){sleep = Just time}
 nextTurtle t (SetFlush ss) = (clearState t){stepbystep = ss}
