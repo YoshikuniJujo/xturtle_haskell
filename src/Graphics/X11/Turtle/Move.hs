@@ -56,36 +56,35 @@ moveTurtle _ _ _ _ TurtleState{sleep = Just t} = threadDelay $ 1000 * t
 moveTurtle f _ _ _ TurtleState{flush = True} = flushField f True $ return ()
 moveTurtle f c l t0 t1 = do
 	(w, h) <- fieldSize f
-	when (undo t1) $ flushField f fl $ do
+	when (undo t1) $ fl $ do
 		when (clear t0) redraw
 		when (isJust $ draw t0) $ do
 			unlessM (undoLayer l) $ clearLayer l >> redraw
-			when (visible t1) $ drawT (direction t1) $ position t0
+			when (visible t1) $ drawTtl (direction t0) $ position t0
 	when (visible t1) $ do
-		forM_ (directions t0 t1) $ \dir -> flushField f fl $
-			drawT dir (position t0) >> threadDelay (interval t0)
-		forM_ (positions w h t0 t1) $ \p -> flushField f fl $
-			drawT (direction t1) p >> threadDelay (interval t0)
-		flushField f fl $ drawT (direction t1) $ position t1
-	unless (undo t1) $ flushField f fl $ do
-		when (visible t0 && not (visible t1)) $ clearCharacter c
-		when (clear t1) $ clearLayer l
-		maybe (return ()) (drawSVG f l) (draw t1)
+		forM_ (directions t0 t1) $ \dir -> fl $
+			drawTtl dir (position t0) >> threadDelay (interval t0)
+		forM_ (positions w h t0 t1) $ \p -> fl $
+			drawTtl (direction t1) p >> threadDelay (interval t0)
+		fl $ drawTtl (direction t1) $ position t1
+	when (visible t0 && not (visible t1)) $ fl $ clearCharacter c
+	when (clear t1) $ fl $ clearLayer l
+	unless (undo t1) $ fl $ maybe (return ()) (drawSVG f l) (draw t1)
 	where
-	fl = stepbystep t0
+	fl = flushField f $ stepbystep t0
 	redraw = mapM_ (drawSVG f l) $ reverse $ drawed t1
-	drawT d p = drawTurtle f c t1 d p lineOrigin
-	lineOrigin	| undo t1 && pendown t0 = Just $ position t1
-			| pendown t1 = Just $ position t0
-			| otherwise = Nothing
+	drawTtl dir pos = drawTurtle f c t1 dir pos begin
+	begin	| undo t1 && pendown t0 = Just $ position t1
+		| pendown t1 = Just $ position t0
+		| otherwise = Nothing
 
 drawSVG :: Field -> Layer -> SVG -> IO ()
 drawSVG f l (Line p0 p1 clr lw) = drawLine f l lw clr p0 p1
-drawSVG f l (Polyline ps fc _ 0) = fillPolygon f l ps fc
 drawSVG f l (Rect pos w h 0 fc _) = fillRectangle f l pos w h fc
+drawSVG f l (Polyline ps fc _ 0) = fillPolygon f l ps fc
+drawSVG f l (Fill clr) = fieldColor f l clr
 drawSVG f l (Text pos sz clr fnt str) = writeString f l fnt sz clr pos str
 drawSVG f l (Image pos w h fp) = drawImage f l fp pos w h
-drawSVG f l (Fill clr) = fieldColor f l clr
 drawSVG _ _ _ = error "not implemented"
 
 positions :: Double -> Double -> TurtleState -> TurtleState -> [Position]
