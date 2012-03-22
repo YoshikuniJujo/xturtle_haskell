@@ -77,7 +77,9 @@ moveTurtle f c l t0 t1 = do
 		maybe (return ()) (drawSVG f l) (draw t1)
 	where
 	fl = stepbystep t0
-	redraw = mapM_ (drawSVG f l) $ reverse $ drawed t1
+	redraw = do
+		fieldColor f l $ bgcolor t1
+		mapM_ (drawSVG f l) $ reverse $ drawed t1
 	drawT d p = drawTurtle f c t1 d p lineOrigin
 	lineOrigin	| undo t1 && pendown t0 = Just $ position t1
 			| pendown t1 = Just $ position t0
