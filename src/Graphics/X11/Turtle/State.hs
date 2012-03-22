@@ -1,6 +1,9 @@
-module Graphics.X11.Turtle.State(TurtleState(..), initialTurtleState) where
+module Graphics.X11.Turtle.State(
+	TurtleState(..), initialTurtleState, makeShape) where
 
 import Text.XML.YJSVG(Position(..), SVG(Fill), Color(RGB))
+import Control.Arrow((***))
+import Data.Tuple.Tools(rotate)
 
 data TurtleState = TurtleState {
 	position :: Position,
@@ -60,3 +63,12 @@ initialTurtleState = TurtleState {
 	positionStep = Just 10,
 	directionStep = Just $ pi / 18,
 	interval = 10000}
+
+makeShape :: TurtleState -> Double -> Position -> [Position]
+makeShape ts dir_ pos = (mkPos . move . rotate dir . resize) `map` shape ts
+	where
+	move = (+ posX pos) *** (+ posY pos)
+	resize = uncurry (***) $ ((*) *** (*)) $ shapesize ts
+	(mkPos, dir) = case pos of
+		Center{} -> (uncurry Center, dir_)
+		TopLeft{} -> (uncurry TopLeft, - dir_)

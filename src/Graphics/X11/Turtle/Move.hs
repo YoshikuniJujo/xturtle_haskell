@@ -32,7 +32,7 @@ module Graphics.X11.Turtle.Move(
 	ontimer
 ) where
 
-import Graphics.X11.Turtle.State(TurtleState(..))
+import Graphics.X11.Turtle.State(TurtleState(..), makeShape)
 import Graphics.X11.Turtle.Field(
 	Field, Layer, Character, Coordinates(..),
 	openField, closeField, fieldSize, coordinates, topleft, center,
@@ -47,9 +47,7 @@ import qualified Text.XML.YJSVG as S(topleft)
 import Control.Concurrent(threadDelay)
 import Control.Monad(when, unless, forM_)
 import Control.Monad.Tools(unlessM)
-import Control.Arrow((***))
 import Data.Maybe(isJust)
-import Data.Tuple.Tools(rotate)
 
 --------------------------------------------------------------------------------
 
@@ -124,30 +122,6 @@ directions t0 t1 = case directionStep t0 of
 
 drawTurtle :: Field -> Character -> TurtleState -> Double -> Position ->
 	Maybe Position -> IO ()
-drawTurtle f c ts dir pos = -- @Center{posX = px, posY = py} =
-	maybe (drawCharacter f c (pencolor ts) sp)
-		(drawCharacterAndLine f c (pencolor ts) sp (pensize ts) pos)
-	where
-	sp = getShape ts dir pos
-{-
-	where
-	sp = let (sx, sy) = shapesize ts in
-		map (uncurry Center . ((+ px) *** (+ py)) . rotate dir .
-			((* sx) *** (* sy))) $ shape ts
-drawTurtle f c ts dir pos@TopLeft{posX = px, posY = py} =
-	maybe (drawCharacter f c (pencolor ts) sp)
-		(drawCharacterAndLine f c (pencolor ts) sp (pensize ts) pos)
-	where
-	sp = let (sx, sy) = shapesize ts in
-		map (uncurry TopLeft . ((+ px) *** (+ py)) . rotate (- dir) .
-			((* sx) *** (* sy))) $ shape ts
--}
-
-getShape :: TurtleState -> Double -> Position -> [Position]
-getShape ts dir pos = let
-	(mkPos, d) = case pos of
-		Center{} -> (uncurry Center, dir)
-		TopLeft{} -> (uncurry TopLeft, - dir)
-	(sx, sy) = shapesize ts in
-	map (mkPos . ((+ posX pos) *** (+ posY pos)) . rotate d .
-		((* sx) *** (* sy))) $ shape ts
+drawTurtle f c ts@TurtleState{pencolor = clr} dir pos = maybe
+	(drawCharacter f c clr $ makeShape ts dir pos)
+	(drawCharacterAndLine f c clr (makeShape ts dir pos) (pensize ts) pos)
