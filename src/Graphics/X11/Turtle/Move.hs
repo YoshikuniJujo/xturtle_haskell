@@ -93,32 +93,28 @@ drawSVG _ _ (Fill _) = return ()
 drawSVG _ _ _ = error "not implemented"
 
 positions :: Double -> Double -> TurtleState -> TurtleState -> [Position]
-positions w h t0 t1 = case positionStep t0 of
-	Nothing -> []
-	Just step -> getPositions w h (position t0) (position t1) step
+positions w h t0 t1 =
+	maybe [] (mkPositions w h (position t0) (position t1)) $ positionStep t0
 
-getPositions :: Double -> Double -> Position -> Position -> Double -> [Position]
-getPositions w h p1 p2 step = case (p1, p2) of
-	(Center x0 y0, Center x1 y1) ->
-		let dist = ((x1 - x0) ** 2 + (y1 - y0) ** 2) ** (1/2) in
-		map (uncurry Center) $ take (floor $ dist / step) $ zip
+mkPositions :: Double -> Double -> Position -> Position -> Double -> [Position]
+mkPositions w h p1 p2 step = case (p1, p2) of
+	(Center x0 y0, Center x1 y1) -> map (uncurry Center) $ mp x0 y0 x1 y1
+	(TopLeft x0 y0, TopLeft x1 y1) -> map (uncurry TopLeft) $ mp x0 y0 x1 y1
+	_ -> mkPositions w h (S.topleft w h p1) (S.topleft w h p2) step
+	where
+	mp x0 y0 x1 y1 = let dist = ((x1 - x0) ** 2 + (y1 - y0) ** 2) ** (1 / 2)
+		in take (floor $ dist / step) $ zip
 			[x0, x0 + step * (x1 - x0) / dist .. ]
 			[y0, y0 + step * (y1 - y0) / dist .. ]
-	(TopLeft x0 y0, TopLeft x1 y1) ->
-		let dist = ((x1 - x0) ** 2 + (y1 - y0) ** 2) ** (1/2) in
-		map (uncurry TopLeft) $ take (floor $ dist / step) $ zip
-			[x0, x0 + step * (x1 - x0) / dist .. ]
-			[y0, y0 + step * (y1 - y0) / dist .. ]
-	_ -> getPositions w h (S.topleft w h p1) (S.topleft w h p2) step
 
 directions :: TurtleState -> TurtleState -> [Double]
 directions t0 t1 = case directionStep t0 of
 	Nothing -> []
-	Just step -> let dd = if de > ds then step else - step in
-		[ds, ds + dd .. de - dd]
-	where
-	ds = direction t0
-	de = direction t1
+	Just step -> [ds, ds + dd .. de - dd]
+		where
+		dd = if de > ds then step else - step
+		ds = direction t0
+		de = direction t1
 
 drawTurtle :: Field -> Character -> TurtleState -> Double -> Position ->
 	Maybe Position -> IO ()
