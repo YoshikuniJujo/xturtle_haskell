@@ -1,9 +1,6 @@
-module Graphics.X11.Turtle.Move (
+module Graphics.X11.Turtle.Move(
 	-- * types
 	Field,
-	coordinates,
-	topleft,
-	center,
 	Layer,
 	Character,
 	Coordinates(..),
@@ -11,17 +8,20 @@ module Graphics.X11.Turtle.Move (
 	-- * process Field
 	openField,
 	closeField,
-	forkField,
-	waitField,
 	fieldSize,
+	coordinates,
+	topleft,
+	center,
+	waitField,
 
 	-- * draws
+	forkField,
 	flushField,
-	moveTurtle,
 	addLayer,
 	clearLayer,
 	addCharacter,
 	clearCharacter,
+	moveTurtle,
 
 	-- * event
 	onclick,
@@ -34,13 +34,13 @@ module Graphics.X11.Turtle.Move (
 
 import Graphics.X11.Turtle.State(TurtleState(..))
 import Graphics.X11.Turtle.Field(
-	Field, coordinates, topleft, center, Layer, Character, Coordinates(..),
-	openField, closeField, waitField, fieldSize,
-	forkField, flushField, fieldColor,
-	addLayer, drawLine, writeString, undoLayer, clearLayer, fillPolygon,
-	fillRectangle,
-	addCharacter, drawCharacter, drawCharacterAndLine, clearCharacter,
-	onclick, onrelease, ondrag, onmotion, onkeypress, drawImage, ontimer)
+	Field, Layer, Character, Coordinates(..),
+	openField, closeField, fieldSize, coordinates, topleft, center,
+	waitField, forkField, flushField,
+	addLayer, clearLayer, addCharacter, clearCharacter,
+	onclick, onrelease, ondrag, onmotion, onkeypress, ontimer,
+	fieldColor, drawLine, fillRectangle, fillPolygon, writeString,
+	drawImage, undoLayer, drawCharacter, drawCharacterAndLine)
 import Text.XML.YJSVG(SVG(..), Position(..))
 import qualified Text.XML.YJSVG as S(topleft)
 
@@ -120,15 +120,32 @@ directions t0 t1 = case directionStep t0 of
 	ds = direction t0
 	de = direction t1
 
-drawTurtle :: Field -> Character -> TurtleState -> Double ->
-	Position -> Maybe Position -> IO ()
-drawTurtle f c t d p0@Center{posX = px, posY = py} = maybe (drawCharacter f c (pencolor t) sp)
-	(drawCharacterAndLine f c (pencolor t) sp (pensize t) p0)
+drawTurtle :: Field -> Character -> TurtleState -> Double -> Position ->
+	Maybe Position -> IO ()
+drawTurtle f c ts dir pos = -- @Center{posX = px, posY = py} =
+	maybe (drawCharacter f c (pencolor ts) sp)
+		(drawCharacterAndLine f c (pencolor ts) sp (pensize ts) pos)
 	where
-	sp = let (sx, sy) = shapesize t in
-		map (uncurry Center . ((+ px) *** (+ py)) . rotate d . ((* sx) *** (* sy))) $ shape t
-drawTurtle f c t d p0@TopLeft{posX = px, posY = py} = maybe (drawCharacter f c (pencolor t) sp)
-	(drawCharacterAndLine f c (pencolor t) sp (pensize t) p0)
+	sp = getShape ts dir pos
+{-
 	where
-	sp = let (sx, sy) = shapesize t in
-		map (uncurry TopLeft . ((+ px) *** (+ py)) . rotate (- d) . ((* sx) *** (* sy))) $ shape t
+	sp = let (sx, sy) = shapesize ts in
+		map (uncurry Center . ((+ px) *** (+ py)) . rotate dir .
+			((* sx) *** (* sy))) $ shape ts
+drawTurtle f c ts dir pos@TopLeft{posX = px, posY = py} =
+	maybe (drawCharacter f c (pencolor ts) sp)
+		(drawCharacterAndLine f c (pencolor ts) sp (pensize ts) pos)
+	where
+	sp = let (sx, sy) = shapesize ts in
+		map (uncurry TopLeft . ((+ px) *** (+ py)) . rotate (- dir) .
+			((* sx) *** (* sy))) $ shape ts
+-}
+
+getShape :: TurtleState -> Double -> Position -> [Position]
+getShape ts dir pos = let
+	(mkPos, d) = case pos of
+		Center{} -> (uncurry Center, dir)
+		TopLeft{} -> (uncurry TopLeft, - dir)
+	(sx, sy) = shapesize ts in
+	map (mkPos . ((+ posX pos) *** (+ posY pos)) . rotate d .
+		((* sx) *** (* sy))) $ shape ts
