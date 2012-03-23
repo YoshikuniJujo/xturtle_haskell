@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
-module Graphics.X11.Turtle (
+module Graphics.X11.Turtle(
 	-- * meta data
 	xturtleVersion,
 
@@ -97,19 +97,20 @@ import Graphics.X11.Turtle.Input(
 	turtleSeries, direction, visible, undonum, drawed, polyPoints)
 import qualified Graphics.X11.Turtle.Input as S(position, degrees, pendown)
 import Graphics.X11.Turtle.Move(
-	Field, coordinates, topleft, center, Layer, Character, Coordinates(..),
-	openField, closeField, forkField, waitField, fieldSize, flushField,
-	moveTurtle, addLayer, clearLayer, addCharacter, clearCharacter,
+	Field, Layer, Character, Coordinates(..),
+	openField, closeField, fieldSize, coordinates, topleft, center,
+	waitField, forkField, flushField, addLayer, clearLayer, addCharacter,
+	clearCharacter, moveTurtle,
 	onclick, onrelease, ondrag, onmotion, onkeypress, ontimer)
-import Text.XML.YJSVG(Position(..), SVG(..), Color(..))
-import qualified Text.XML.YJSVG as S (center, topleft)
+import Text.XML.YJSVG(SVG(..), Position(..), Color(..))
+import qualified Text.XML.YJSVG as S(center, topleft)
 
-import Control.Concurrent(Chan, writeChan, ThreadId, killThread)
+import Control.Concurrent(ThreadId, Chan, killThread, writeChan)
 import Control.Monad(replicateM_, zipWithM_)
-import Data.IORef(IORef, newIORef, readIORef, modifyIORef)
+import Data.IORef(IORef, newIORef, readIORef)
 import Data.IORef.Tools(atomicModifyIORef_)
-import Data.Fixed(mod')
 import Data.Maybe(fromJust)
+import Data.Fixed(mod')
 
 --------------------------------------------------------------------------------
 
@@ -167,6 +168,19 @@ killTurtle t = flushField (field t) True $ do
 	clearCharacter $ character t
 	killThread $ thread t
 
+inputs, getInputs :: Turtle -> IO [TurtleInput]
+inputs = getInputs
+getInputs t = do
+	i <- readIORef $ stateIndex t
+	return $ take (i - 1) $ ttlInputs t
+
+runInputs, sendInputs :: Turtle -> [TurtleInput] -> IO ()
+runInputs = sendInputs
+sendInputs t = mapM_ (input t)
+
+getSVG :: Turtle -> IO [SVG]
+getSVG t = fmap (reverse . drawed . (states t !!)) $ readIORef $ stateIndex t
+
 input :: Turtle -> TurtleInput -> IO ()
 input Turtle{inputChan = c, stateIndex = si} ti =
 	atomicModifyIORef_ si (+ 1) >>writeChan c ti
@@ -220,26 +234,8 @@ circle t r = do
 	forward t (r * pi / 36)
 	input t $ Undonum 74
 
-write :: Turtle -> String -> Double -> String -> IO ()
-write t fnt sz = input t . Write fnt sz
-
-stamp :: Turtle -> IO ()
-stamp = (`input` Stamp)
-
-dot :: Turtle -> Double -> IO ()
-dot t = input t . Dot
-
-image :: Turtle -> FilePath -> Double -> Double -> IO ()
-image t fp w h = input t $ PutImage fp w h
-
-bgcolor :: ColorClass c => Turtle -> c -> IO ()
-bgcolor t = input t . Bgcolor . getColor
-
 home :: Turtle -> IO ()
 home t = goto t 0 0 >> setheading t 0 >> input t (Undonum 3)
-
-clear :: Turtle -> IO ()
-clear t = input t Clear
 
 undo :: Turtle -> IO ()
 undo t = readIORef (stateIndex t)
@@ -248,43 +244,37 @@ undo t = readIORef (stateIndex t)
 sleep :: Turtle -> Int -> IO ()
 sleep t = input t . Sleep
 
-flushoff, flushon :: Turtle -> IO ()
-flushoff = (`input` SetFlush False)
-flushon = (`input` SetFlush True)
-
 flush :: Turtle -> IO ()
 flush = (`input` Flush)
 
 --------------------------------------------------------------------------------
 
-addshape :: Turtle -> String -> [(Double, Double)] -> IO ()
-addshape t n s = modifyIORef (shapes t) ((n, s) :)
+dot :: Turtle -> Double -> IO ()
+dot t = input t . Dot
 
-getshapes :: Turtle -> IO [String]
-getshapes t = fmap (map fst) $ readIORef (shapes t)
-
-shape :: Turtle -> String -> IO ()
-shape t n = readIORef (shapes t) >>= input t . Shape . fromJust . lookup n
-
-shapesize :: Turtle -> Double -> Double -> IO ()
-shapesize t sx sy = input t $ Shapesize sx sy
-
-speed :: Turtle -> String -> IO ()
-speed t str = case lookup str speedTable of
-	Just (ps, ds) -> input t (PositionStep ps) >> input t (DirectionStep ds)
-	Nothing -> putStrLn "no such speed"
-
-hideturtle, showturtle :: Turtle -> IO ()
-hideturtle = (`input` SetVisible False)
-showturtle = (`input` SetVisible True)
-
-penup, pendown :: Turtle -> IO ()
-penup = (`input` SetPendown False)
-pendown = (`input` SetPendown True)
+stamp :: Turtle -> IO ()
+stamp = (`input` Stamp)
 
 beginfill, endfill :: Turtle -> IO ()
 beginfill = (`input` SetFill True)
 endfill = (`input` SetFill False)
+
+write :: Turtle -> String -> Double -> String -> IO ()
+write t fnt sz = input t . Write fnt sz
+
+image :: Turtle -> FilePath -> Double -> Double -> IO ()
+image t fp w h = input t $ PutImage fp w h
+
+bgcolor :: ColorClass c => Turtle -> c -> IO ()
+bgcolor t = input t . Bgcolor . getColor
+
+clear :: Turtle -> IO ()
+clear t = input t Clear
+
+--------------------------------------------------------------------------------
+
+addshape :: Turtle -> String -> [(Double, Double)] -> IO ()
+addshape t n s = atomicModifyIORef_ (shapes t) ((n, s) :)
 
 beginpoly :: Turtle -> IO ()
 beginpoly = (`input` SetPoly True)
@@ -303,17 +293,43 @@ getPos t@Turtle{field = f} pos = do
 		CoordCenter -> let Center x y = S.center w h pos in (x, y)
 		CoordTopLeft -> let TopLeft x y = S.topleft w h pos in (x, y)
 
+getshapes :: Turtle -> IO [String]
+getshapes t = fmap (map fst) $ readIORef (shapes t)
+
+shape :: Turtle -> String -> IO ()
+shape t n = readIORef (shapes t) >>= input t . Shape . fromJust . lookup n
+
+shapesize :: Turtle -> Double -> Double -> IO ()
+shapesize t sx sy = input t $ Shapesize sx sy
+
+hideturtle, showturtle :: Turtle -> IO ()
+hideturtle = (`input` SetVisible False)
+showturtle = (`input` SetVisible True)
+
+penup, pendown :: Turtle -> IO ()
+penup = (`input` SetPendown False)
+pendown = (`input` SetPendown True)
+
 pencolor :: ColorClass c => Turtle -> c -> IO ()
 pencolor t = input t . Pencolor . getColor
 
 pensize :: Turtle -> Double -> IO ()
 pensize t = input t . Pensize
 
+radians :: Turtle -> IO ()
+radians = (`degrees` (2 * pi))
+
 degrees :: Turtle -> Double -> IO ()
 degrees t = input t . Degrees
 
-radians :: Turtle -> IO ()
-radians = (`degrees` (2 * pi))
+speed :: Turtle -> String -> IO ()
+speed t str = case lookup str speedTable of
+	Just (ps, ds) -> input t (PositionStep ps) >> input t (DirectionStep ds)
+	Nothing -> putStrLn "no such speed"
+
+flushoff, flushon :: Turtle -> IO ()
+flushoff = (`input` SetFlush False)
+flushon = (`input` SetFlush True)
 
 --------------------------------------------------------------------------------
 
@@ -338,6 +354,11 @@ xcor, ycor :: Turtle -> IO Double
 xcor = fmap fst . position
 ycor = fmap snd . position
 
+distance :: Turtle -> Double -> Double -> IO Double
+distance t x0 y0 = do
+	Center x y <- position' t
+	return $ ((x - x0) ** 2 + (y - y0) ** 2) ** (1 / 2)
+
 heading :: Turtle -> IO Double
 heading t@Turtle{stateIndex = si, states = s} = do
 	deg <- getDegrees t
@@ -355,11 +376,6 @@ towards t x0 y0 = do
 	let	dir = atan2 (y0 - y) (x0 - x) * deg / (2 * pi)
 	return $ if dir < 0 then dir + deg else dir
 
-distance :: Turtle -> Double -> Double -> IO Double
-distance t x0 y0 = do
-	Center x y <- position' t
-	return $ ((x - x0) ** 2 + (y - y0) ** 2) ** (1 / 2)
-
 isdown, isvisible :: Turtle -> IO Bool
 isdown t = fmap (S.pendown . (states t !!)) $ readIORef $ stateIndex t
 isvisible t = fmap (visible . (states t !!)) $ readIORef $ stateIndex t
@@ -370,18 +386,3 @@ windowHeight = fmap snd . fieldSize . field
 
 windowSize :: Turtle -> IO (Double, Double)
 windowSize = fieldSize . field
-
---------------------------------------------------------------------------------
-
-inputs, getInputs :: Turtle -> IO [TurtleInput]
-inputs = getInputs
-getInputs t = do
-	i <- readIORef $ stateIndex t
-	return $ take (i - 1) $ ttlInputs t
-
-runInputs, sendInputs :: Turtle -> [TurtleInput] -> IO ()
-runInputs = sendInputs
-sendInputs t = mapM_ (input t)
-
-getSVG :: Turtle -> IO [SVG]
-getSVG t = fmap (reverse . drawed . (states t !!)) $ readIORef $ stateIndex t
