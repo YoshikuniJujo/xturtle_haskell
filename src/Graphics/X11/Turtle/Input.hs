@@ -17,12 +17,9 @@ module Graphics.X11.Turtle.Input(
 	polyPoints
 ) where
 
-import Graphics.X11.Turtle.State(TurtleState(..), initialTurtleState)
+import Graphics.X11.Turtle.State(TurtleState(..), initialTurtleState, makeShape)
 import Text.XML.YJSVG(SVG(..), Color(..), Position(..))
-
 import Control.Concurrent.Chan(Chan, newChan, getChanContents)
-import Control.Arrow((***))
-import Data.Tuple.Tools(rotate)
 
 --------------------------------------------------------------------------------
 
@@ -81,61 +78,46 @@ inputToTurtle tsbs ts0 (ti : tis) =
 	let ts1 = nextTurtle ts0 ti in ts1 : inputToTurtle (ts0 : tsbs) ts1 tis
 inputToTurtle _ _ [] = error "no more input"
 
-clearState :: TurtleState -> TurtleState
-clearState t = t{draw = Nothing, clear = False, undo = False, undonum = 1,
+reset :: TurtleState -> TurtleState
+reset t = t{draw = Nothing, clear = False, undo = False, undonum = 1,
 	sleep = Nothing, flush = False}
 
+set :: TurtleState -> Maybe SVG -> TurtleState
+set t drw = t{draw = drw, drawed = maybe id (:) drw $ drawed t}
+
 nextTurtle :: TurtleState -> TurtleInput -> TurtleState
-nextTurtle t (Goto pos) = (clearState t){
-	position = pos, draw = drw, drawed = maybe id (:) drw $ drawed t,
+nextTurtle t (Goto pos) = (reset t){position = pos,
 	fillPoints = (if fill t then (pos :) else id) $ fillPoints t,
 	polyPoints = (if poly t then (pos :) else id) $ polyPoints t}
-	where
-	drw = if not $ pendown t then Nothing
+	`set` if not $ pendown t then Nothing
 		else Just $ Line pos (position t) (pencolor t) (pensize t)
-nextTurtle t (Rotate dir) = (clearState t){direction = dir * 2 * pi / degrees t}
-nextTurtle t (Dot sz) = (clearState t){
-	draw = Just drw, drawed = drw : drawed t}
-	where
-	drw = Rect (position t) sz sz 0 (pencolor t) (pencolor t)
-nextTurtle t Stamp = (clearState t){
-	draw = Just drw, drawed = drw : drawed t}
-	where
-	Center x0 y0 = position t
-	sp = let (sx, sy) = shapesize t in
-		map (((+ x0) *** (+ y0)) . rotate (direction t) . ((* sx) *** (* sy))) $ shape t
-	points = map (uncurry Center) sp
-	drw = Polyline points (pencolor t) (pencolor t) 0
-nextTurtle t (Write fnt sz str) = (clearState t){
-	draw = Just txt, drawed = txt : drawed t}
-	where txt = Text (position t) sz (pencolor t) fnt str
-nextTurtle t (PutImage fp w h) = (clearState t){
-	draw = Just img, drawed = img : drawed t}
-	where img = Image (position t) w h fp
-nextTurtle t (Undonum un) = (clearState t){undonum = un}
-nextTurtle t Clear = (clearState t){clear = True, drawed = [last $ drawed t]}
-nextTurtle t (Sleep time) = (clearState t){sleep = Just time}
-nextTurtle t Flush = (clearState t){flush = True}
-nextTurtle t (Shape sh) = (clearState t){shape = sh}
-nextTurtle t (Shapesize sx sy) = (clearState t){shapesize = (sx, sy)}
-nextTurtle t (Pensize ps) = (clearState t){pensize = ps}
-nextTurtle t (Pencolor c) = (clearState t){pencolor = c}
-nextTurtle t (Bgcolor c) = (clearState t){
-	draw = Just $ Fill c, drawed = init (drawed t) ++ [Fill c]}
-nextTurtle t (SetPendown pd) = (clearState t){pendown = pd}
-nextTurtle t (SetVisible v) = (clearState t){visible = v}
-nextTurtle t (SetFill f) = (clearState t){
-	fill = f,
-	draw = if fill t && not f then Just fl else Nothing,
-	drawed = if fill t && not f then fl : drawed t else drawed t,
-	fillPoints = [position t | f]}
-	where
-	fl = Polyline (fillPoints t) (pencolor t) (pencolor t) 0
-nextTurtle t (SetPoly p) = (clearState t){
-	poly = p,
-	polyPoints = if p then [position t] else polyPoints t}
-nextTurtle t (SetFlush ss) = (clearState t){stepbystep = ss}
-nextTurtle t (PositionStep ps) = (clearState t){positionStep = ps}
-nextTurtle t (DirectionStep ds) = (clearState t){directionStep = ds}
-nextTurtle t (Degrees ds) = (clearState t){degrees = ds}
+nextTurtle t (Rotate dir) = (reset t){direction = dir * 2 * pi / degrees t}
+nextTurtle t (Dot sz) =
+	reset t `set` Just (Rect (position t) sz sz 0 (pencolor t) (pencolor t))
+nextTurtle t@TurtleState{pencolor = clr} Stamp = reset t `set`
+	Just (Polyline (makeShape t (direction t) (position t)) clr clr 0)
+nextTurtle t (Write fnt sz str) =
+	reset t `set` Just (Text (position t) sz (pencolor t) fnt str)
+nextTurtle t (PutImage fp w h) = reset t `set` Just (Image (position t) w h fp)
+nextTurtle t (Undonum un) = (reset t){undonum = un}
+nextTurtle t Clear = (reset t){clear = True, drawed = [last $ drawed t]}
+nextTurtle t (Sleep time) = (reset t){sleep = Just time}
+nextTurtle t Flush = (reset t){flush = True}
+nextTurtle t (Shape sh) = (reset t){shape = sh}
+nextTurtle t (Shapesize sx sy) = (reset t){shapesize = (sx, sy)}
+nextTurtle t (Pensize ps) = (reset t){pensize = ps}
+nextTurtle t (Pencolor clr) = (reset t){pencolor = clr}
+nextTurtle t (Bgcolor clr) = (reset t){
+	draw = Just $ Fill clr, drawed = init (drawed t) ++ [Fill clr]}
+nextTurtle t (SetPendown pd) = (reset t){pendown = pd}
+nextTurtle t (SetVisible v) = (reset t){visible = v}
+nextTurtle t (SetFill fl) = (reset t){fill = fl, fillPoints = [position t | fl]}
+	`set` (if not (fill t) || fl then Nothing
+		else Just $ Polyline (fillPoints t) (pencolor t) (pencolor t) 0)
+nextTurtle t (SetPoly p) = (reset t){
+	poly = p, polyPoints = if p then [position t] else polyPoints t}
+nextTurtle t (SetFlush ss) = (reset t){stepbystep = ss}
+nextTurtle t (PositionStep ps) = (reset t){positionStep = ps}
+nextTurtle t (DirectionStep ds) = (reset t){directionStep = ds}
+nextTurtle t (Degrees ds) = (reset t){degrees = ds}
 nextTurtle _ _ = error "not defined"
