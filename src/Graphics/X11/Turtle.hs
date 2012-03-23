@@ -121,14 +121,14 @@ xturtleVersion = (63, "0.1.8b")
 
 data Turtle = Turtle {
 	field :: Field,
-	layer :: Layer,
-	character :: Character,
-	inputChan :: Chan TurtleInput,
 	states :: [TurtleState],
-	ttlInputs :: [TurtleInput],
-	stateIndex :: IORef Int,
-	thread :: ThreadId,
-	shapes :: IORef [(String, [(Double, Double)])]
+	index :: IORef Int,
+	turtleLayer :: Layer,
+	turtleCharacter :: Character,
+	turtleInput :: Chan TurtleInput,
+	turtleInputs :: [TurtleInput],
+	turtleThread :: ThreadId,
+	turtleShapes :: IORef [(String, [(Double, Double)])]
  }
 
 class ColorClass a where getColor :: a -> Color
@@ -143,46 +143,46 @@ instance (Integral r, Integral g, Integral b) => ColorClass (r, g, b) where
 
 newTurtle :: Field -> IO Turtle
 newTurtle f = do
-	l <- addLayer f
-	ch <- addCharacter f
+	layer <- addLayer f
+	char <- addCharacter f
 	(ic, tis, sts) <- turtleSeries
 	si <- newIORef 1
-	tid <- forkField f $ zipWithM_ (moveTurtle f ch l) sts $ tail sts
+	tid <- forkField f $ zipWithM_ (moveTurtle f char layer) sts $ tail sts
 	shps <- newIORef shapeTable
 	let	t = Turtle {
 			field = f,
-			layer = l,
-			character = ch,
-			inputChan = ic,
+			turtleLayer = layer,
+			turtleCharacter = char,
+			turtleInput = ic,
 			states = sts,
-			ttlInputs = tis,
-			stateIndex = si,
-			thread = tid,
-			shapes = shps}
+			turtleInputs = tis,
+			index = si,
+			turtleThread = tid,
+			turtleShapes = shps}
 	shape t "classic" >> input t (Undonum 0)
 	return t
 
 killTurtle :: Turtle -> IO ()
 killTurtle t = flushField (field t) True $ do
-	clearLayer $ layer t
-	clearCharacter $ character t
-	killThread $ thread t
+	clearLayer $ turtleLayer t
+	clearCharacter $ turtleCharacter t
+	killThread $ turtleThread t
 
 inputs, getInputs :: Turtle -> IO [TurtleInput]
 inputs = getInputs
 getInputs t = do
-	i <- readIORef $ stateIndex t
-	return $ take (i - 1) $ ttlInputs t
+	i <- readIORef $ index t
+	return $ take (i - 1) $ turtleInputs t
 
 runInputs, sendInputs :: Turtle -> [TurtleInput] -> IO ()
 runInputs = sendInputs
 sendInputs t = mapM_ (input t)
 
 getSVG :: Turtle -> IO [SVG]
-getSVG t = fmap (reverse . drawed . (states t !!)) $ readIORef $ stateIndex t
+getSVG t = fmap (reverse . drawed . (states t !!)) $ readIORef $ index t
 
 input :: Turtle -> TurtleInput -> IO ()
-input Turtle{inputChan = c, stateIndex = si} ti =
+input Turtle{turtleInput = c, index = si} ti =
 	atomicModifyIORef_ si (+ 1) >>writeChan c ti
 
 --------------------------------------------------------------------------------
@@ -238,7 +238,7 @@ home :: Turtle -> IO ()
 home t = goto t 0 0 >> setheading t 0 >> input t (Undonum 3)
 
 undo :: Turtle -> IO ()
-undo t = readIORef (stateIndex t)
+undo t = readIORef (index t)
 	>>= flip replicateM_ (input t Undo) . undonum . (states t !!)
 
 sleep :: Turtle -> Int -> IO ()
@@ -274,13 +274,13 @@ clear t = input t Clear
 --------------------------------------------------------------------------------
 
 addshape :: Turtle -> String -> [(Double, Double)] -> IO ()
-addshape t n s = atomicModifyIORef_ (shapes t) ((n, s) :)
+addshape t n s = atomicModifyIORef_ (turtleShapes t) ((n, s) :)
 
 beginpoly :: Turtle -> IO ()
 beginpoly = (`input` SetPoly True)
 
 endpoly :: Turtle -> IO [(Double, Double)]
-endpoly t@Turtle{stateIndex = si, states = s} = do
+endpoly t@Turtle{index = si, states = s} = do
 	input t $ SetPoly False
 	fmap (polyPoints . (s !!)) (readIORef si) >>= mapM (getPos t)
 
@@ -294,10 +294,10 @@ getPos t@Turtle{field = f} pos = do
 		CoordTopLeft -> let TopLeft x y = S.topleft w h pos in (x, y)
 
 getshapes :: Turtle -> IO [String]
-getshapes t = fmap (map fst) $ readIORef (shapes t)
+getshapes t = fmap (map fst) $ readIORef (turtleShapes t)
 
 shape :: Turtle -> String -> IO ()
-shape t n = readIORef (shapes t) >>= input t . Shape . fromJust . lookup n
+shape t n = readIORef (turtleShapes t) >>= input t . Shape . fromJust . lookup n
 
 shapesize :: Turtle -> Double -> Double -> IO ()
 shapesize t sx sy = input t $ Shapesize sx sy
@@ -341,7 +341,7 @@ position t = do
 		TopLeft x y -> (x, y)
 
 position' :: Turtle -> IO Position
-position' t@Turtle{field = f, stateIndex = si, states = s} = do
+position' t@Turtle{field = f, index = si, states = s} = do
 	w <- windowWidth t
 	h <- windowHeight t
 	pos <- fmap (S.position . (s !!)) $ readIORef si
@@ -360,13 +360,13 @@ distance t x0 y0 = do
 	return $ ((x - x0) ** 2 + (y - y0) ** 2) ** (1 / 2)
 
 heading :: Turtle -> IO Double
-heading t@Turtle{stateIndex = si, states = s} = do
+heading t@Turtle{index = si, states = s} = do
 	deg <- getDegrees t
 	dir <- fmap ((* (deg / (2 * pi))) . direction . (s !!)) $ readIORef si
 	return $ dir `mod'` deg
 
 getDegrees :: Turtle -> IO Double
-getDegrees Turtle{stateIndex = si, states = s} =
+getDegrees Turtle{index = si, states = s} =
 	fmap (S.degrees . (s !!)) $ readIORef si
 
 towards :: Turtle -> Double -> Double -> IO Double
@@ -377,8 +377,8 @@ towards t x0 y0 = do
 	return $ if dir < 0 then dir + deg else dir
 
 isdown, isvisible :: Turtle -> IO Bool
-isdown t = fmap (S.pendown . (states t !!)) $ readIORef $ stateIndex t
-isvisible t = fmap (visible . (states t !!)) $ readIORef $ stateIndex t
+isdown t = fmap (S.pendown . (states t !!)) $ readIORef $ index t
+isvisible t = fmap (visible . (states t !!)) $ readIORef $ index t
 
 windowWidth, windowHeight :: Turtle -> IO Double
 windowWidth = fmap fst . fieldSize . field
