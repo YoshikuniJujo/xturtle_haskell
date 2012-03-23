@@ -123,12 +123,12 @@ data Turtle = Turtle {
 	field :: Field,
 	states :: [TurtleState],
 	index :: IORef Int,
-	turtleLayer :: Layer,
-	turtleCharacter :: Character,
 	turtleInput :: Chan TurtleInput,
 	turtleInputs :: [TurtleInput],
+	turtleShapes :: IORef [(String, [(Double, Double)])],
 	turtleThread :: ThreadId,
-	turtleShapes :: IORef [(String, [(Double, Double)])]
+	turtleLayer :: Layer,
+	turtleCharacter :: Character
  }
 
 class ColorClass a where getColor :: a -> Color
