@@ -10,14 +10,31 @@ module Graphics.X11.Turtle (
 	Turtle,
 	ColorClass,
 
-	-- * beginings and endings
+	-- * Field functions
+	-- ** meta
 	openField,
 	closeField,
 	waitField,
+	topleft,
+	center,
+
+	-- ** on events
+	onclick,
+	onrelease,
+	ondrag,
+	onmotion,
+	onkeypress,
+	ontimer,
+
+	-- * Turtle functions
+	-- ** meta
 	newTurtle,
 	killTurtle,
+	inputs,
+	runInputs,
+	getSVG,
 
-	-- * move turtle
+	-- ** move turtle
 	forward,
 	backward,
 	goto,
@@ -27,66 +44,51 @@ module Graphics.X11.Turtle (
 	right,
 	setheading,
 	circle,
-	write,
-	stamp,
-	dot,
-	image,
-	bgcolor,
 	home,
-	clear,
 	undo,
 	sleep,
-	flushoff,
-	flushon,
 	flush,
 
-	-- * change turtle state
+	-- ** draw
+	dot,
+	stamp,
+	beginfill,
+	endfill,
+	write,
+	image,
+	bgcolor,
+	clear,
+
+	-- ** change states
 	addshape,
+	beginpoly,
+	endpoly,
 	getshapes,
 	shape,
 	shapesize,
-	speed,
 	hideturtle,
 	showturtle,
 	penup,
 	pendown,
-	beginfill,
-	endfill,
-	beginpoly,
-	endpoly,
 	pencolor,
 	pensize,
-	degrees,
 	radians,
+	degrees,
+	speed,
+	flushoff,
+	flushon,
 
-	-- * turtle information
+	-- ** informations
 	position,
 	xcor,
 	ycor,
+	distance,
 	heading,
 	towards,
-	distance,
 	isdown,
 	isvisible,
 	windowWidth,
-	windowHeight,
-
-	-- * on events
-	onclick,
-	onrelease,
-	ondrag,
-	onmotion,
-	onkeypress,
-	ontimer,
-
-	-- * save and load
-	getInputs,
-	sendInputs,
-	getSVG,
-
-	-- * others
-	topleft,
-	center
+	windowHeight
 ) where
 
 import Graphics.X11.Turtle.Data(shapeTable, speedTable)
@@ -122,7 +124,7 @@ data Turtle = Turtle {
 	character :: Character,
 	inputChan :: Chan TurtleInput,
 	states :: [TurtleState],
-	inputs :: [TurtleInput],
+	ttlInputs :: [TurtleInput],
 	stateIndex :: IORef Int,
 	thread :: ThreadId,
 	shapes :: IORef [(String, [(Double, Double)])]
@@ -152,7 +154,7 @@ newTurtle f = do
 			character = ch,
 			inputChan = ic,
 			states = sts,
-			inputs = tis,
+			ttlInputs = tis,
 			stateIndex = si,
 			thread = tid,
 			shapes = shps}
@@ -371,23 +373,15 @@ windowSize = fieldSize . field
 
 --------------------------------------------------------------------------------
 
-getInputs :: Turtle -> IO [TurtleInput]
+inputs, getInputs :: Turtle -> IO [TurtleInput]
+inputs = getInputs
 getInputs t = do
 	i <- readIORef $ stateIndex t
-	return $ take (i - 1) $ inputs t
+	return $ take (i - 1) $ ttlInputs t
 
-sendInputs :: Turtle -> [TurtleInput] -> IO ()
+runInputs, sendInputs :: Turtle -> [TurtleInput] -> IO ()
+runInputs = sendInputs
 sendInputs t = mapM_ (input t)
 
 getSVG :: Turtle -> IO [SVG]
 getSVG t = fmap (reverse . drawed . (states t !!)) $ readIORef $ stateIndex t
-
---------------------------------------------------------------------------------
-
-{-
-topleft ::  Field -> IO ()
-topleft = flip setCoordinates CoordTopLeft
-
-center :: Field -> IO ()
-center = flip setCoordinates CoordCenter
--}
