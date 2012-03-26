@@ -107,6 +107,7 @@ import qualified Text.XML.YJSVG as S(center, topleft)
 
 import Control.Concurrent(killThread, writeChan)
 import Control.Monad(replicateM_, zipWithM_)
+import Control.Arrow((&&&))
 import Data.IORef(IORef, newIORef, readIORef)
 import Data.IORef.Tools(atomicModifyIORef_)
 import Data.Fixed(mod')
@@ -156,6 +157,14 @@ runInputs = mapM_ . input
 getSVG :: Turtle -> IO [SVG]
 getSVG = fmap reverse . flip info drawed
 
+convertPosition :: Turtle -> Position -> IO Position
+convertPosition t p = do
+	(w, h) <- windowSize t
+	coord <- coordinates $ field t
+	return $ case coord of
+		CoordCenter -> S.center w h p
+		CoordTopLeft -> S.topleft w h p
+
 --------------------------------------------------------------------------------
 
 forward, backward :: Turtle -> Double -> IO ()
@@ -171,12 +180,12 @@ goto t@Turtle{field = f} x y = do
 
 setx, sety :: Turtle -> Double -> IO ()
 setx t x = do
-	pos <- position' t
+	pos <- info t S.position >>= convertPosition t
 	input t $ Goto $ case pos of
 		Center _ y -> Center x y
 		TopLeft _ y -> TopLeft x y
 sety t y = do
-	pos <- position' t
+	pos <- info t S.position >>= convertPosition t
 	input t $ Goto $ case pos of
 		Center x _ -> Center x y
 		TopLeft x _ -> TopLeft x y
@@ -240,20 +249,8 @@ beginpoly :: Turtle -> IO ()
 beginpoly = (`input` SetPoly True)
 
 endpoly :: Turtle -> IO [(Double, Double)]
-endpoly t = input t (SetPoly False) >> info t polyPoints >>= mapM pos
-	where pos p_ = do
-		p <- convertPosition t p_
-		return $ case p of
-			Center x y -> (x, y)
-			TopLeft x y -> (x, y)
-
-convertPosition :: Turtle -> Position -> IO Position
-convertPosition t p = do
-	(w, h) <- windowSize t
-	coord <- coordinates $ field t
-	return $ case coord of
-		CoordCenter -> S.center w h p
-		CoordTopLeft -> S.topleft w h p
+endpoly t = input t (SetPoly False) >> info t polyPoints >>=
+	mapM (fmap (posX &&& posY) . convertPosition t)
 
 getshapes :: Turtle -> IO [String]
 getshapes = fmap (map fst) . readIORef . shapes
@@ -300,12 +297,7 @@ flushon = (`input` SetFlush True)
 --------------------------------------------------------------------------------
 
 position :: Turtle -> IO (Double, Double)
-position t = do
-	pos <- position' t
-	return $ case pos of Center x y -> (x, y); TopLeft x y -> (x, y)
-
-position' :: Turtle -> IO Position
-position' t = info t S.position >>= convertPosition t
+position t = fmap (posX &&& posY) $ info t S.position >>= convertPosition t
 
 xcor, ycor :: Turtle -> IO Double
 xcor = fmap fst . position
@@ -313,7 +305,7 @@ ycor = fmap snd . position
 
 distance :: Turtle -> Double -> Double -> IO Double
 distance t x0 y0 = do
-	Center x y <- position' t
+	(x, y) <- position t
 	return $ ((x - x0) ** 2 + (y - y0) ** 2) ** (1 / 2)
 
 heading :: Turtle -> IO Double
@@ -324,7 +316,7 @@ heading t = do
 
 towards :: Turtle -> Double -> Double -> IO Double
 towards t x0 y0 = do
-	Center x y <- position' t
+	(x, y) <- position t
 	deg <- info t S.degrees
 	let	dir = atan2 (y0 - y) (x0 - x) * deg / (2 * pi)
 	return $ if dir < 0 then dir + deg else dir
