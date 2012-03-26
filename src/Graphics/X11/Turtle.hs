@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE RankNTypes #-}
 
 module Graphics.X11.Turtle(
 	-- * meta data
@@ -97,15 +98,14 @@ import Graphics.X11.Turtle.Input(
 	turtleSeries, direction, visible, undonum, drawed, polyPoints)
 import qualified Graphics.X11.Turtle.Input as S(position, degrees, pendown)
 import Graphics.X11.Turtle.Move(
-	Field, Layer, Character, Coordinates(..),
-	openField, closeField, fieldSize, coordinates, topleft, center,
-	waitField, forkField, flushField, addLayer, clearLayer, addCharacter,
-	clearCharacter, moveTurtle,
+	Field, Coordinates(..), openField, closeField, fieldSize,
+	coordinates, topleft, center, waitField, forkField, flushField,
+	addLayer, clearLayer, addCharacter, clearCharacter, moveTurtle,
 	onclick, onrelease, ondrag, onmotion, onkeypress, ontimer)
 import Text.XML.YJSVG(SVG(..), Position(..), Color(..))
 import qualified Text.XML.YJSVG as S(center, topleft)
 
-import Control.Concurrent(ThreadId, Chan, killThread, writeChan)
+import Control.Concurrent(killThread, writeChan)
 import Control.Monad(replicateM_, zipWithM_)
 import Data.IORef(IORef, newIORef, readIORef)
 import Data.IORef.Tools(atomicModifyIORef_)
@@ -114,21 +114,15 @@ import Data.Fixed(mod')
 --------------------------------------------------------------------------------
 
 xturtleVersion :: (Int, String)
-xturtleVersion = (63, "0.1.8b")
+xturtleVersion = (64, "0.1.8c")
 
 --------------------------------------------------------------------------------
 
 data Turtle = Turtle {
-	field :: Field,
-	states :: [TurtleState],
-	index :: IORef Int,
-	turtleInput :: Chan TurtleInput,
-	turtleInputs :: [TurtleInput],
-	turtleShapes :: IORef [(String, [(Double, Double)])],
-	turtleThread :: ThreadId,
-	turtleLayer :: Layer,
-	turtleCharacter :: Character
- }
+	field :: Field, input :: TurtleInput -> IO (),
+	info :: forall a . (TurtleState -> a) -> IO a,
+	shapes :: IORef [(String, [(Double, Double)])],
+	inputs :: IO [TurtleInput], killTurtle :: IO ()}
 
 class ColorClass a where getColor :: a -> Color
 
@@ -142,42 +136,28 @@ instance (Integral r, Integral g, Integral b) => ColorClass (r, g, b) where
 
 newTurtle :: Field -> IO Turtle
 newTurtle f = do
-	layer <- addLayer f
-	char <- addCharacter f
-	(chan, inpts, stts) <- turtleSeries
+	l <- addLayer f
+	c <- addCharacter f
+	(ch, hist, states) <- turtleSeries
 	idx <- newIORef 1
-	thrd <- forkField f $ zipWithM_ (moveTurtle f char layer) stts $ tail stts
-	shps <- newIORef shapeTable
+	th <- forkField f $ zipWithM_ (moveTurtle f c l) states $ tail states
+	st <- newIORef shapeTable
 	let	t = Turtle {
 			field = f,
-			states = stts,
-			index = idx,
-			turtleInput = chan,
-			turtleInputs = inpts,
-			turtleShapes = shps,
-			turtleThread = thrd,
-			turtleLayer = layer,
-			turtleCharacter = char}
+			input = (atomicModifyIORef_ idx succ >>) . writeChan ch,
+			info = \n -> fmap (n . (states !!)) $ readIORef idx,
+			shapes = st,
+			inputs = fmap (flip take hist . pred) $ readIORef idx,
+			killTurtle = flushField f True $ clearLayer l >>
+				clearCharacter c >> killThread th}
 	shape t "classic" >> input t (Undonum 0)
 	return t
-
-killTurtle :: Turtle -> IO ()
-killTurtle t = flushField (field t) True $ do
-	clearLayer $ turtleLayer t
-	clearCharacter $ turtleCharacter t
-	killThread $ turtleThread t
-
-inputs :: Turtle -> IO [TurtleInput]
-inputs t = (flip take (turtleInputs t) . pred) `fmap` readIORef (index t)
 
 runInputs :: Turtle -> [TurtleInput] -> IO ()
 runInputs = mapM_ . input
 
 getSVG :: Turtle -> IO [SVG]
-getSVG = fmap reverse . information drawed
-
-input :: Turtle -> TurtleInput -> IO ()
-input t ti = atomicModifyIORef_ (index t) succ >> writeChan (turtleInput t) ti
+getSVG = fmap reverse . flip info drawed
 
 --------------------------------------------------------------------------------
 
@@ -211,7 +191,7 @@ setheading t = input t . Rotate
 
 circle :: Turtle -> Double -> IO ()
 circle t r = do
-	deg <- information S.degrees t
+	deg <- info t S.degrees
 	forward t (r * pi / 36)
 	left t (deg / 36)
 	replicateM_ 35 $ forward t (2 * r * pi / 36) >> left t (deg / 36)
@@ -222,7 +202,7 @@ home :: Turtle -> IO ()
 home t = goto t 0 0 >> setheading t 0 >> input t (Undonum 3)
 
 undo :: Turtle -> IO ()
-undo t = information undonum t >>= flip replicateM_ (input t Undo)
+undo t = info t undonum >>= flip replicateM_ (input t Undo)
 
 sleep :: Turtle -> Int -> IO ()
 sleep t = input t . Sleep
@@ -257,14 +237,14 @@ clear = (`input` Clear)
 --------------------------------------------------------------------------------
 
 addshape :: Turtle -> String -> [(Double, Double)] -> IO ()
-addshape t n s = atomicModifyIORef_ (turtleShapes t) ((n, s) :)
+addshape t n s = atomicModifyIORef_ (shapes t) ((n, s) :)
 
 beginpoly :: Turtle -> IO ()
 beginpoly = (`input` SetPoly True)
 
 endpoly :: Turtle -> IO [(Double, Double)]
 endpoly t@Turtle{field = f} =
-	input t (SetPoly False) >> information polyPoints t >>= mapM pos
+	input t (SetPoly False) >> info t polyPoints >>= mapM pos
 	where pos p = do
 		(w, h) <- windowSize t
 		coord <- coordinates f
@@ -275,10 +255,10 @@ endpoly t@Turtle{field = f} =
 				let TopLeft x y = S.topleft w h p in (x, y)
 
 getshapes :: Turtle -> IO [String]
-getshapes = fmap (map fst) . readIORef . turtleShapes
+getshapes = fmap (map fst) . readIORef . shapes
 
 shape :: Turtle -> String -> IO ()
-shape t n = readIORef (turtleShapes t) >>=
+shape t n = readIORef (shapes t) >>=
 	maybe (putStrLn $ "no shape named " ++ n) (input t . Shape) . lookup n
 
 shapesize :: Turtle -> Double -> Double -> IO ()
@@ -318,10 +298,6 @@ flushon = (`input` SetFlush True)
 
 --------------------------------------------------------------------------------
 
-information :: (TurtleState -> a) -> Turtle -> IO a
-information name Turtle{index = si, states = s} =
-	fmap (name . (s !!)) $ readIORef si
-
 position :: Turtle -> IO (Double, Double)
 position t = do
 	pos <- position' t
@@ -330,7 +306,7 @@ position t = do
 position' :: Turtle -> IO Position
 position' t@Turtle{field = f} = do
 	(w, h) <- windowSize t
-	pos <- information S.position t
+	pos <- info t S.position
 	coord <- coordinates f
 	return $ case coord of
 		CoordCenter -> S.center w h pos
@@ -347,20 +323,20 @@ distance t x0 y0 = do
 
 heading :: Turtle -> IO Double
 heading t = do
-	deg <- information S.degrees t
-	dir <- fmap (* (deg / (2 * pi))) $ information direction t
+	deg <- info t S.degrees
+	dir <- fmap (* (deg / (2 * pi))) $ info t direction
 	return $ dir `mod'` deg
 
 towards :: Turtle -> Double -> Double -> IO Double
 towards t x0 y0 = do
 	Center x y <- position' t
-	deg <- information S.degrees t
+	deg <- info t S.degrees
 	let	dir = atan2 (y0 - y) (x0 - x) * deg / (2 * pi)
 	return $ if dir < 0 then dir + deg else dir
 
 isdown, isvisible :: Turtle -> IO Bool
-isdown = information S.pendown
-isvisible = information visible
+isdown = flip info S.pendown
+isvisible = flip info visible
 
 windowWidth, windowHeight :: Turtle -> IO Double
 windowWidth = fmap fst . fieldSize . field

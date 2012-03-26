@@ -1,8 +1,6 @@
 module Graphics.X11.Turtle.Move(
 	-- * types
 	Field,
-	Layer,
-	Character,
 	Coordinates(..),
 
 	-- * process Field
