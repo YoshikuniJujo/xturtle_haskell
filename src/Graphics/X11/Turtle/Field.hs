@@ -59,8 +59,8 @@ import Graphics.X11.Turtle.Layers(
 	makeCharacter, character)
 import Text.XML.YJSVG(Position(..), Color(..))
 
-import Control.Monad(when, unless, forever, replicateM, join)
-import Control.Monad.Tools(doWhile_, doWhile, whenM)
+import Control.Monad(when, unless, forever, replicateM, forM_, join)
+import Control.Monad.Tools(doWhile_, doWhile)
 import Control.Arrow((***))
 import Control.Concurrent(
 	ThreadId, forkIO, killThread, threadDelay,
@@ -68,6 +68,7 @@ import Control.Concurrent(
 import Data.IORef(IORef, newIORef, readIORef, writeIORef)
 import Data.IORef.Tools(atomicModifyIORef_)
 import Data.Maybe(fromMaybe)
+import Data.List(delete)
 import Data.Convertible(convert)
 
 --------------------------------------------------------------------------------
@@ -77,10 +78,11 @@ data Field = Field{
 	fIC :: XIC, fDel :: Atom, fSize :: IORef (Dimension, Dimension),
 
 	fClick, fRelease :: IORef (Int -> Double -> Double -> IO Bool),
-	fDrag, fMotion :: IORef (Double -> Double -> IO ()),
+	fDrag :: IORef (Int -> Double -> Double -> IO ()),
+	fMotion :: IORef (Double -> Double -> IO ()),
 	fKeypress :: IORef (Char -> IO Bool),
 	fTimerEvent :: IORef (IO Bool),
-	fPressed :: IORef Bool,
+	fPressed :: IORef [Int],
 
 	fLayers :: IORef Layers, fInput :: Chan InputType,
 	fCoordinates :: IORef Coordinates, fLock, fClose, fEnd :: Chan (),
@@ -90,10 +92,11 @@ makeField :: Display -> Window -> Bufs -> GCs -> XIC -> Atom ->
 	IORef (Dimension, Dimension) -> IORef Layers -> IO Field
 makeField dpy win bufs gcs ic del sizeRef ls = do
 	[click, release] <- replicateM 2 $ newIORef $ \_ _ _ -> return True
-	[drag, motion] <- replicateM 2 $ newIORef $ \_ _ -> return ()
+	drag <- newIORef $ \_ _ _ -> return ()
+	motion <- newIORef $ \_ _ -> return ()
 	keypress <- newIORef $ \_ -> return True
 	timer <- newIORef $ return True
-	pressed <- newIORef False
+	pressed <- newIORef []
 	input <- newChan
 	coord <- newIORef CoordCenter
 	[lock, close, end] <- replicateM 3 newChan
@@ -200,18 +203,18 @@ processEvent f e ev = case ev of
 		let	buttonN = fromIntegral $ ev_button ev
 		case ev_event_type ev of
 			et	| et == buttonPress -> do
-					writeIORef (fPressed f) True
+					atomicModifyIORef_ (fPressed f) (buttonN :)
 					readIORef (fClick f) >>=
 						($ pos) . uncurry . ($ buttonN)
 				| et == buttonRelease -> do
-					writeIORef (fPressed f) False
+					atomicModifyIORef_ (fPressed f) (delete buttonN)
 					readIORef (fRelease f) >>=
 						($ pos) . uncurry . ($ buttonN)
 			_ -> error "not implement event"
 	MotionEvent{} -> do
 		pos <- cntr (ev_x ev) (ev_y ev)
-		whenM (readIORef $ fPressed f) $
-			readIORef (fDrag f) >>= ($ pos) . uncurry
+		pressed <- readIORef $ fPressed f
+		forM_ pressed $ \bn -> readIORef (fDrag f) >>= ($ pos) . uncurry . ($ bn)
 		readIORef (fMotion f) >>= ($ pos) . uncurry
 		return True
 	ClientMessageEvent{} -> return $ convert (head $ ev_data ev) /= fDel f
@@ -329,8 +332,11 @@ clearCharacter c = character c $ return ()
 onclick, onrelease :: Field -> (Int -> Double -> Double -> IO Bool) -> IO ()
 (onclick, onrelease) = (writeIORef . fClick, writeIORef . fRelease)
 
-ondrag, onmotion :: Field -> (Double -> Double -> IO ()) -> IO ()
-(ondrag, onmotion) = (writeIORef . fDrag, writeIORef . fMotion)
+ondrag :: Field -> (Int -> Double -> Double -> IO ()) -> IO ()
+ondrag = writeIORef . fDrag
+
+onmotion :: Field -> (Double -> Double -> IO ()) -> IO ()
+onmotion = writeIORef . fMotion
 
 onkeypress :: Field -> (Char -> IO Bool) -> IO ()
 onkeypress = writeIORef . fKeypress

@@ -29,7 +29,7 @@ main = do
 	pensize t 10
 	hideturtle t
 	penup t
-	readFile fn >>= sendInputs t . read
+	readFile fn >>= runInputs t . read
 	onclick f $ \b x y -> do
 		case b of
 			1 -> goto t x y >> pendown t >> forward t 0 >> return True
@@ -53,10 +53,12 @@ main = do
 		w <- windowWidth t
 		h <- windowHeight t
 		getSVG t >>= putStrLn . showSVG w h
-		inputs <- getInputs t
+		inputs <- inputs t
 		when (read save) $ writeFile fn $ show $ drop 5 inputs
 		return False
-	ondrag f $ \x y -> goto t x y
+	ondrag f $ \bn x y -> case bn of
+		1 -> goto t x y
+		_ -> return ()
 	waitField f
 
 colors :: [(Word8, Word8, Word8)]
