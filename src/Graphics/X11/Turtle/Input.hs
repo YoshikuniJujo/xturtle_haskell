@@ -4,22 +4,11 @@ module Graphics.X11.Turtle.Input(
 	TurtleInput(..),
 
 	-- * get TurtlsStates in timeline
-	turtleSeries,
-
-	-- * read TurtleState members
-	position,
-	direction,
-	degrees,
-	pendown,
-	visible,
-	undonum,
-	drawed,
-	polyPoints
+	inputToTurtleSeries,
 ) where
 
 import Graphics.X11.Turtle.State(TurtleState(..), initialTurtleState, makeShape)
 import Text.XML.YJSVG(SVG(..), Color(..), Position(..))
-import Control.Concurrent.Chan(Chan, newChan, getChanContents)
 
 --------------------------------------------------------------------------------
 
@@ -52,31 +41,28 @@ data TurtleInput
 	| Degrees Double
 	deriving (Show, Read)
 
-turtleSeries :: IO (Chan TurtleInput, [TurtleInput], [TurtleState])
-turtleSeries = do
-	let	ts0 = initialTurtleState
-	c <- newChan
-	tis <- getChanContents c
-	return (c, tis, ts0 : ts0 : inputToTurtle [] ts0 tis)
+inputToTurtleSeries :: [TurtleInput] -> [TurtleState]
+inputToTurtleSeries tis = let ts0 = initialTurtleState in
+	ts0 : ts0 : inputToTurtles [] ts0 tis
 
-inputToTurtle :: [TurtleState] -> TurtleState -> [TurtleInput] -> [TurtleState]
-inputToTurtle [] ts0 (Undo : tis) = ts0 : inputToTurtle [] ts0 tis
-inputToTurtle (tsb : tsbs) _ (Undo : tis) =
-	let ts1 = tsb{undo = True} in ts1 : inputToTurtle tsbs ts1 tis
-inputToTurtle tsbs ts0 (Forward len : tis) = case position ts0 of
+inputToTurtles :: [TurtleState] -> TurtleState -> [TurtleInput] -> [TurtleState]
+inputToTurtles [] ts0 (Undo : tis) = ts0 : inputToTurtles [] ts0 tis
+inputToTurtles (tsb : tsbs) _ (Undo : tis) =
+	let ts1 = tsb{undo = True} in ts1 : inputToTurtles tsbs ts1 tis
+inputToTurtles tsbs ts0 (Forward len : tis) = case position ts0 of
 	Center x0 y0 -> let
 		x = x0 + len * cos (direction ts0)
 		y = y0 + len * sin (direction ts0) in
-		inputToTurtle tsbs ts0 $ Goto (Center x y) : tis
+		inputToTurtles tsbs ts0 $ Goto (Center x y) : tis
 	TopLeft x0 y0 -> let
 		x = x0 + len * cos (direction ts0)
 		y = y0 - len * sin (direction ts0) in
-		inputToTurtle tsbs ts0 $ Goto (TopLeft x y) : tis
-inputToTurtle tsbs ts0 (TurnLeft dd : tis) = inputToTurtle tsbs ts0 $
+		inputToTurtles tsbs ts0 $ Goto (TopLeft x y) : tis
+inputToTurtles tsbs ts0 (TurnLeft dd : tis) = inputToTurtles tsbs ts0 $
 	Rotate (direction ts0 * degrees ts0 / (2 * pi) + dd) : tis
-inputToTurtle tsbs ts0 (ti : tis) =
-	let ts1 = nextTurtle ts0 ti in ts1 : inputToTurtle (ts0 : tsbs) ts1 tis
-inputToTurtle _ _ [] = error "no more input"
+inputToTurtles tsbs ts0 (ti : tis) =
+	let ts1 = nextTurtle ts0 ti in ts1 : inputToTurtles (ts0 : tsbs) ts1 tis
+inputToTurtles _ _ [] = error "no more input"
 
 reset :: TurtleState -> TurtleState
 reset t = t{draw = Nothing, clear = False, undo = False, undonum = 1,
