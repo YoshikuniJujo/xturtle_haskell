@@ -136,22 +136,19 @@ instance (Integral r, Integral g, Integral b) => ColorClass (r, g, b) where
 
 newTurtle :: Field -> IO Turtle
 newTurtle f = do
-	l <- addLayer f
-	c <- addCharacter f
-	(ch, hist, states) <- turtleSeries
-	idx <- newIORef 1
-	th <- forkField f $ zipWithM_ (moveTurtle f c l) states $ tail states
-	st <- newIORef shapeTable
-	let	t = Turtle {
-			field = f,
-			input = (atomicModifyIORef_ idx succ >>) . writeChan ch,
-			info = \n -> fmap (n . (states !!)) $ readIORef idx,
-			shapes = st,
-			inputs = fmap (flip take hist . pred) $ readIORef idx,
-			killTurtle = flushField f True $ clearLayer l >>
-				clearCharacter c >> killThread th}
-	shape t "classic" >> input t (Undonum 0)
-	return t
+	index <- newIORef 1; shapesRef <- newIORef shapeTable
+	(chan, hist, states) <- turtleSeries
+	l <- addLayer f; c <- addCharacter f
+	thr <- forkField f $ zipWithM_ (moveTurtle f c l) states $ tail states
+	let t = Turtle {
+		field = f,
+		input = (atomicModifyIORef_ index succ >>) . writeChan chan,
+		info = \n -> fmap (n . (states !!)) $ readIORef index,
+		shapes = shapesRef,
+		inputs = fmap (flip take hist . pred) $ readIORef index,
+		killTurtle = flushField f True $
+			clearLayer l >> clearCharacter c >> killThread thr}
+	shape t "classic" >> input t (Undonum 0) >> return t
 
 runInputs :: Turtle -> [TurtleInput] -> IO ()
 runInputs = mapM_ . input
@@ -243,16 +240,20 @@ beginpoly :: Turtle -> IO ()
 beginpoly = (`input` SetPoly True)
 
 endpoly :: Turtle -> IO [(Double, Double)]
-endpoly t@Turtle{field = f} =
-	input t (SetPoly False) >> info t polyPoints >>= mapM pos
-	where pos p = do
-		(w, h) <- windowSize t
-		coord <- coordinates f
-		return $ case coord of
-			CoordCenter ->
-				let Center x y = S.center w h p in (x, y)
-			CoordTopLeft ->
-				let TopLeft x y = S.topleft w h p in (x, y)
+endpoly t = input t (SetPoly False) >> info t polyPoints >>= mapM pos
+	where pos p_ = do
+		p <- convertPosition t p_
+		return $ case p of
+			Center x y -> (x, y)
+			TopLeft x y -> (x, y)
+
+convertPosition :: Turtle -> Position -> IO Position
+convertPosition t p = do
+	(w, h) <- windowSize t
+	coord <- coordinates $ field t
+	return $ case coord of
+		CoordCenter -> S.center w h p
+		CoordTopLeft -> S.topleft w h p
 
 getshapes :: Turtle -> IO [String]
 getshapes = fmap (map fst) . readIORef . shapes
@@ -304,13 +305,7 @@ position t = do
 	return $ case pos of Center x y -> (x, y); TopLeft x y -> (x, y)
 
 position' :: Turtle -> IO Position
-position' t@Turtle{field = f} = do
-	(w, h) <- windowSize t
-	pos <- info t S.position
-	coord <- coordinates f
-	return $ case coord of
-		CoordCenter -> S.center w h pos
-		CoordTopLeft -> S.topleft w h pos
+position' t = info t S.position >>= convertPosition t
 
 xcor, ycor :: Turtle -> IO Double
 xcor = fmap fst . position
