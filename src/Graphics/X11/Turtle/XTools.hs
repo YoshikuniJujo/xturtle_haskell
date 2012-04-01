@@ -86,8 +86,7 @@ import System.Locale.SetLocale(Category(..), setLocale)
 import System.Posix.Types(Fd(..))
 import Data.Word(Word32)
 import Data.Bits((.|.), shift)
-import Data.IORef(newIORef, readIORef)
-import Data.IORef.Tools(atomicModifyIORef_)
+import Data.IORef(newIORef, readIORef, modifyIORef)
 import Foreign.Ptr(Ptr)
 import Foreign.Storable(peek)
 import Foreign.Marshal.Array(advancePtr)
@@ -188,22 +187,21 @@ getImage fp nw nh = do
 	case err of
 		ImlibLoadErrorNone -> do
 			contextSetImage img
-			let	zero = 0 :: Position
 			w <- fmap fromIntegral imageGetWidth :: IO Dimension
 			h <- fmap fromIntegral imageGetHeight :: IO Dimension
 			img' <- createCroppedScaledImage zero zero w h nw nh
 			contextSetImage img'
 			fmap Just imageGetData
 		_ -> print err >> return Nothing
+	where zero = 0 :: Position
 
-drawBitmap :: Display -> Drawable -> GC -> Position -> Position -> Dimension ->
-	Dimension -> Ptr Word32 -> IO ()
-drawBitmap dpy win gc x0 y0 w_ h_ dat = do
-	ptr <- newIORef dat
+drawBitmap :: Display -> Drawable -> GC -> Position -> Position ->
+	Dimension -> Dimension -> Ptr Word32 -> IO ()
+drawBitmap dpy win gc x y w_ h_ dat = newIORef dat >>= \ptr ->
 	forM_ [0 .. w * h - 1]  $ \i -> do
 		readIORef ptr >>= peek >>= setForeground dpy gc
-		drawPoint dpy win gc (x0 + i `mod` w) (y0 + i `div` w)
-		atomicModifyIORef_ ptr $ flip advancePtr 1
+		drawPoint dpy win gc (x + i `mod` w) (y + i `div` w)
+		modifyIORef ptr $ flip advancePtr 1
 	where [w, h] = map fromIntegral [w_, h_]
 
 --------------------------------------------------------------------------------
