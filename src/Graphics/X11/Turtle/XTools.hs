@@ -50,8 +50,6 @@ module Graphics.X11.Turtle.XTools(
 	xK_VoidSymbol,
 ) where
 
-import Text.XML.YJSVG(Color(..))
-
 import Graphics.X11(
 	Display, Drawable, Window, Pixmap, GC, Atom, Point(..), Position,
 	Dimension, XEventPtr,
@@ -79,7 +77,7 @@ import Graphics.X11.Xim(
 import Graphics.Imlib(
 	ImlibLoadError(..), loadImageWithErrorReturn, contextSetImage,
 	imageGetWidth, imageGetHeight, imageGetData, createCroppedScaledImage)
-
+import Text.XML.YJSVG(Color(..))
 import Numeric(showFFloat)
 import Control.Monad(forM_, replicateM)
 import Control.Monad.Tools(unlessM)
@@ -103,7 +101,7 @@ data GCs = GCs{gcForeground :: GC, gcBackground :: GC}
 --------------------------------------------------------------------------------
 
 forkIOX :: IO () -> IO ThreadId
-forkIOX = (initThreads >>) . forkIO
+forkIOX = forkIO . (initThreads >>)
 
 openWindow :: IO (Display, Window, Bufs, GCs, XIC, Atom, (Dimension, Dimension))
 openWindow = do
@@ -113,7 +111,7 @@ openWindow = do
 	_ <- setLocaleModifiers ""
 	dpy <- openDisplay ""
 	del <- internAtom dpy "WM_DELETE_WINDOW" True
-	let	scr = defaultScreen dpy
+	let scr = defaultScreen dpy
 	root <- rootWindow dpy scr
 	(rWidth, rHeight) <- windowSize dpy root
 	bufs@[ub, bb, tb] <- replicateM 3 $
@@ -140,16 +138,16 @@ windowSize dpy win = do
 --------------------------------------------------------------------------------
 
 setForegroundXT :: Display -> GC -> Color -> IO ()
-setForegroundXT dpy gc (RGB r g b) =
-	setForeground dpy gc $ shift (fromIntegral r) 16 .|.
-		shift (fromIntegral g) 8 .|. fromIntegral b
-setForegroundXT dpy gc (ColorName cn) =
-	(allocNamedColor dpy (defaultColormap dpy $ defaultScreen dpy) cn
-		>>= setForeground dpy gc . color_pixel . fst)
-	`catch` const (putStrLn "no such color")
+setForegroundXT dpy gc (RGB r_ g_ b_) = let
+	[r, g, b] = map fromIntegral [r_, g_, b_] in
+	setForeground dpy gc $ shift r 16 .|. shift g 8 .|. b
+setForegroundXT dpy gc (ColorName cn) = let
+	cm = defaultColormap dpy $ defaultScreen dpy in
+	(allocNamedColor dpy cm cn >>= setForeground dpy gc . color_pixel . fst)
+		`catch` const (putStrLn "no such color")
 
-fillRectangleXT :: Display -> Drawable -> GC ->
-	Position -> Position -> Dimension -> Dimension -> IO ()
+fillRectangleXT :: Display -> Drawable -> GC -> Position -> Position ->
+	Dimension -> Dimension -> IO ()
 fillRectangleXT = fillRectangle
 
 fillPolygonXT :: Display -> Drawable -> GC -> [Point] -> IO ()
@@ -165,22 +163,19 @@ drawLineXT dpy gc buf lw clr x1 y1 x2 y2 = do
 writeStringXT :: Display -> Drawable -> String -> Double -> Color ->
 	Position -> Position -> String -> IO ()
 writeStringXT dpy buf fname size clr x y str = do
-	let	visual = defaultVisual dpy $ defaultScreen dpy
-		colormap = defaultColormap dpy $ defaultScreen dpy
-		font = fname ++ "-" ++ showFFloat (Just 0) size ""
-	xftDraw <- xftDrawCreate dpy buf visual colormap
-	xftFont <- xftFontOpen dpy (defaultScreenOfDisplay dpy) font
-	case clr of
-		RGB r g b -> withXftColorValue dpy visual colormap color $ \c ->
-			xftDrawString xftDraw c xftFont x y str
-			where
-			color = XRenderColor {
+	let	vsl = defaultVisual dpy $ defaultScreen dpy
+		cm = defaultColormap dpy $ defaultScreen dpy
+		withColor = case clr of
+			RGB r g b -> withXftColorValue dpy vsl cm XRenderColor{
 				xrendercolor_red = fromIntegral r * 0x100,
 				xrendercolor_blue = fromIntegral g * 0x100,
 				xrendercolor_green = fromIntegral b * 0x100,
 				xrendercolor_alpha = 0xffff}
-		ColorName cn -> withXftColorName dpy visual colormap cn $ \c ->
-			xftDrawString xftDraw c xftFont x y str
+			ColorName cn -> withXftColorName dpy vsl cm cn
+	draw <- xftDrawCreate dpy buf vsl cm
+	font <- xftFontOpen dpy (defaultScreenOfDisplay dpy) $
+		fname ++ "-" ++ showFFloat (Just 0) size ""
+	withColor $ \c -> xftDrawString draw c font x y str
 			
 drawImageXT :: Display -> Drawable -> GC -> FilePath -> Position -> Position ->
 	Dimension -> Dimension -> IO ()

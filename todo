@@ -1,7 +1,13 @@
 * refactoring
+	- XTools(drawImageXT ..)
+	- Layers
+	- Field
+	- State
+	- Move
+	- Input
+	- Turtle
 
 Functions
-* add button number to ondrag
 * scrolling
 
 Bugs
