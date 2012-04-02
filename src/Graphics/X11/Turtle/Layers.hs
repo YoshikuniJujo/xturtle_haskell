@@ -26,63 +26,48 @@ import Data.List.Tools(setAt, modifyAt)
 --------------------------------------------------------------------------------
 
 data Layers = Layers{
-	backgrounds :: [IO ()],
-	buffers :: [IO ()],
-	layers :: [[(IO (), IO ())]],
-	characters :: [IO ()],
-	buffSize :: Int,
-	clearBuffers :: IO (),
-	clearLayers :: IO (),
-	clearCharacters :: IO ()}
+	bgs :: [IO ()], buffs :: [IO ()], layers :: [[(IO (), IO ())]],
+	chars :: [IO ()], buffSize :: Int,
+	clearBuffers :: IO (), clearLayers :: IO (), clearCharacters :: IO ()}
 
-data Layer = Layer{
-	layerId :: Int,
-	layerLayers :: IORef Layers
- }
-
-data Character = Character{
-	characterId :: Int,
-	characterLayers :: IORef Layers
- }
+data Layer = Layer{layerId :: Int, layerLayers :: IORef Layers}
+data Character = Character{charId :: Int, charLayers :: IORef Layers}
 
 --------------------------------------------------------------------------------
 
 newLayers :: Int -> IO () -> IO () -> IO () -> IO (IORef Layers)
 newLayers bsize cbuf clyr cchr = newIORef Layers{
-	backgrounds = [],
-	buffers = [],
-	layers = [],
-	characters = [],
-	buffSize = bsize,
-	clearBuffers = cbuf,
-	clearLayers = clyr,
-	clearCharacters = cchr}
+	bgs = [], buffs = [], layers = [], chars = [], buffSize = bsize,
+	clearBuffers = cbuf, clearLayers = clyr, clearCharacters = cchr}
 
 makeLayer :: IORef Layers -> IO Layer
 makeLayer rls = atomicModifyIORef rls $ \ls -> (ls{
-		backgrounds = backgrounds ls ++[return ()],
-		buffers = buffers ls ++ [return ()],
+		bgs = bgs ls ++[return ()], buffs = buffs ls ++ [return ()],
 		layers = layers ls ++ [[]]},
 	Layer{layerId = length $ layers ls, layerLayers = rls})
 
 makeCharacter :: IORef Layers -> IO Character
-makeCharacter rls = atomicModifyIORef rls $ \ls ->
-	(ls{characters = characters ls ++ [return ()]}, Character{
-		characterId = length $ characters ls,
-		characterLayers = rls})
+makeCharacter rls = atomicModifyIORef rls $ \ls -> (ls{
+		chars = chars ls ++ [return ()]},
+	Character{charId = length $ chars ls, charLayers = rls})
 
 --------------------------------------------------------------------------------
 
 redrawLayers :: IORef Layers -> IO ()
 redrawLayers rls = readIORef rls >>= \ls -> do
-	clearBuffers ls >> sequence_ (backgrounds ls) >> sequence_ (buffers ls)
+	clearBuffers ls >> sequence_ (bgs ls) >> sequence_ (buffs ls)
 	clearLayers ls >> mapM_ snd (concat $ layers ls)
-	clearCharacters ls >> sequence_ (characters ls)
+	clearCharacters ls >> sequence_ (chars ls)
+
+background :: Layer -> IO () -> IO ()
+background Layer{layerId = lid, layerLayers = rls} act =
+	atomicModifyIORef_ rls (\ls -> ls{bgs = setAt (bgs ls) lid act})
+		>> redrawLayers rls
 
 addDraw :: Layer -> (IO (), IO ()) -> IO ()
 addDraw Layer{layerId = lid, layerLayers = rls} acts@(_, act) = do
 	readIORef rls >>= \ls -> do
-		act >> clearCharacters ls >> sequence_ (characters ls)
+		act >> clearCharacters ls >> sequence_ (chars ls)
 		unless (length (layers ls !! lid) < buffSize ls) $
 			fst $ head $ layers ls !! lid
 	atomicModifyIORef_ rls $ \ls ->
@@ -90,13 +75,7 @@ addDraw Layer{layerId = lid, layerLayers = rls} acts@(_, act) = do
 			then ls{layers = modifyAt (layers ls) lid (++ [acts])}
 			else let (a, _) : as = layers ls !! lid in ls{
 				layers = setAt (layers ls) lid $ as ++ [acts],
-				buffers = modifyAt (buffers ls) lid (>> a)}
-
-background :: Layer -> IO () -> IO ()
-background Layer{layerId = lid, layerLayers = rls} act = do
-	atomicModifyIORef_ rls $ \ls ->
-		ls{backgrounds = setAt (backgrounds ls) lid act}
-	redrawLayers rls
+				buffs = modifyAt (buffs ls) lid (>> a)}
 
 undoLayer :: Layer -> IO Bool
 undoLayer Layer{layerId = lid, layerLayers = rls} = do
@@ -105,20 +84,17 @@ undoLayer Layer{layerId = lid, layerLayers = rls} = do
 		else (ls{layers = modifyAt (layers ls) lid init}, True)
 	when done $ readIORef rls >>= \ls -> do
 		clearLayers ls >> mapM_ snd (concat $ layers ls)
-		clearCharacters ls >> sequence_ (characters ls)
+		clearCharacters ls >> sequence_ (chars ls)
 	return done
 
 clearLayer :: Layer -> IO ()
-clearLayer Layer{layerId = lid, layerLayers = rls} = do
-	atomicModifyIORef_ rls $ \ls -> ls{
-		backgrounds = setAt (backgrounds ls) lid $ return (),
-		buffers = setAt (buffers ls) lid $ return (),
-		layers = setAt (layers ls) lid []}
-	redrawLayers rls
+clearLayer Layer{layerId = lid, layerLayers = rls} =
+	atomicModifyIORef_ rls (\ls -> ls{
+		bgs = setAt (bgs ls) lid $ return (),
+		buffs = setAt (buffs ls) lid $ return (),
+		layers = setAt (layers ls) lid []}) >> redrawLayers rls
 
 character :: Character -> IO () -> IO ()
-character Character{characterId = cid, characterLayers = rls} act = do
-	atomicModifyIORef_ rls $ \ls ->
-		ls{characters = setAt (characters ls) cid act}
-	readIORef rls >>= \ls ->
-		clearCharacters ls >> sequence_ (characters ls)
+character Character{charId = cid, charLayers = rls} act = do
+	atomicModifyIORef_ rls $ \ls -> ls{chars = setAt (chars ls) cid act}
+	readIORef rls >>= \ls -> clearCharacters ls >> sequence_ (chars ls)
