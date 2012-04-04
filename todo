@@ -1,5 +1,4 @@
 * refactoring
-	- Layers
 	- Field
 	- State
 	- Move
@@ -10,6 +9,7 @@ Functions
 * scrolling
 
 Bugs
+* not show when Expose when flushoff
 * repair closeField
 * rotate many times by home
 

@@ -30,7 +30,7 @@ module Graphics.X11.Turtle.XTools(
 	-- * draw functions
 	flush,
 	setForegroundXT,
-	copyArea,
+	copyAreaXT,
 	fillRectangleXT,
 	fillPolygonXT,
 	drawLineXT,
@@ -144,6 +144,10 @@ setForegroundXT dpy gc (ColorName cn) = let
 	cm = defaultColormap dpy $ defaultScreen dpy in
 	(allocNamedColor dpy cm cn >>= setForeground dpy gc . color_pixel . fst)
 		`catch` const (putStrLn "no such color")
+
+copyAreaXT :: Display -> Drawable -> Drawable -> GC ->
+	Dimension -> Dimension -> IO ()
+copyAreaXT dpy src dst gc w h = copyArea dpy src dst gc 0 0 w h 0 0
 
 fillRectangleXT :: Display -> Drawable -> GC -> Position -> Position ->
 	Dimension -> Dimension -> IO ()

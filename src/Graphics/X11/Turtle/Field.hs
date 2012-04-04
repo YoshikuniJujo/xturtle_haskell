@@ -46,10 +46,10 @@ module Graphics.X11.Turtle.Field(
 
 import Graphics.X11.Turtle.XTools(
 	Display, Window, Pixmap, Atom, Point(..), PositionXT, Dimension,
-	XEventPtr, XIC, Bufs, undoBuf, bgBuf, topBuf,
-	GCs, gcForeground, gcBackground, Event(..),
+	XEventPtr, Event(..), XIC, Bufs, undoBuf, bgBuf, topBuf,
+	GCs, gcForeground, gcBackground,
 	forkIOX, openWindow, destroyWindow, closeDisplay, windowSize,
-	flush, copyArea, setForegroundXT,
+	flush, setForegroundXT, copyAreaXT,
 	drawLineXT, fillRectangleXT, fillPolygonXT, writeStringXT, drawImageXT,
 	allocaXEvent, waitEvent, pending, nextEvent, getEvent, filterEvent,
 	utf8LookupString, buttonPress, buttonRelease, xK_VoidSymbol)
@@ -70,6 +70,7 @@ import Data.IORef.Tools(atomicModifyIORef_)
 import Data.Maybe(fromMaybe)
 import Data.List(delete)
 import Data.Convertible(convert)
+import Data.Function.Tools(const2, const3)
 
 --------------------------------------------------------------------------------
 
@@ -79,24 +80,26 @@ data Field = Field{
 
 	fClick, fRelease :: IORef (Int -> Double -> Double -> IO Bool),
 	fDrag :: IORef (Int -> Double -> Double -> IO ()),
-	fMotion :: IORef (Double -> Double -> IO ()),
-	fKeypress :: IORef (Char -> IO Bool),
-	fTimerEvent :: IORef (IO Bool),
 	fPressed :: IORef [Int],
+	fMotion :: IORef (Double -> Double -> IO ()),
+	fKeypress :: IORef (Char -> IO Bool), fTimerEvent :: IORef (IO Bool),
 
-	fLayers :: IORef Layers, fInput :: Chan InputType,
-	fCoordinates :: IORef Coordinates, fLock, fClose, fEnd :: Chan (),
+	fLayers :: IORef Layers, fCoordinates :: IORef Coordinates,
+	fInput :: Chan InputType, fLock, fClose, fEnd :: Chan (),
 	fRunning :: IORef [ThreadId]}
+
+killRunning :: Field -> IO ()
+killRunning f = readIORef (fRunning f) >>= mapM_ killThread
 
 makeField :: Display -> Window -> Bufs -> GCs -> XIC -> Atom ->
 	IORef (Dimension, Dimension) -> IORef Layers -> IO Field
 makeField dpy win bufs gcs ic del sizeRef ls = do
-	[click, release] <- replicateM 2 $ newIORef $ \_ _ _ -> return True
-	drag <- newIORef $ \_ _ _ -> return ()
-	motion <- newIORef $ \_ _ -> return ()
-	keypress <- newIORef $ \_ -> return True
-	timer <- newIORef $ return True
+	[click, release] <- replicateM 2 $ newIORef $ const3 $ return True
+	drag <- newIORef $ const3 $ return ()
 	pressed <- newIORef []
+	motion <- newIORef $ const2 $ return ()
+	keypress <- newIORef $ const $ return True
+	timer <- newIORef $ return True
 	input <- newChan
 	coord <- newIORef CoordCenter
 	[lock, close, end] <- replicateM 3 newChan
@@ -106,11 +109,11 @@ makeField dpy win bufs gcs ic del sizeRef ls = do
 		fDisplay = dpy, fWindow = win, fBufs = bufs, fGCs = gcs,
 		fIC = ic, fDel = del, fSize = sizeRef,
 
-		fClick = click, fRelease = release, fDrag = drag,
+		fClick = click, fRelease = release,
+		fDrag = drag, fPressed = pressed,
 		fMotion = motion, fKeypress = keypress, fTimerEvent = timer,
-		fPressed = pressed,
 
-		fLayers = ls, fInput = input, fCoordinates = coord,
+		fLayers = ls, fCoordinates = coord, fInput = input,
 		fLock = lock, fClose = close, fEnd = end, fRunning = running}
 
 data Coordinates = CoordCenter | CoordTopLeft
@@ -127,16 +130,14 @@ center = flip (writeIORef . fCoordinates) CoordCenter
 openField :: IO Field
 openField = do
 	(dpy, win, bufs, gcs, ic, del, size) <- openWindow
+	sizeRef <- newIORef size
 	let	(ub, bb, tb) = (undoBuf bufs, bgBuf bufs, topBuf bufs)
 		(gcf, gcb) = (gcForeground gcs, gcBackground gcs)
-	sizeRef <- newIORef size
-	let	getSize = readIORef sizeRef
-	ls <- newLayers 50 
-		(setForegroundXT dpy gcb (RGB 255 255 255) >>
-			getSize >>= uncurry (fillRectangleXT dpy ub gcb 0 0))
-		(getSize >>= \(w, h) -> copyArea dpy ub bb gcf 0 0 w h 0 0)
-		(getSize >>= \(w, h) -> copyArea dpy bb tb gcf 0 0 w h 0 0)
-	f <- makeField dpy win bufs gcs ic del sizeRef ls
+	lyrs <- newLayers 50 (setForegroundXT dpy gcb (RGB 255 255 255) >>
+		readIORef sizeRef >>= uncurry (fillRectangleXT dpy ub gcb 0 0))
+		(readIORef sizeRef >>= uncurry (copyAreaXT dpy ub bb gcf))
+		(readIORef sizeRef >>= uncurry (copyAreaXT dpy bb tb gcf))
+	f <- makeField dpy win bufs gcs ic del sizeRef lyrs
 	_ <- forkIOX $ runLoop f
 	flush dpy
 	return f
@@ -147,14 +148,11 @@ waitInput :: Field -> IO (Chan ())
 waitInput f = do
 	empty <- newChan
 	tid <- forkIOX $ forever $ do
-		waitEvent $ fDisplay f
-		writeChan (fInput f) XInput
+		waitEvent (fDisplay f) >> writeChan (fInput f) XInput
 		readChan empty
 	atomicModifyIORef_ (fRunning f) (tid :)
-	_ <- forkIO $ do
-		readChan $ fClose f
-		killThread tid
-		writeChan (fInput f) End
+	_ <- forkIO $
+		readChan (fClose f) >> killRunning f >> writeChan (fInput f) End
 	return empty
 
 runLoop :: Field -> IO ()
@@ -166,20 +164,22 @@ runLoop f = allocaXEvent $ \e -> do
 			End -> return False
 			Timer -> do
 				c <- join $ readIORef $ fTimerEvent f
-				unless c $ readIORef (fRunning f)
-					>>= mapM_ killThread
+				unless c $ killRunning f
 				return c
-			XInput -> doWhile undefined $ const $ do
-				evN <- pending $ fDisplay f
-				if evN <= 0 then return (True, False) else do
-					nextEvent (fDisplay f) e
-					filtered <- filterEvent e 0
-					if filtered then return (True, True)
-						else do	ev <- getEvent e
-							c <- processEvent f e ev
-							return (c, c)
-		if cont then writeChan empty () >> return True else return False
-	readIORef (fRunning f) >>= mapM_ killThread
+			XInput -> do
+				cc <- doWhile undefined $ const $ do
+					evN <- pending $ fDisplay f
+					if evN <= 0 then return (True, False) else do
+						nextEvent (fDisplay f) e
+						filtered <- filterEvent e 0
+						if filtered then return (True, True)
+							else do	ev <- getEvent e
+								c <- processEvent f e ev
+								unless c $ killRunning f
+								return (c, c)
+				when cc $ writeChan empty ()
+				return cc
+		return cont
 	destroyWindow (fDisplay f) (fWindow f)
 	closeDisplay $ fDisplay f
 	writeChan (fEnd f) ()
@@ -244,9 +244,8 @@ flushField :: Field -> Bool -> IO a -> IO a
 flushField f real act = do
 	ret <- readChan (fLock f) >> act
 	when real $ do
-		(w, h) <- readIORef $ fSize f
-		copyArea (fDisplay f) (topBuf $ fBufs f) (fWindow f)
-			(gcForeground $ fGCs f) 0 0 w h 0 0
+		uncurry (copyAreaXT (fDisplay f) (topBuf $ fBufs f) (fWindow f)
+				(gcForeground $ fGCs f)) =<< readIORef (fSize f)
 		flush $ fDisplay f
 	writeChan (fLock f) () >> return ret
 
@@ -344,5 +343,5 @@ onkeypress = writeIORef . fKeypress
 ontimer :: Field -> Int -> IO Bool -> IO ()
 ontimer f t fun = do
 	writeIORef (fTimerEvent f) fun
-	threadDelay $ t * 1000
-	writeChan (fInput f) Timer
+	_ <- forkIO $ threadDelay (t * 1000) >> writeChan (fInput f) Timer
+	return ()
