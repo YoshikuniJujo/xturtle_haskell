@@ -167,22 +167,25 @@ runLoop f = allocaXEvent $ \e -> do
 				unless c $ killRunning f
 				return c
 			XInput -> do
-				cc <- doWhile undefined $ const $ do
-					evN <- pending $ fDisplay f
-					if evN <= 0 then return (True, False) else do
-						nextEvent (fDisplay f) e
-						filtered <- filterEvent e 0
-						if filtered then return (True, True)
-							else do	ev <- getEvent e
-								c <- processEvent f e ev
-								unless c $ killRunning f
-								return (c, c)
+				cc <- processXInput f e
 				when cc $ writeChan empty ()
 				return cc
 		return cont
 	destroyWindow (fDisplay f) (fWindow f)
 	closeDisplay $ fDisplay f
 	writeChan (fEnd f) ()
+
+processXInput :: Field -> XEventPtr -> IO Bool
+processXInput f e = doWhile undefined $ const $ do
+	evN <- pending $ fDisplay f
+	if evN <= 0 then return (True, False) else do
+		nextEvent (fDisplay f) e
+		filtered <- filterEvent e 0
+		if filtered then return (True, True)
+			else do	ev <- getEvent e
+				c <- processEvent f e ev
+				unless c $ killRunning f
+				return (c, c)
 
 processEvent :: Field -> XEventPtr -> Event -> IO Bool
 processEvent f e ev = case ev of
