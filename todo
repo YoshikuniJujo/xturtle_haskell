@@ -1,8 +1,5 @@
 * refactoring
 
-* Rotate should take radian
-	- use RotateRad
-
 Functions
 * scrolling
 
