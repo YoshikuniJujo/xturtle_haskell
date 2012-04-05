@@ -1,9 +1,8 @@
 * refactoring
-	- Field
-	- State
-	- Move
 	- Input
 	- Turtle
+
+* Rotate should take radian
 
 Functions
 * scrolling

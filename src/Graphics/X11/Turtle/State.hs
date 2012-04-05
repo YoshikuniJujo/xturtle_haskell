@@ -1,9 +1,9 @@
 module Graphics.X11.Turtle.State(
-	TurtleState(..), initialTurtleState, makeShape) where
+	TurtleState(..), initTurtleState, makeShape) where
 
 import Text.XML.YJSVG(Position(..), SVG(Fill), Color(RGB))
-import Control.Arrow((***))
 import Data.Tuple.Tools(rotate)
+import Control.Arrow((***))
 
 data TurtleState = TurtleState {
 	position :: Position,
@@ -33,8 +33,8 @@ data TurtleState = TurtleState {
 	directionStep :: Maybe Double,
 	interval :: Int}
 
-initialTurtleState :: TurtleState
-initialTurtleState = TurtleState {
+initTurtleState :: TurtleState
+initTurtleState = TurtleState {
 	position = Center 0 0,
 	direction = 0,
 	degrees = 360,

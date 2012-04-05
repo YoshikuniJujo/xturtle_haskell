@@ -93,10 +93,9 @@ module Graphics.X11.Turtle(
 ) where
 
 import Graphics.X11.Turtle.Data(shapeTable, speedTable)
-import Graphics.X11.Turtle.Input(
-	TurtleState, TurtleInput(..), inputToTurtleSeries)
+import Graphics.X11.Turtle.Input(TurtleInput(..), turtleSeries)
 import Graphics.X11.Turtle.State(
-	direction, visible, undonum, drawed, polyPoints)
+	TurtleState, direction, visible, undonum, drawed, polyPoints)
 import qualified Graphics.X11.Turtle.State as S(position, degrees, pendown)
 import Graphics.X11.Turtle.Move(
 	Field, Coordinates(..), openField, closeField, fieldSize,
@@ -141,7 +140,7 @@ newTurtle f = do
 	index <- newIORef 1; shapesRef <- newIORef shapeTable
 	chan <- newChan
 	hist <- getChanContents chan
-	let states = inputToTurtleSeries hist
+	let states = turtleSeries hist
 	l <- addLayer f; c <- addCharacter f
 	thr <- forkField f $ zipWithM_ (moveTurtle f c l) states $ tail states
 	let t = Turtle {

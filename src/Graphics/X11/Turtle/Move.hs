@@ -6,11 +6,11 @@ module Graphics.X11.Turtle.Move(
 	-- * process Field
 	openField,
 	closeField,
-	fieldSize,
-	coordinates,
+	waitField,
 	topleft,
 	center,
-	waitField,
+	coordinates,
+	fieldSize,
 
 	-- * draws
 	forkField,
@@ -33,9 +33,9 @@ module Graphics.X11.Turtle.Move(
 import Graphics.X11.Turtle.State(TurtleState(..), makeShape)
 import Graphics.X11.Turtle.Field(
 	Field, Layer, Character, Coordinates(..),
-	openField, closeField, fieldSize, coordinates, topleft, center,
-	waitField, forkField, flushField,
-	addLayer, clearLayer, addCharacter, clearCharacter,
+	openField, closeField, waitField, coordinates, topleft, center,
+	fieldSize, forkField, flushField, addLayer, clearLayer,
+	addCharacter, clearCharacter,
 	onclick, onrelease, ondrag, onmotion, onkeypress, ontimer,
 	fieldColor, drawLine, fillRectangle, fillPolygon, writeString,
 	drawImage, undoLayer, drawCharacter, drawCharacterAndLine)
