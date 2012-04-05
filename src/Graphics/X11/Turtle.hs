@@ -93,13 +93,13 @@ module Graphics.X11.Turtle(
 ) where
 
 import Graphics.X11.Turtle.Data(shapeTable, speedTable)
-import Graphics.X11.Turtle.Input(TurtleInput(..), turtleSeries)
 import Graphics.X11.Turtle.State(
 	TurtleState, direction, visible, undonum, drawed, polyPoints)
 import qualified Graphics.X11.Turtle.State as S(position, degrees, pendown)
+import Graphics.X11.Turtle.Input(TurtleInput(..), turtleSeries)
 import Graphics.X11.Turtle.Move(
-	Field, Coordinates(..), openField, closeField, fieldSize,
-	coordinates, topleft, center, waitField, forkField, flushField,
+	Field, Coordinates(..), openField, closeField, waitField,
+	topleft, center, coordinates, fieldSize, forkField, flushField,
 	addLayer, clearLayer, addCharacter, clearCharacter, moveTurtle,
 	onclick, onrelease, ondrag, onmotion, onkeypress, ontimer)
 import Text.XML.YJSVG(SVG(..), Position(..), Color(..))
@@ -115,7 +115,7 @@ import Data.Fixed(mod')
 --------------------------------------------------------------------------------
 
 xturtleVersion :: (Int, String)
-xturtleVersion = (67, "0.1.10")
+xturtleVersion = (68, "0.1.10a")
 
 --------------------------------------------------------------------------------
 
@@ -138,8 +138,7 @@ instance (Integral r, Integral g, Integral b) => ColorClass (r, g, b) where
 newTurtle :: Field -> IO Turtle
 newTurtle f = do
 	index <- newIORef 1; shapesRef <- newIORef shapeTable
-	chan <- newChan
-	hist <- getChanContents chan
+	chan <- newChan; hist <- getChanContents chan
 	let states = turtleSeries hist
 	l <- addLayer f; c <- addCharacter f
 	thr <- forkField f $ zipWithM_ (moveTurtle f c l) states $ tail states
@@ -328,8 +327,8 @@ isdown = flip info S.pendown
 isvisible = flip info visible
 
 windowWidth, windowHeight :: Turtle -> IO Double
-windowWidth = fmap fst . fieldSize . field
-windowHeight = fmap snd . fieldSize . field
+windowWidth = fmap fst . windowSize
+windowHeight = fmap snd . windowSize
 
 windowSize :: Turtle -> IO (Double, Double)
 windowSize = fieldSize . field
