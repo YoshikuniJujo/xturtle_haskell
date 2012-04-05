@@ -8,6 +8,7 @@ import Text.XML.YJSVG(SVG(..), Color(..), Position(..))
 data TurtleInput
 	= Goto Position
 	| Forward Double
+	| RotateRad Double
 	| Rotate Double
 	| TurnLeft Double
 	| Dot Double
@@ -50,8 +51,10 @@ turtles tsbs ts0 (Forward len : tis) = case position ts0 of
 		x = x0 + len * cos (direction ts0)
 		y = y0 - len * sin (direction ts0) in
 		turtles tsbs ts0 $ Goto (TopLeft x y) : tis
+turtles tsbs ts0 (Rotate dir : tis) = turtles tsbs ts0 $
+	RotateRad (dir * 2 * pi / degrees ts0) : tis
 turtles tsbs ts0 (TurnLeft dd : tis) = turtles tsbs ts0 $
-	Rotate (direction ts0 * degrees ts0 / (2 * pi) + dd) : tis
+	RotateRad (direction ts0 + dd * 2 * pi / degrees ts0) : tis
 turtles tsbs ts0 (ti : tis) =
 	let ts1 = nextTurtle ts0 ti in ts1 : turtles (ts0 : tsbs) ts1 tis
 turtles _ _ [] = error "no more input"
@@ -69,7 +72,7 @@ nextTurtle t (Goto pos) = (reset t){position = pos,
 	polyPoints = (if poly t then (pos :) else id) $ polyPoints t}
 	`set` if not $ pendown t then Nothing
 		else Just $ Line pos (position t) (pencolor t) (pensize t)
-nextTurtle t (Rotate dir) = (reset t){direction = dir * 2 * pi / degrees t}
+nextTurtle t (RotateRad dir) = (reset t){direction = dir}
 nextTurtle t@TurtleState{pencolor = clr} (Dot sz) = reset t `set`
 	Just (Rect (position t) sz sz 0 clr clr)
 nextTurtle t@TurtleState{pencolor = clr} Stamp = reset t `set`

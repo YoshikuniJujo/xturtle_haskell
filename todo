@@ -1,7 +1,7 @@
 * refactoring
-	- Turtle
 
 * Rotate should take radian
+	- use RotateRad
 
 Functions
 * scrolling
