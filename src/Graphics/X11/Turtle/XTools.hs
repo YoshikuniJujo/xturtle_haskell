@@ -1,3 +1,5 @@
+{-# LANGUAGE ScopedTypeVariables #-}
+
 module Graphics.X11.Turtle.XTools(
 	-- * types
 	Display,
@@ -90,6 +92,7 @@ import Data.IORef(newIORef, readIORef, modifyIORef)
 import Foreign.Ptr(Ptr)
 import Foreign.Storable(peek)
 import Foreign.Marshal.Array(advancePtr)
+import Control.Exception(catch, SomeException)
 
 --------------------------------------------------------------------------------
 
@@ -143,7 +146,7 @@ setForegroundXT dpy gc (RGB r_ g_ b_) = let
 setForegroundXT dpy gc (ColorName cn) = let
 	cm = defaultColormap dpy $ defaultScreen dpy in
 	(allocNamedColor dpy cm cn >>= setForeground dpy gc . color_pixel . fst)
-		`catch` const (putStrLn "no such color")
+		`catch` \(_ :: SomeException) -> (putStrLn "no such color")
 
 copyAreaXT :: Display -> Drawable -> Drawable -> GC ->
 	Dimension -> Dimension -> IO ()
