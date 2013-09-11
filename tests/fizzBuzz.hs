@@ -16,11 +16,13 @@ main = do
 	t <- newTurtle f
 	penup t
 	threadDelay 1000000
+	speed t "slowest"
 	h <- windowHeight t
 	w <- windowWidth t
 	hideturtle t
 	goto t (- w / 2) (h / 2)
 	mapM_ (turtleWrite t h) $ fizzBuzz n
+	threadDelay 5000000
 	replicateM_ (n * 5) $ undo t
 	waitField f
 

@@ -6,13 +6,19 @@ import Control.Monad
 import Control.Concurrent
 import Data.Word
 
+import System.Environment
+
 main :: IO ()
 main = do
+	args <- getArgs
+	let time = case args of
+		[] -> 10000000
+		a : _ -> read a * 1000000
 	putStrLn "testNewTurtle"
 	f <- openField
 	t <- newTurtle f
 	forkIO $ randomTurtle t
-	threadDelay 30000000
+	threadDelay time
 	closeField f
 
 randomWord8 :: IO Word8
