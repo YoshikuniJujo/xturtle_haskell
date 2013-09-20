@@ -8,7 +8,7 @@ main = do
 	print xturtleVersion
 	f <- openField
 	t <- newTurtle f
-	pencolor t (0, 128, 0)
+	pencolor t (0 :: Int, 128 :: Int, 0 :: Int)
 	pensize t 10
 	shape t "turtle"
 	shapesize t 2 2

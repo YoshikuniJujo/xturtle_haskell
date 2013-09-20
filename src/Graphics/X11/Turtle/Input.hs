@@ -17,6 +17,7 @@ data TurtleInput
 	| PutImage FilePath Double Double
 	| Undo
 	| Undonum Int
+	| SilentUndo Int
 	| Clear
 	| Sleep Int
 	| Flush
@@ -42,6 +43,9 @@ turtles :: [TurtleState] -> TurtleState -> [TurtleInput] -> [TurtleState]
 turtles [] ts0 (Undo : tis) = ts0 : turtles [] ts0 tis
 turtles (tsb : tsbs) _ (Undo : tis) =
 	let ts1 = tsb{undo = True} in ts1 : turtles tsbs ts1 tis
+turtles tsbs _ (SilentUndo n : tis) = let
+	ts1_ : tsbs' = drop (n - 1) tsbs
+	ts1 = ts1_{ silentundo = Just n } in ts1 : turtles tsbs' ts1 tis
 turtles tsbs ts0 (Forward len : tis) = case position ts0 of
 	Center x0 y0 -> let
 		x = x0 + len * cos (direction ts0)
@@ -60,8 +64,8 @@ turtles tsbs ts0 (ti : tis) =
 turtles _ _ [] = error "no more input"
 
 reset :: TurtleState -> TurtleState
-reset t = t{draw = Nothing, clear = False, undo = False, undonum = 1,
-	sleep = Nothing, flush = False}
+reset t = t{draw = Nothing, clear = False, undo = False, silentundo = Nothing,
+	undonum = 1, sleep = Nothing, flush = False}
 
 set :: TurtleState -> Maybe SVG -> TurtleState
 set t drw = t{draw = drw, drawed = maybe id (:) drw $ drawed t}

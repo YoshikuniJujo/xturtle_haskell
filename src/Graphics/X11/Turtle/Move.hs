@@ -43,9 +43,9 @@ import Text.XML.YJSVG(SVG(..), Position(..))
 import qualified Text.XML.YJSVG as S(topleft)
 
 import Control.Concurrent(threadDelay)
-import Control.Monad(when, unless, forM_)
+import Control.Monad(when, unless, forM_, replicateM_)
 import Control.Monad.Tools(unlessM)
-import Data.Maybe(isJust)
+import Data.Maybe(isJust, isNothing)
 
 --------------------------------------------------------------------------------
 
@@ -59,7 +59,10 @@ moveTurtle f c l t0 t1 = do
 		when (isJust $ draw t0) $ do
 			unlessM (undoLayer l) $ clearLayer l >> redraw
 			when (visible t1) $ drawTtl (direction t0) $ position t0
-	when (visible t1) $ do
+	case silentundo t1 of
+		Just n -> replicateM_ n (undoLayer l) >> clearLayer l >> redraw
+		_ -> return ()
+	when (visible t1 && isNothing (silentundo t1)) $ do
 		forM_ (directions t0 t1) $ \dir -> fl $
 			drawTtl dir (position t0) >> threadDelay (interval t0)
 		forM_ (positions w h t0 t1) $ \p -> fl $
@@ -67,7 +70,8 @@ moveTurtle f c l t0 t1 = do
 		fl $ drawTtl (direction t1) $ position t1
 	when (visible t0 && not (visible t1)) $ fl $ clearCharacter c
 	when (clear t1) $ fl $ clearLayer l
-	unless (undo t1) $ fl $ maybe (return ()) (drawSVG f l) (draw t1)
+	unless (undo t1 || isJust (silentundo t1)) $
+		fl $ maybe (return ()) (drawSVG f l) (draw t1)
 	where
 	fl = flushField f $ stepbystep t0
 	redraw = mapM_ (drawSVG f l) $ reverse $ drawed t1

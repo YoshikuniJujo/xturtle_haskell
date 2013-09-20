@@ -47,6 +47,7 @@ module Graphics.X11.Turtle(
 	circle,
 	home,
 	undo,
+	silentundo,
 	sleep,
 	flush,
 
@@ -210,6 +211,9 @@ home t = goto t 0 0 >> setheading t 0 >> input t (Undonum 3)
 
 undo :: Turtle -> IO ()
 undo t = info t undonum >>= flip replicateM_ (input t Undo)
+
+silentundo :: Turtle -> Int -> IO ()
+silentundo t n = input t $ SilentUndo n
 
 sleep :: Turtle -> Int -> IO ()
 sleep t = input t . Sleep
