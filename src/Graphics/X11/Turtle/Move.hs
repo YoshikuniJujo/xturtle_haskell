@@ -60,7 +60,7 @@ moveTurtle f c l t0 t1 = do
 			unlessM (undoLayer l) $ clearLayer l >> redraw
 			when (visible t1) $ drawTtl (direction t0) $ position t0
 	case silentundo t1 of
-		Just n -> replicateM_ n (undoLayer l) >> clearLayer l >> redraw
+		Just n -> fl $ replicateM_ n (undoLayer l) >> clearLayer l >> redraw
 		_ -> return ()
 	when (visible t1 && isNothing (silentundo t1)) $ do
 		forM_ (directions t0 t1) $ \dir -> fl $
