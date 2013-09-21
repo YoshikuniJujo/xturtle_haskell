@@ -86,13 +86,13 @@ import Control.Monad.Tools(unlessM)
 import Control.Concurrent(ThreadId, forkIO, threadWaitRead)
 import System.Locale.SetLocale(Category(..), setLocale)
 import System.Posix.Types(Fd(..))
-import Data.Word(Word32)
-import Data.Bits((.|.), shift)
+import Data.Bits((.&.), (.|.), shift)
 import Data.IORef(newIORef, readIORef, modifyIORef)
 import Foreign.Ptr(Ptr)
 import Foreign.Storable(peek)
 import Foreign.Marshal.Array(advancePtr)
 import Control.Exception(catch, SomeException)
+import Data.Word(Word32, Word64)
 
 --------------------------------------------------------------------------------
 
@@ -136,6 +136,26 @@ windowSize :: Display -> Window -> IO (Dimension, Dimension)
 windowSize dpy win = do
 	(_, _, _, width, height, _, _) <- getGeometry dpy win
 	return (width, height)
+
+class ConvertPixel p where
+	convertPixel :: Word32 -> p
+
+instance ConvertPixel Word32 where
+	convertPixel = id
+
+instance ConvertPixel Word64 where
+	convertPixel = fromIntegral
+
+convertW64 :: Word64 -> Word64
+convertW64 p = foldr1 (.|.) $ zipWith shift (getColors p) [8, 16, 24, 32]
+
+getColors :: Word64 -> [Word64]
+getColors p = [
+	p .&. 0xffff,
+	p .&. (0xffff `shift` 8),
+	p .&. (0xffff `shift` 16),
+	p .&. (0xffff `shift` 24)
+ ]
 
 --------------------------------------------------------------------------------
 
@@ -206,7 +226,7 @@ drawBitmap :: Display -> Drawable -> GC -> Position -> Position ->
 	Dimension -> Dimension -> Ptr Word32 -> IO ()
 drawBitmap dpy win gc x y w_ h_ dat = newIORef dat >>= \ptr ->
 	forM_ [0 .. w * h - 1]  $ \i -> do
-		readIORef ptr >>= peek >>= setForeground dpy gc
+		readIORef ptr >>= peek >>= setForeground dpy gc . convertPixel
 		drawPoint dpy win gc (x + i `mod` w) (y + i `div` w)
 		modifyIORef ptr $ flip advancePtr 1
 	where [w, h] = map fromIntegral [w_, h_]
