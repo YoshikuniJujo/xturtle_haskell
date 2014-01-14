@@ -34,6 +34,7 @@ module Graphics.X11.Turtle(
 	inputs,
 	runInputs,
 	getSVG,
+	field,
 
 	-- ** move turtle
 	forward,
