@@ -4,6 +4,7 @@ module Graphics.X11.Turtle.State(
 import Text.XML.YJSVG(Position(..), SVG(Fill), Color(RGB))
 import Data.Tuple.Tools(rotate)
 import Control.Arrow((***))
+import Control.Concurrent.Chan (Chan)
 
 data TurtleState = TurtleState {
 	position :: Position,
@@ -32,7 +33,10 @@ data TurtleState = TurtleState {
 
 	positionStep :: Maybe Double,
 	directionStep :: Maybe Double,
-	interval :: Int}
+	interval :: Int,
+
+	finishSign :: Maybe (Chan ())
+ }
 
 initTurtleState :: TurtleState
 initTurtleState = TurtleState {
@@ -62,7 +66,10 @@ initTurtleState = TurtleState {
 
 	positionStep = Just 10,
 	directionStep = Just $ pi / 18,
-	interval = 10000}
+	interval = 10000,
+
+	finishSign = Nothing
+ }
 
 makeShape :: TurtleState -> Double -> Position -> [Position]
 makeShape ts dir_ pos = (mkPos . move . rotate dir . resize) `map` shape ts

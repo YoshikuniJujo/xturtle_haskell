@@ -39,7 +39,7 @@ import Graphics.X11.Turtle.Field(
 	onclick, onrelease, ondrag, onmotion, onkeypress, ontimer,
 	fieldColor, drawLine, fillRectangle, fillPolygon, writeString,
 	drawImage, undoLayer, drawCharacter, drawCharacterAndLine)
-import Text.XML.YJSVG(SVG(..), Position(..))
+import Text.XML.YJSVG(SVG(..), Position(..), Font(..), FontWeight(..))
 import qualified Text.XML.YJSVG as S(topleft)
 
 import Control.Concurrent(threadDelay)
@@ -47,9 +47,12 @@ import Control.Monad(when, unless, forM_, replicateM_)
 import Control.Monad.Tools(unlessM)
 import Data.Maybe(isJust, isNothing)
 
+import Control.Concurrent.Chan(writeChan)
+
 --------------------------------------------------------------------------------
 
 moveTurtle :: Field -> Character -> Layer -> TurtleState -> TurtleState -> IO ()
+moveTurtle _ _ _ _ TurtleState{finishSign = Just c} = writeChan c ()
 moveTurtle _ _ _ _ TurtleState{sleep = Just t} = threadDelay $ 1000 * t
 moveTurtle f _ _ _ TurtleState{flush = True} = flushField f True $ return ()
 moveTurtle f c l t0 t1 = do
@@ -85,7 +88,7 @@ drawSVG f l (Line p0 p1 clr lw) = drawLine f l lw clr p0 p1
 drawSVG f l (Rect pos w h 0 fc _) = fillRectangle f l pos w h fc
 drawSVG f l (Polyline ps fc _ 0) = fillPolygon f l ps fc
 drawSVG f l (Fill clr) = fieldColor f l clr
-drawSVG f l (Text pos sz clr fnt str) = writeString f l fnt sz clr pos str
+drawSVG f l (Text pos sz clr (Font fnt _) str) = writeString f l fnt sz clr pos str
 drawSVG f l (Image pos w h fp) = drawImage f l fp pos w h
 drawSVG _ _ _ = error "not implemented"
 

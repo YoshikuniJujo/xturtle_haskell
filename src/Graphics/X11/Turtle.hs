@@ -35,6 +35,7 @@ module Graphics.X11.Turtle(
 	runInputs,
 	getSVG,
 	field,
+	waitTurtle,
 
 	-- ** move turtle
 	forward,
@@ -107,7 +108,8 @@ import Graphics.X11.Turtle.Move(
 import Text.XML.YJSVG(SVG(..), Position(..), Color(..))
 import qualified Text.XML.YJSVG as S(center, topleft)
 
-import Control.Concurrent(killThread, newChan, writeChan, getChanContents)
+import Control.Concurrent(
+	killThread, newChan, writeChan, readChan, getChanContents)
 import Control.Monad(replicateM_, zipWithM_)
 import Control.Arrow((&&&))
 import Data.IORef(IORef, newIORef, readIORef)
@@ -221,6 +223,12 @@ sleep t = input t . Sleep
 
 flush :: Turtle -> IO ()
 flush = (`input` Flush)
+
+waitTurtle :: Turtle -> IO ()
+waitTurtle t = do
+	c <- newChan
+	input t $ FinishSign c
+	readChan c
 
 --------------------------------------------------------------------------------
 

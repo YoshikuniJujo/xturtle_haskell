@@ -1,7 +1,8 @@
 module Graphics.X11.Turtle.Input(TurtleInput(..), turtleSeries) where
 
 import Graphics.X11.Turtle.State(TurtleState(..), initTurtleState, makeShape)
-import Text.XML.YJSVG(SVG(..), Color(..), Position(..))
+import Text.XML.YJSVG(SVG(..), Color(..), Position(..), Font(..), FontWeight(..))
+import Control.Concurrent.Chan (Chan)
 
 --------------------------------------------------------------------------------
 
@@ -34,7 +35,7 @@ data TurtleInput
 	| PositionStep (Maybe Double)
 	| DirectionStep (Maybe Double)
 	| Degrees Double
-	deriving (Show, Read)
+	| FinishSign (Chan ())
 
 turtleSeries :: [TurtleInput] -> [TurtleState]
 turtleSeries tis = let ts0 = initTurtleState in ts0 : ts0 : turtles [] ts0 tis
@@ -65,7 +66,7 @@ turtles _ _ [] = error "no more input"
 
 reset :: TurtleState -> TurtleState
 reset t = t{draw = Nothing, clear = False, undo = False, silentundo = Nothing,
-	undonum = 1, sleep = Nothing, flush = False}
+	undonum = 1, sleep = Nothing, flush = False, finishSign = Nothing}
 
 set :: TurtleState -> Maybe SVG -> TurtleState
 set t drw = t{draw = drw, drawed = maybe id (:) drw $ drawed t}
@@ -82,7 +83,7 @@ nextTurtle t@TurtleState{pencolor = clr} (Dot sz) = reset t `set`
 nextTurtle t@TurtleState{pencolor = clr} Stamp = reset t `set`
 	Just (Polyline (makeShape t (direction t) (position t)) clr clr 0)
 nextTurtle t@TurtleState{pencolor = clr} (Write fnt sz str) = reset t `set`
-	Just (Text (position t) sz clr fnt str)
+	Just (Text (position t) sz clr (Font fnt Normal) str)
 nextTurtle t (PutImage fp w h) = reset t `set` Just (Image (position t) w h fp)
 nextTurtle t (Undonum un) = (reset t){undonum = un}
 nextTurtle t Clear = (reset t){clear = True, drawed = [last $ drawed t]}
@@ -105,4 +106,5 @@ nextTurtle t (SetFlush ss) = (reset t){stepbystep = ss}
 nextTurtle t (PositionStep ps) = (reset t){positionStep = ps}
 nextTurtle t (DirectionStep ds) = (reset t){directionStep = ds}
 nextTurtle t (Degrees ds) = (reset t){degrees = ds}
+nextTurtle t (FinishSign c) = (reset t){finishSign = Just c}
 nextTurtle _ _ = error "not defined"
